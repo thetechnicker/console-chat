@@ -10,7 +10,6 @@ services:
   #    - "5432:5432"
   #  volumes:
   #    - postgres_data:/var/lib/postgresql/data
-
   valkey:
     image: valkey/valkey:latest
     container_name: valkey
@@ -20,11 +19,22 @@ services:
       #- "6379:6379"
     volumes:
       - valkey_data:/data
-  tuichat:
-    image: tuichat
-
+    #networks:
+      #- valkeynet
+  #tuichat:
+  #  # image: tuichat
+  #  build:
+  #    context: .
+  #    dockerfile: Dockerfile
+  #  networks:
+  #    - valkeynet
+  #  ports:
+  #    - "8000:8000"
 volumes:
   #postgres_data:
   #  driver: local
   valkey_data:
     driver: local
+networks:
+  valkeynet:
+    driver: bridge
