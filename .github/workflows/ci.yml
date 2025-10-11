@@ -15,6 +15,9 @@ concurrency:
   cancel-in-progress: true
 jobs:
   fmt:
+    defaults:
+      run:
+        working-directory: tui-chat
     name: fmt
     runs-on: ubuntu-latest
     steps:
@@ -24,13 +27,14 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - name: cd
-        run: cd tui-chat/
       - name: check formatting
         run: cargo fmt -- --check
       - name: Cache Cargo dependencies
         uses: Swatinem/rust-cache@v2
   clippy:
+    defaults:
+      run:
+        working-directory: tui-chat
     name: clippy
     runs-on: ubuntu-latest
     permissions:
@@ -43,13 +47,14 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - name: cd
-        run: cd tui-chat/
       - name: Run clippy action
         uses: clechasseur/rs-clippy-check@v5
       - name: Cache Cargo dependencies
         uses: Swatinem/rust-cache@v2
   doc:
+    defaults:
+      run:
+        working-directory: tui-chat
     # run docs generation on nightly rather than stable. This enables features like
     # https://doc.rust-lang.org/beta/unstable-book/language-features/doc-cfg.html which allows an
     # API be documented as only available in some specific platforms.
@@ -59,13 +64,14 @@ jobs:
       - uses: actions/checkout@v5
       - name: Install Rust nightly
         uses: dtolnay/rust-toolchain@nightly
-      - name: cd
-        run: cd tui-chat/
       - name: Run cargo doc
         run: cargo doc --no-deps --all-features
         env:
           RUSTDOCFLAGS: --cfg docsrs
   test:
+    defaults:
+      run:
+        working-directory: tui-chat
     runs-on: ${{ matrix.os }}
     name: test ${{ matrix.os }}
     strategy:
@@ -82,8 +88,6 @@ jobs:
       - uses: actions/checkout@v5
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-      - name: cd
-        run: cd tui-chat/
       # enable this ci template to run regardless of whether the lockfile is checked in or not
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
@@ -109,7 +113,7 @@ jobs:
           pip install -r ./api/requirements.txt
       - name: Run Black check
         run: black --check ./api
-      - name: Run Pylint (docstring only)
-        run: pylint --disable=all --enable=missing-docstring ./api
       - name: Run Pyright strict
         run: pyright --strict ./api
+      - name: Run Pylint (docstring only)
+        run: pylint --disable=all --enable=missing-docstring ./api
