@@ -32,9 +32,9 @@ jobs:
       - name: Cache Cargo dependencies
         uses: Swatinem/rust-cache@v2
   clippy:
-    defaults:
-      run:
-        working-directory: tui-chat
+    #defaults:
+    #  run:
+    #    working-directory: tui-chat
     name: clippy
     runs-on: ubuntu-latest
     permissions:
@@ -49,8 +49,10 @@ jobs:
           components: clippy
       - name: Run clippy action
         uses: clechasseur/rs-clippy-check@v5
+        working-directory: tui-chat
       - name: Cache Cargo dependencies
         uses: Swatinem/rust-cache@v2
+        working-directory: tui-chat
   doc:
     defaults:
       run:
