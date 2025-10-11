@@ -24,9 +24,10 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
+      - name: cd
+        run: cd tui-chat/
       - name: check formatting
         run: cargo fmt -- --check
-        working-directory: ./tui-api
       - name: Cache Cargo dependencies
         uses: Swatinem/rust-cache@v2
   clippy:
@@ -42,9 +43,10 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+      - name: cd
+        run: cd tui-chat/
       - name: Run clippy action
         uses: clechasseur/rs-clippy-check@v5
-        working-directory: ./tui-api
       - name: Cache Cargo dependencies
         uses: Swatinem/rust-cache@v2
   doc:
@@ -57,9 +59,10 @@ jobs:
       - uses: actions/checkout@v5
       - name: Install Rust nightly
         uses: dtolnay/rust-toolchain@nightly
+      - name: cd
+        run: cd tui-chat/
       - name: Run cargo doc
         run: cargo doc --no-deps --all-features
-        working-directory: ./tui-api
         env:
           RUSTDOCFLAGS: --cfg docsrs
   test:
@@ -79,17 +82,16 @@ jobs:
       - uses: actions/checkout@v5
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+      - name: cd
+        run: cd tui-chat/
       # enable this ci template to run regardless of whether the lockfile is checked in or not
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
-        working-directory: ./tui-api
       - name: cargo test --locked
         run: cargo test --locked --all-features --all-targets
-        working-directory: ./tui-api
       - name: Cache Cargo dependencies
         uses: Swatinem/rust-cache@v2
-        working-directory: ./tui-api
   python-lint:
     name: Python Lint and Format
     runs-on: ubuntu-latest
