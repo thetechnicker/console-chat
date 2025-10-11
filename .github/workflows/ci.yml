@@ -47,10 +47,12 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - name: Run clippy action
-        uses: clechasseur/rs-clippy-check@v5
-      - name: Cache Cargo dependencies
-        uses: Swatinem/rust-cache@v2
+      #- name: Run clippy action
+      #  uses: clechasseur/rs-clippy-check@v5
+      #- name: Cache Cargo dependencies
+      #  uses: Swatinem/rust-cache@v2
+      - name: cache clippy
+        run: cargo clippy --message-format=json
   doc:
     defaults:
       run:
