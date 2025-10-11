@@ -4,7 +4,8 @@ import json
 import time
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import FastAPI, HTTPException, Header, Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from uuid import uuid4
@@ -12,6 +13,7 @@ import asyncio
 import valkey.asyncio as valkey
 from pydantic import BaseModel
 from datetime import datetime
+
 
 TTL = 3600
 
@@ -36,6 +38,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+auth = HTTPBearer()
 
 origins = [
     "http://localhost",
@@ -85,9 +89,12 @@ async def get_status(token: str | None = None) -> UserStatus:
 STOPWORD = "STOP"
 
 
-async def get_message(room: str, token: str = "test"):
+async def get_message(room: str, token: str | None = None):
     async with v.pubsub() as pubsub:
-        await pubsub.subscribe(room, token)
+        await pubsub.subscribe(room)
+        if token:
+            yield token
+            await pubsub.subscribe(token)
         message: dict[str, Any] | None = None
         while running:
             try:
@@ -103,17 +110,23 @@ async def get_message(room: str, token: str = "test"):
 
 
 @app.get("/api/r/{room}")
-async def get(room: str):
-    return StreamingResponse(get_message(room), media_type="application/json")
+async def get(
+    authorization: Annotated[HTTPAuthorizationCredentials, Depends(auth)], room: str
+):
+    return StreamingResponse(
+        get_message(room, authorization.credentials), media_type="application/json"
+    )
 
 
 @app.post("/api/r/{room}")
-async def send(room: str, message: Message):
+async def send(
+    authorization: Annotated[str, Depends(auth)], room: str, message: Message
+):
     await v.publish(room, message.model_dump_json())
     return {"message": "send successful"}
 
 
 @app.post("/api/exit/{room}")
-async def exit(room: str):
+async def exit(authorization: Annotated[str, Depends(auth)], room: str):
     await v.publish(room, STOPWORD)
     return {"message": "send successful"}
