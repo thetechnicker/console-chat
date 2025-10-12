@@ -1,6 +1,7 @@
-import httpx
 import asyncio
 import time
+
+import httpx
 
 TOKEN_REFRESH_MARGIN = 10  # seconds before expiry to refresh token
 

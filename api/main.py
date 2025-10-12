@@ -1,19 +1,18 @@
-from typing import Annotated, Any
-import signal
+import asyncio
 import json
+import signal
 import time
-import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Header, Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.responses import StreamingResponse
-from fastapi.middleware.cors import CORSMiddleware
-from uuid import uuid4
-import asyncio
-import valkey.asyncio as valkey
-from pydantic import BaseModel
 from datetime import datetime
+from typing import Annotated, Any
+from uuid import uuid4
 
+import valkey.asyncio as valkey
+from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import BaseModel
 
 TTL = 3600
 
