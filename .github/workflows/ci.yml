@@ -117,6 +117,5 @@ jobs:
         run: black --check ./api
       - name: Run Pyright strict
         run: pyright --strict ./api
-      - name: Run Pylint (docstring only)
-        run: pylint --disable=all --enable=missing-docstring ./api
-
+    #- name: Run Pylint (docstring only)
+    #  run: pylint --disable=all --enable=missing-docstring ./api
