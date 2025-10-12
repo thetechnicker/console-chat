@@ -1,8 +1,8 @@
 {
-    "typeCheckingMode": "strict",
-    // "reportMissingTypeArgument": "none",
-    "reportUnknownArgumentType": "none",
-    "reportUnknownParameterType": "none",
-    "reportUnknownVariableType": "none",
-    "reportUnknownMemberType": "none"
+  "diagnosticMode": "workspace",
+  "typeCheckingMode": "strict",
+  "reportUnknownArgumentType": "none",
+  "reportUnknownParameterType": "none",
+  "reportUnknownVariableType": "none",
+  "reportUnknownMemberType": "none"
 }

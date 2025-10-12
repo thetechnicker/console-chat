@@ -2,3 +2,5 @@ fastapi
 uvicorn
 valkey
 pydantic
+pwlib
+jwt
