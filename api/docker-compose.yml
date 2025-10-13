@@ -1,15 +1,17 @@
+# This file currently is for development
+# it will get updated once the chat api works good enougth
 services:
-  #postgres:
-  #  image: postgres:latest
-  #  container_name: postgres
-  #  restart: always
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    restart: always
   #  env_file:
   #    - .env
-  #  ports:
-  #    #- "127.0.0.1:5432:5432"
-  #    - "5432:5432"
-  #  volumes:
-  #    - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+      #- "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
   valkey:
     image: valkey/valkey:latest
     container_name: valkey
@@ -31,8 +33,8 @@ services:
   #  ports:
   #    - "8000:8000"
 volumes:
-  #postgres_data:
-  #  driver: local
+  postgres_data:
+    driver: local
   valkey_data:
     driver: local
 networks:

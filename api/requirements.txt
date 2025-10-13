@@ -4,3 +4,4 @@ valkey
 pydantic
 pwdlib
 pyjwt
+python-dotenv
