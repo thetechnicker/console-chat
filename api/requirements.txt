@@ -3,4 +3,4 @@ uvicorn
 valkey
 pydantic
 pwdlib
-jwt
+pyjwt
