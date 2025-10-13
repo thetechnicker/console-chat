@@ -31,7 +31,13 @@ class MessageType(Enum):
     SYSTEM = auto()
 
 
-class Message(BaseModel):
+class ClientMessage(BaseModel):
+    type: MessageType
+    text: str
+    data: Optional[dict[str, Any]] = None
+
+
+class ServerMessage(BaseModel):
     type: MessageType
     text: str
     data: Optional[dict[str, Any]] = None

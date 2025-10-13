@@ -2,19 +2,18 @@ import asyncio
 import hashlib
 import os
 from datetime import datetime, timedelta, timezone
-from enum import Enum
 from typing import Any, Optional
 from uuid import uuid4
 
 import jwt
 import valkey.asyncio as valkey
+from datamodel import ClientMessage, MessageType, ServerMessage, UserConfig, UserStatus
 from dotenv import load_dotenv
 from fastapi import Body, Depends, FastAPI, HTTPException, Query, Security, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt import PyJWTError
-from pydantic import BaseModel
 
 load_dotenv()
 
@@ -27,8 +26,6 @@ bearer_scheme = HTTPBearer(auto_error=False)  # Optional auth
 
 v = valkey.Valkey(host="localhost", port=6379, protocol=3)
 TOKEN_PREFIX = "session_token:"
-
-STOPWORD = "STOP"
 
 app = FastAPI()
 
@@ -47,37 +44,15 @@ app.add_middleware(
 )
 
 
-# User and message models
-class DisplayUser(BaseModel):
-    username: str
-    display_name: str
-
-
-class BaseMessage(BaseModel):
-    message: str
-    timestamp: datetime
-
-
-class MessageType(Enum):
-    TEXT = "text"
-    JOIN = "join"
-    LEAVE = "leave"
-
-
-class Message(BaseMessage):
-    type: MessageType
-    user: DisplayUser
-
-
-class UserStatus(BaseModel):
-    token: str
-    ttl: int
-    is_new: bool
+# User Status Model
+# class DisplayUser(UserConfig):  # Extend UserConfig
+#    username: str
 
 
 def hash_password(password: str) -> str:
-    # TODO: Replace with stronger hash (bcrypt or passlib recommended)
-    return hashlib.sha256(password.encode()).hexdigest()
+    return hashlib.sha256(
+        password.encode()
+    ).hexdigest()  # Simple hash, consider stronger methods
 
 
 def create_access_token(
@@ -92,10 +67,9 @@ def create_access_token(
 
 async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Security(bearer_scheme),
-) -> DisplayUser:
+) -> UserConfig:
     if credentials is None:
-        # No token means anonymous user
-        return DisplayUser(username="anonymous", display_name="anonymous")
+        return UserConfig(display_name="anonymous")
     token = credentials.credentials
     try:
         payload: dict[Any, Any] = jwt.decode(  # type: ignore
@@ -107,7 +81,7 @@ async def get_current_user(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token: no user",
             )
-        return DisplayUser.model_validate(payload)
+        return UserConfig.model_validate(payload)  # Use the new display user model
     except PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token"
@@ -124,19 +98,18 @@ async def login(
     username: Optional[str] = Body(None),
     password: Optional[str] = Body(None),
 ):
-    # This is a placeholder login that creates a token without validation
     token = create_access_token(
         {
             "username": username or str(uuid4()),
-            "display_name": "Test",
+            "display_name": "Test",  # Temporary display name
             "password_hash": None,
         }
     )
     return UserStatus(token=token, ttl=TTL, is_new=True)
 
 
-@app.get("/status", response_model=DisplayUser)
-async def get_status(user: DisplayUser = Depends(get_current_user)):
+@app.get("/status", response_model=UserConfig)
+async def get_status(user: UserConfig = Depends(get_current_user)):
     return user
 
 
@@ -144,15 +117,15 @@ async def get_status(user: DisplayUser = Depends(get_current_user)):
 async def get(
     room: str,
     listen_seconds: int = Query(30, description="How long to listen in seconds"),
-    user: DisplayUser = Depends(get_current_user),
+    user: UserConfig = Depends(get_current_user),
 ):
     await v.publish(  # type:ignore
         room,
-        Message(
-            message=f"User: {user.display_name} Joined",
+        ServerMessage(
             type=MessageType.JOIN,
-            timestamp=datetime.now(timezone.utc),
-            user=user,
+            text=f"User: {user.display_name} Joined",
+            # timestamp=datetime.now(timezone.utc),
+            user=user,  # Assign new user model
         ).model_dump_json(),
     )
     return StreamingResponse(
@@ -164,36 +137,24 @@ async def get(
 @app.post("/room/{room}")
 async def send(
     room: str,
-    message: BaseMessage,
-    user: DisplayUser = Depends(get_current_user),
+    message: ClientMessage,  # Use the new Message model
+    user: UserConfig = Depends(get_current_user),
 ):
-    msg = Message(
+    msg = ServerMessage(
         user=user,
-        message=message.message,
-        timestamp=message.timestamp,
+        text=message.text,
+        # timestamp=datetime.now(timezone.utc),
         type=MessageType.TEXT,
     )
-    await v.publish(room, msg.model_dump_json())  # type:ignore
-    return {"message": f"send successful by user {user.username}"}
+    await v.publish(  # type:ignore
+        room, msg.model_dump_json()
+    )  # Use model_dump_json for serialization
+    return {"message": f"send successful by user {user.display_name}"}
 
 
-# @app.post("/api/exit/{room}")
-# async def exit(room: str, user: DisplayUser = Depends(get_current_user)):
-#    if user.username == "anonymous":
-#        return {"message": "anonymous user exit does not affect subscriptions"}
-#    user_channel = f"user_exit:{user.username}"
-#    await v.publish(user_channel, STOPWORD)  # type:ignore
-#    return {"message": f"exit successful for user {user.username}"}
-
-
-async def get_message(room: str, timeout: int):  # , user: Optional[DisplayUser]):
+async def get_message(room: str, timeout: int):
     async with v.pubsub() as pubsub:
         await pubsub.subscribe(room)  # type:ignore
-        # if user:
-        #    await pubsub.subscribe(user.username)  # type:ignore
-        # if user and user.username != "anonymous":
-        #    user_exit_channel = f"user_exit:{user.username}"
-        #    await pubsub.subscribe(user_exit_channel)  # type:ignore
 
         end_time = asyncio.get_event_loop().time() + timeout
 
@@ -212,6 +173,14 @@ async def get_message(room: str, timeout: int):  # , user: Optional[DisplayUser]
                 data: str | bytes = message["data"]  # type:ignore
                 if isinstance(data, bytes):
                     data = data.decode()
-                # if data == STOPWORD:
-                #    break
-                yield data.encode()  # if isinstance(data, str) else data
+                yield data.encode()  # Yield messages as bytes
+
+
+# Uncomment for the exit functionality, if you decide to implement user exit handling
+# @app.post("/api/exit/{room}")
+# async def exit(room: str, user: DisplayUser = Depends(get_current_user)):
+#     if user.username == "anonymous":
+#         return {"message": "anonymous user exit does not affect subscriptions"}
+#     user_channel = f"user_exit:{user.username}"
+#     await v.publish(user_channel, STOPWORD)  # type:ignore
+#     return {"message": f"exit successful for user {user.username}"}
