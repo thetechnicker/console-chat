@@ -6,22 +6,22 @@ from typing_extensions import Self
 
 
 class UserConfig(BaseModel):
-    private: bool
     display_name: str
-
-
-class UserStatus(BaseModel):
-    token: str
-    ttl: int
-    is_new: bool
 
 
 class User(BaseModel):
     # login
     username: str
     password_hash: str
+    private: bool
 
     config: UserConfig
+
+
+class UserStatus(BaseModel):
+    token: str
+    ttl: int
+    is_new: bool
 
 
 class MessageType(Enum):
