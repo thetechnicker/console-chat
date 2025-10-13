@@ -1,57 +1,35 @@
 import asyncio
 import hashlib
 import os
-import signal
-from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 from uuid import uuid4
 
 import jwt
-import valkey.asyncio as valkey  # Assuming Valkey client works like this
+import valkey.asyncio as valkey
 from dotenv import load_dotenv
-from fastapi import Query  # Header,
-from fastapi import Body, Depends, FastAPI, HTTPException, Security, status
+from fastapi import Body, Depends, FastAPI, HTTPException, Query, Security, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt import PyJWTError
 from pydantic import BaseModel
 
-# import json
-# from uuid import uuid4
 load_dotenv()
 
 TTL = 3600  # seconds
-
 ALGORITHM = "HS256"
-SECRET_KEY = os.getenv("SECRET")  # Change this to a secure random key
+SECRET_KEY = os.getenv("SECRET")  # Secure random key recommended
 
-
-auth = HTTPBearer()  # For enforcing authentication
-bearer_scheme = HTTPBearer(auto_error=False)  # For optional auth
+auth = HTTPBearer()  # Enforce auth
+bearer_scheme = HTTPBearer(auto_error=False)  # Optional auth
 
 v = valkey.Valkey(host="localhost", port=6379, protocol=3)
 TOKEN_PREFIX = "session_token:"
 
-running = True
-
 STOPWORD = "STOP"
 
-
-def stop_server(*args: Any):
-    global running
-    running = False
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    signal.signal(signal.SIGINT, stop_server)
-    yield
-    await v.publish("*", STOPWORD)  # type: ignore
-
-
-app = FastAPI(lifespan=lifespan)
+app = FastAPI()
 
 origins = [
     "http://localhost",
@@ -68,6 +46,7 @@ app.add_middleware(
 )
 
 
+# User and message models
 class DisplayUser(BaseModel):
     username: str
     display_name: str
@@ -82,10 +61,6 @@ class Message(ClientMessage):
     user: DisplayUser
 
 
-class User(DisplayUser):
-    password_hash: Optional[str]
-
-
 class UserStatus(BaseModel):
     token: str
     ttl: int
@@ -93,31 +68,33 @@ class UserStatus(BaseModel):
 
 
 def hash_password(password: str) -> str:
-    # You can use a stronger hash here like bcrypt or passlib
+    # TODO: Replace with stronger hash (bcrypt or passlib recommended)
     return hashlib.sha256(password.encode()).hexdigest()
 
 
-def create_access_token(data: dict[Any, Any], expires_delta: Optional[int] = None):
+def create_access_token(
+    data: dict[Any, Any], expires_delta: Optional[int] = None
+) -> str:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(seconds=expires_delta or TTL)
     to_encode.update({"exp": expire})
-    # TODO: Update typehints to remove ignore comment
     token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)  # type:ignore
-    # print(type(token))
     return token
 
 
 async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Security(bearer_scheme),
-):
+) -> DisplayUser:
     if credentials is None:
-        # No token: treat as anonymous user
-        return DisplayUser(username="anonym", display_name="anonym")
+        # No token means anonymous user
+        return DisplayUser(username="anonymous", display_name="anonymous")
     token = credentials.credentials
     try:
-        # TODO: Update typehints to remove ignore comment
-        payload: dict[str, Any] = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])  # type: ignore
-        if payload.get("username") is None:
+        payload: dict[Any, Any] = jwt.decode(  # type: ignore
+            token, SECRET_KEY, algorithms=[ALGORITHM]
+        )  # type:ignore
+        username = payload.get("username")
+        if username is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token: no user",
@@ -139,6 +116,7 @@ async def login(
     username: Optional[str] = Body(None),
     password: Optional[str] = Body(None),
 ):
+    # This is a placeholder login that creates a token without validation
     token = create_access_token(
         {
             "username": username or str(uuid4()),
@@ -150,7 +128,7 @@ async def login(
 
 
 @app.get("/status", response_model=DisplayUser)
-async def get_status(user: str = Depends(get_current_user)):
+async def get_status(user: DisplayUser = Depends(get_current_user)):
     return user
 
 
@@ -172,47 +150,46 @@ async def send(
     message: ClientMessage,
     user: DisplayUser = Depends(get_current_user),
 ):
-    # Add user info to the message; optionally override message.user by user identity
     msg = Message(user=user, message=message.message, timestamp=message.timestamp)
-    await v.publish(room, msg.model_dump_json())  # type: ignore
-    return {"message": f"send successful by user {user}"}
+    await v.publish(room, msg.model_dump_json())  # type:ignore
+    return {"message": f"send successful by user {user.username}"}
 
 
 @app.post("/api/exit/{room}")
 async def exit(room: str, user: DisplayUser = Depends(get_current_user)):
-    # Publish stopword to user-specific channel to only stop this user's listener
     if user.username == "anonymous":
-        # Anonymous user may not have a stable unique identifier; optionally handle this case
         return {"message": "anonymous user exit does not affect subscriptions"}
     user_channel = f"user_exit:{user.username}"
-    await v.publish(user_channel, STOPWORD)  # type: ignore
+    await v.publish(user_channel, STOPWORD)  # type:ignore
     return {"message": f"exit successful for user {user.username}"}
 
 
 async def get_message(room: str, user: Optional[DisplayUser], timeout: int):
     async with v.pubsub() as pubsub:
-        await pubsub.subscribe(room)  # type: ignore
+        await pubsub.subscribe(room)  # type:ignore
         if user:
-            await pubsub.subscribe(user.username)  # type: ignore
+            await pubsub.subscribe(user.username)  # type:ignore
         if user and user.username != "anonymous":
-            # Subscribe to user specific exit channel
             user_exit_channel = f"user_exit:{user.username}"
-            await pubsub.subscribe(user_exit_channel)  # type: ignore
-        message: dict[str, Any] | None = None
+            await pubsub.subscribe(user_exit_channel)  # type:ignore
+
         end_time = asyncio.get_event_loop().time() + timeout
-        while running:
+
+        while True:
             remaining = end_time - asyncio.get_event_loop().time()
             if remaining <= 0:
-                yield "END"
+                yield b'{"event":"timeout"}'
                 break
             try:
-                message = await pubsub.get_message(  # type: ignore
-                    ignore_subscribe_messages=True, timeout=None
+                message = await pubsub.get_message(  # type:ignore
+                    ignore_subscribe_messages=True, timeout=remaining
                 )
             except Exception:
-                pass
+                continue
             if message is not None:
-                data = message["data"].decode()
+                data: str | bytes = message["data"]  # type:ignore
+                if isinstance(data, bytes):
+                    data = data.decode()
                 if data == STOPWORD:
                     break
-                yield message["data"]
+                yield data.encode()  # if isinstance(data, str) else data
