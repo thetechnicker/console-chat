@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import os
 from datetime import datetime, timedelta, timezone
+from enum import Enum
 from typing import Any, Optional
 from uuid import uuid4
 
@@ -52,12 +53,19 @@ class DisplayUser(BaseModel):
     display_name: str
 
 
-class ClientMessage(BaseModel):
+class BaseMessage(BaseModel):
     message: str
     timestamp: datetime
 
 
-class Message(ClientMessage):
+class MessageType(Enum):
+    TEXT = "text"
+    JOIN = "join"
+    LEAVE = "leave"
+
+
+class Message(BaseMessage):
+    type: MessageType
     user: DisplayUser
 
 
@@ -138,8 +146,17 @@ async def get(
     listen_seconds: int = Query(30, description="How long to listen in seconds"),
     user: DisplayUser = Depends(get_current_user),
 ):
+    await v.publish(  # type:ignore
+        room,
+        Message(
+            message=f"User: {user.display_name} Joined",
+            type=MessageType.JOIN,
+            timestamp=datetime.now(timezone.utc),
+            user=user,
+        ).model_dump_json(),
+    )
     return StreamingResponse(
-        get_message(room, user, timeout=listen_seconds),
+        get_message(room, timeout=listen_seconds),
         media_type="application/json",
     )
 
@@ -147,31 +164,36 @@ async def get(
 @app.post("/room/{room}")
 async def send(
     room: str,
-    message: ClientMessage,
+    message: BaseMessage,
     user: DisplayUser = Depends(get_current_user),
 ):
-    msg = Message(user=user, message=message.message, timestamp=message.timestamp)
+    msg = Message(
+        user=user,
+        message=message.message,
+        timestamp=message.timestamp,
+        type=MessageType.TEXT,
+    )
     await v.publish(room, msg.model_dump_json())  # type:ignore
     return {"message": f"send successful by user {user.username}"}
 
 
-@app.post("/api/exit/{room}")
-async def exit(room: str, user: DisplayUser = Depends(get_current_user)):
-    if user.username == "anonymous":
-        return {"message": "anonymous user exit does not affect subscriptions"}
-    user_channel = f"user_exit:{user.username}"
-    await v.publish(user_channel, STOPWORD)  # type:ignore
-    return {"message": f"exit successful for user {user.username}"}
+# @app.post("/api/exit/{room}")
+# async def exit(room: str, user: DisplayUser = Depends(get_current_user)):
+#    if user.username == "anonymous":
+#        return {"message": "anonymous user exit does not affect subscriptions"}
+#    user_channel = f"user_exit:{user.username}"
+#    await v.publish(user_channel, STOPWORD)  # type:ignore
+#    return {"message": f"exit successful for user {user.username}"}
 
 
-async def get_message(room: str, user: Optional[DisplayUser], timeout: int):
+async def get_message(room: str, timeout: int):  # , user: Optional[DisplayUser]):
     async with v.pubsub() as pubsub:
         await pubsub.subscribe(room)  # type:ignore
-        if user:
-            await pubsub.subscribe(user.username)  # type:ignore
-        if user and user.username != "anonymous":
-            user_exit_channel = f"user_exit:{user.username}"
-            await pubsub.subscribe(user_exit_channel)  # type:ignore
+        # if user:
+        #    await pubsub.subscribe(user.username)  # type:ignore
+        # if user and user.username != "anonymous":
+        #    user_exit_channel = f"user_exit:{user.username}"
+        #    await pubsub.subscribe(user_exit_channel)  # type:ignore
 
         end_time = asyncio.get_event_loop().time() + timeout
 
@@ -190,6 +212,6 @@ async def get_message(room: str, user: Optional[DisplayUser], timeout: int):
                 data: str | bytes = message["data"]  # type:ignore
                 if isinstance(data, bytes):
                     data = data.decode()
-                if data == STOPWORD:
-                    break
+                # if data == STOPWORD:
+                #    break
                 yield data.encode()  # if isinstance(data, str) else data
