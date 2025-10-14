@@ -7,13 +7,20 @@ from uuid import uuid4
 
 import jwt
 import valkey.asyncio as valkey
-from datamodel import ClientMessage, MessageType, ServerMessage, UserConfig, UserStatus
 from dotenv import load_dotenv
 from fastapi import Body, Depends, FastAPI, HTTPException, Query, Security, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt import PyJWTError
+
+from app.datamodel import (
+    ClientMessage,
+    MessageType,
+    ServerMessage,
+    UserConfig,
+    UserStatus,
+)
 
 load_dotenv()
 
@@ -24,7 +31,7 @@ SECRET_KEY = os.getenv("SECRET")  # Secure random key recommended
 auth = HTTPBearer()  # Enforce auth
 bearer_scheme = HTTPBearer(auto_error=False)  # Optional auth
 
-v = valkey.Valkey(host="localhost", port=6379, protocol=3)
+v = valkey.Valkey(host="valkey", port=6379, protocol=3)
 TOKEN_PREFIX = "session_token:"
 
 app = FastAPI()
@@ -108,8 +115,21 @@ async def login(
     return UserStatus(token=token, ttl=TTL, is_new=True)
 
 
-@app.get("/status", response_model=UserConfig)
-async def get_status(user: UserConfig = Depends(get_current_user)):
+@app.get("/valkey/status", response_class=JSONResponse)
+async def get_valkey_status():
+    try:
+        settings = v.get_connection_kwargs()  # type:ignore
+        # print(settings)
+        pong = await v.ping()  # type: ignore
+        # print(pong)
+    except Exception as _e:
+        # Log the error e if desired
+        raise HTTPException(status_code=503, detail="Service Unavailable")
+    return {"status": "OK"}
+
+
+@app.get("/user/status", response_model=UserConfig)
+async def get_user_status(user: UserConfig = Depends(get_current_user)):
     return user
 
 
