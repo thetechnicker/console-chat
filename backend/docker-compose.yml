@@ -4,7 +4,7 @@ services:
   postgres:
     image: postgres:latest
     container_name: postgres
-    restart: always
+    #restart: always
     environment:
       POSTGRES_USER: DEBUG
       POSTGRES_PASSWORD: DEBUG
@@ -19,7 +19,7 @@ services:
   valkey:
     image: valkey/valkey:latest
     container_name: valkey
-    restart: always
+    #restart: always
     ports:
       #- "127.0.0.1:6379:6379"
       - "6379:6379"

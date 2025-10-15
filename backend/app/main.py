@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from fastapi import Body, Depends, FastAPI, HTTPException, Query, Security, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from jwt import PyJWTError
 from psycopg2 import pool
 from pydantic import ValidationError
@@ -36,6 +36,7 @@ SECRET_KEY = os.getenv("SECRET")  # Secure random key recommended
 
 auth = HTTPBearer()  # Enforce auth
 bearer_scheme = HTTPBearer(auto_error=False)  # Optional auth
+api_key = APIKeyHeader(name="X-Api-Key")
 
 # v = valkey.Valkey(host="valkey", port=6379, protocol=3)
 v_pool = valkey.ConnectionPool(host="valkey", port=6379, protocol=3)
@@ -71,12 +72,18 @@ Context = NamedTuple(
     "Context", [("v", valkey.Valkey), ("p", psycopg2.extensions.connection)]
 )
 
+# v = lambda: valkey.Valkey.from_pool(v_pool)
+# p = lambda: cast(psycopg2.extensions.connection, postgreSQL_pool.getconn())
 
-def get_context():
-    return Context(
+
+async def get_context():
+    context = Context(
         valkey.Valkey.from_pool(v_pool),
         cast(psycopg2.extensions.connection, postgreSQL_pool.getconn()),
     )
+    yield context
+    postgreSQL_pool.putconn(context.p)
+    await context.v.aclose()
 
 
 def hash_password(password: str) -> str:
@@ -105,6 +112,7 @@ async def get_current_user(
         payload: dict[Any, Any] = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         # print(payload)
         user = User.model_validate(payload)
+
         # TODO: User validation
 
         #    raise HTTPException(
@@ -119,8 +127,15 @@ async def get_current_user(
         )
 
 
+def validate_api_key(key: str = Depends(api_key)):
+    dest_key = os.environ.get("DEV_API_KEY", "test")
+    if dest_key and dest_key == key:
+        return
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+
+
 @app.get("/")
-async def root():
+async def root(_: None = Depends(validate_api_key)):
     return {"message": "Hello World"}
 
 
@@ -129,6 +144,7 @@ async def login(
     username: Optional[str] = Body(None),
     password: Optional[str] = Body(None),
 ):
+    is_new = True
     if username:
         user = User(
             username=username,
@@ -136,6 +152,7 @@ async def login(
             private=True,
             config=UserConfig(display_name=username),
         )
+        is_new = False
     else:
         user = User(
             username=str(uuid4()),
@@ -144,11 +161,14 @@ async def login(
             config=UserConfig(display_name="anonym"),
         )
     token = create_access_token(user.model_dump())
-    return UserStatus(token=token, ttl=TTL, is_new=True)
+    return UserStatus(token=token, ttl=TTL, is_new=is_new)
 
 
 @app.get("/valkey/status", response_class=JSONResponse)
-async def get_valkey_status(context: Context = Depends(get_context)):
+async def get_valkey_status(
+    _: None = Depends(validate_api_key),
+    context: Context = Depends(get_context),
+):
     try:
         # settings = v.get_connection_kwargs()  # type:ignore
         # print(settings)
@@ -165,15 +185,14 @@ async def get_user_status(user: UserConfig = Depends(get_current_user)):
     return user
 
 
-@app.get("/room/{room}")
+@app.get("/room/{room}", response_model=ServerMessage)
 async def get(
     room: str,
     listen_seconds: int = Query(30, description="How long to listen in seconds"),
     user: UserConfig = Depends(get_current_user),
     context: Context = Depends(get_context),
 ):
-    v = context.v
-    await v.publish(
+    await context.v.publish(
         room,
         ServerMessage(
             type=MessageType.JOIN,
@@ -183,8 +202,7 @@ async def get(
         ).model_dump_json(),
     )
     return StreamingResponse(
-        get_message(room, timeout=listen_seconds),
-        media_type="application/json",
+        get_message(room, timeout=listen_seconds), media_type="application/json"
     )
 
 
@@ -195,14 +213,13 @@ async def send(
     user: UserConfig = Depends(get_current_user),
     context: Context = Depends(get_context),
 ):
-    v = context.v
     msg = ServerMessage(
         user=user,
         text=message.text,
         # timestamp=datetime.now(timezone.utc),
         type=MessageType.TEXT,
     )
-    await v.publish(
+    await context.v.publish(
         room, msg.model_dump_json()
     )  # Use model_dump_json for serialization
     return {"message": f"send successful by user {user.display_name}"}
@@ -213,8 +230,7 @@ async def get_message(
     timeout: int,
     context: Context = Depends(get_context),
 ):
-    v = context.v
-    async with v.pubsub() as pubsub:
+    async with context.v.pubsub() as pubsub:
         await pubsub.subscribe(room)
 
         end_time = asyncio.get_event_loop().time() + timeout
