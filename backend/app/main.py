@@ -3,8 +3,8 @@ import hashlib
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, NamedTuple, Optional, cast
+import warnings
 from uuid import uuid4
-
 import jwt
 import psycopg2
 import valkey.asyncio as valkey
@@ -18,21 +18,27 @@ from psycopg2 import pool
 from pydantic import ValidationError
 
 from app.datamodel import (
+    BetterUser,
+    PublicUser,
     ClientMessage,
     MessageType,
     ServerMessage,
     User,
     UserConfig,
     UserStatus,
+    create_user_db,
 )
 
 # import psycopg2.extras
 
 load_dotenv()
+create_user_db()
 
 TTL = 3600  # seconds
 ALGORITHM = "HS256"
-SECRET_KEY = os.getenv("SECRET")  # Secure random key recommended
+SECRET_KEY = os.getenv("SECRET", "secret")  # Secure random key recommended
+if SECRET_KEY == "secret":
+    warnings.warn("No secret given")
 
 auth = HTTPBearer()  # Enforce auth
 bearer_scheme = HTTPBearer(auto_error=False)  # Optional auth
@@ -145,20 +151,20 @@ async def login(
     password: Optional[str] = Body(None),
 ):
     is_new = True
-    if username:
-        user = User(
-            username=username,
-            password_hash=hash_password(password) if password else "",
-            private=True,
-            config=UserConfig(display_name=username),
+    if username and password:
+        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED)
+    elif password or username:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incomplete login parameters",
         )
-        is_new = False
     else:
-        user = User(
+        public = PublicUser(display_name="anonymos")
+        user = BetterUser(
             username=str(uuid4()),
-            password_hash="",
+            password_hash=None,
             private=True,
-            config=UserConfig(display_name="anonym"),
+            public_data=public,
         )
     token = create_access_token(user.model_dump())
     return UserStatus(token=token, ttl=TTL, is_new=is_new)
