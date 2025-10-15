@@ -5,3 +5,4 @@ pydantic
 pwdlib
 pyjwt
 python-dotenv
+psycopg2-binary

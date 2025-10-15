@@ -5,8 +5,10 @@ services:
     image: postgres:latest
     container_name: postgres
     restart: always
-    #  env_file:
-    #    - .env
+    environment:
+      POSTGRES_USER: DEBUG
+      POSTGRES_PASSWORD: DEBUG
+      POSTGRES_DB: DEBUG
     ports:
       #- "127.0.0.1:5432:5432"
       - "5432:5432"

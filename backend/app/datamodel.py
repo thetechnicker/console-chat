@@ -31,20 +31,21 @@ class MessageType(Enum):
     SYSTEM = auto()
 
 
-class ClientMessage(BaseModel):
+class BaseMessage(BaseModel):
     type: MessageType
     text: str
-    data: Optional[dict[str, Any]] = None
+    data: Optional[dict[str, Any]]
 
 
-class ServerMessage(BaseModel):
-    type: MessageType
-    text: str
-    data: Optional[dict[str, Any]] = None
+class ClientMessage(BaseMessage):
+    type = MessageType.TEXT
+
+
+class ServerMessage(BaseMessage):
     user: Optional[UserConfig] = None
 
     @model_validator(mode="after")
-    def check_passwords_match(self) -> Self:
+    def check_message_type_match(self) -> Self:
         if self.type != MessageType.SYSTEM and self.user is None:
             raise ValueError("A user must be specified for non-system messages.")
         return self
