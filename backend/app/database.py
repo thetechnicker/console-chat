@@ -23,7 +23,7 @@ def set_connection_str(host: Optional[str] = None):
 Base = declarative_base()
 
 
-class PublicUser(Base):
+class DBPublicUser(Base):
     __tablename__ = "public_user"
 
     id = Column(Integer, primary_key=True, autoincrement=True)  # unique identifier
@@ -43,7 +43,7 @@ class DBUser(Base):
     private = Column(Boolean, default=False)
 
     public_data_id = Column(Integer, ForeignKey("public_user.id"))
-    public_data = relationship("PublicUser", back_populates="better_user")
+    public_data = relationship("DBPublicUser", back_populates="better_user")
 
 
 def init_postgesql_connection():

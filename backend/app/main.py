@@ -26,7 +26,7 @@ from app.datamodel import (
     ServerMessage,
     UserStatus,
 )
-from app.database import init_postgesql_connection, DBUser
+from app.database import init_postgesql_connection, DBUser, DBPublicUser
 
 # import psycopg2
 # import psycopg2.extras
@@ -34,7 +34,7 @@ from app.database import init_postgesql_connection, DBUser
 
 load_dotenv()
 
-TTL = 3600  # seconds
+TTL = 60 * 60 * 24  # seconds
 ALGORITHM = "HS256"
 SECRET_KEY = os.getenv("SECRET", "secret")  # Secure random key recommended
 if SECRET_KEY == "secret":
@@ -101,7 +101,7 @@ def create_access_token(
 ) -> str:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(seconds=expires_delta or TTL)
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": expire, "iss": "http://localhost:8000/auth"})
     token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)  # type:ignore
     return token
 
@@ -147,22 +147,7 @@ async def root(_: None = Depends(validate_api_key)):
     return {"message": "Hello World"}
 
 
-@app.post("/register", response_model=UserStatus)
-async def register(
-    password: str = Body(),
-    user: BetterUser = Depends(get_current_user),
-    overwrite_username: Optional[str] = Body(None),
-    context: Context = Depends(get_context),
-):
-    return {
-        "password": password,
-        "user": user,
-        "overwrite_username": overwrite_username,
-        "context": context,
-    }
-
-
-@app.post("/login", response_model=UserStatus)
+@app.post("/auth", response_model=UserStatus)
 async def login(
     username: Optional[str] = Body(None),
     password: Optional[str] = Body(None),
@@ -220,9 +205,49 @@ async def get_valkey_status(
     return {"status": "OK"}
 
 
-@app.get("/user/status", response_model=BetterUser)
+@app.get("/users/status", response_model=BetterUser)
 async def get_user_status(user: BetterUser = Depends(get_current_user)):
     return user
+
+
+@app.post("/users/register")
+async def register(
+    password: str = Body(),
+    user: BetterUser = Depends(get_current_user),
+    overwrite_username: Optional[str] = Body(None),
+    context: Context = Depends(get_context),
+):
+    try:
+        # Check if already existing user
+        stmt = select(DBUser).where(DBUser.username == user.username)
+        db_user = context.p.execute(stmt).scalars().one_or_none()
+        if db_user:
+            raise HTTPException(
+                status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+                detail="You are already registered",
+            )
+        # Overwrite user name and check for availability
+        user.username = overwrite_username or user.username
+        stmt = select(DBUser).where(DBUser.username == user.username)
+        if context.p.execute(stmt).scalars().one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"User {user.username} already exists",
+            )
+
+        # Hash password
+        user.password_hash = hash_password(password)
+
+        # Create User DB entry
+        public_user = DBPublicUser(**user.public_data.model_dump())
+        db_user = DBUser(**user.model_dump(db=True), public_data=public_user)
+        context.p.add(db_user)
+        context.p.commit()
+        # raise Exception()
+    except:
+        raise HTTPException(status_code=status.HTTP_418_IM_A_TEAPOT)
+    else:
+        return {"status": "sugsesfully registered"}
 
 
 @app.get("/room/{room}", response_model=ServerMessage)

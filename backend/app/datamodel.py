@@ -21,20 +21,15 @@ class BetterUser(BaseModel):
 
     public_data: PublicUser
 
-    def model_dump(self, **kwargs: Any):
+    def model_dump(self, db: bool = False, **kwargs: Any):
         # Serialize full internal version by default (e.g., database)
         data = super().model_dump(**kwargs)
-        if kwargs.get("db"):
-            warnings.warn("THIS IS DANGEROUS")
 
         # WARNING: this might be dangerous
-        if not kwargs.get("db"):
-            # For public API responses, hide username when private is True
-            # You might control this by passing `public=True` explicitly
-            # if kwargs.get("public") and data.get("private"):
-            #    data.pop("username", None)
-
-            # Always hide password_hash in any serialized output, expept for db
+        if db:
+            warnings.warn("THIS IS DANGEROUS")
+            data.pop("public_data", None)
+        else:
             data["password_hash"] = None
 
         return data
