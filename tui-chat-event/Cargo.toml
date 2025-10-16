@@ -10,6 +10,6 @@ edition = "2024"
 crossterm = { version = "0.29.0", features = ["event-stream"] }
 futures = "0.3.31"
 ratatui = "0.29.0"
-tokio = { version = "1.47.1", features = ["full"] }
+tokio = { version = "1.48.0", features = ["full"] }
 color-eyre = "0.6.5"
 tui-input = "0.14.0"
