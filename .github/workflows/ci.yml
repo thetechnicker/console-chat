@@ -116,6 +116,6 @@ jobs:
       - name: Run Black check
         run: black --check ./backend/app
       - name: Run Pyright strict
-        run: pyright --p pyrightconfig.json ./bakend/app
+        run: pyright -p pyrightconfig.json ./bakend/app
     #- name: Run Pylint (docstring only)
     #  run: pylint --disable=all --enable=missing-docstring ./api
