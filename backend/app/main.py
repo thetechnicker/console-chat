@@ -6,7 +6,6 @@ from typing import Any, NamedTuple, Optional, cast
 import warnings
 from uuid import uuid4
 import jwt
-import psycopg2
 import valkey.asyncio as valkey
 from dotenv import load_dotenv
 from fastapi import Body, Depends, FastAPI, HTTPException, Query, Security, status
@@ -14,7 +13,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from jwt import PyJWTError
-from psycopg2 import pool
+from sqlalchemy.orm import Session
+
 from pydantic import ValidationError
 
 from app.datamodel import (
@@ -27,12 +27,13 @@ from app.datamodel import (
     UserConfig,
     UserStatus,
 )
-from app.database import create_user_db
+from app.database import init_postgesql_connection
 
+# import psycopg2
 # import psycopg2.extras
+# from psycopg2 import pool
 
 load_dotenv()
-create_user_db()
 
 TTL = 3600  # seconds
 ALGORITHM = "HS256"
@@ -48,15 +49,16 @@ api_key = APIKeyHeader(name="X-Api-Key")
 v_pool = valkey.ConnectionPool(host="valkey", port=6379, protocol=3)
 TOKEN_PREFIX = "session_token:"
 
-postgreSQL_pool = pool.SimpleConnectionPool(
-    1,
-    20,
-    user=os.environ["POSTGRES_USER"],
-    password=os.environ["POSTGRES_PASSWORD"],
-    host="postgres",
-    port=5432,
-    database=os.getenv("POSTGRES_DB"),
-)
+postgreSQL_Session = init_postgesql_connection()
+# postgreSQL_pool = pool.SimpleConnectionPool(
+#    1,
+#    20,
+#    user=os.environ["POSTGRES_USER"],
+#    password=os.environ["POSTGRES_PASSWORD"],
+#    host="postgres",
+#    port=5432,
+#    database=os.getenv("POSTGRES_DB"),
+# )
 
 app = FastAPI()
 
@@ -74,9 +76,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-Context = NamedTuple(
-    "Context", [("v", valkey.Valkey), ("p", psycopg2.extensions.connection)]
-)
+Context = NamedTuple("Context", [("v", valkey.Valkey), ("p", Session)])
 
 # v = lambda: valkey.Valkey.from_pool(v_pool)
 # p = lambda: cast(psycopg2.extensions.connection, postgreSQL_pool.getconn())
@@ -85,10 +85,11 @@ Context = NamedTuple(
 async def get_context():
     context = Context(
         valkey.Valkey.from_pool(v_pool),
-        cast(psycopg2.extensions.connection, postgreSQL_pool.getconn()),
+        postgreSQL_Session(),
     )
+    # cast(psycopg2.extensions.connection, postgreSQL_pool.getconn()),
     yield context
-    postgreSQL_pool.putconn(context.p)
+    # postgreSQL_pool.putconn(context.p)
     await context.v.aclose()
 
 
