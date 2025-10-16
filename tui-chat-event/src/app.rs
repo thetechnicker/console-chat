@@ -7,18 +7,20 @@ use ratatui::DefaultTerminal;
 pub struct App {
     /// Is the application running?
     pub running: bool,
-    /// Counter.
-    pub counter: u8,
     /// Event handler.
     pub events: EventHandler,
+
+    pub tab_index: usize,
+    pub max_tab: usize,
 }
 
 impl Default for App {
     fn default() -> Self {
         Self {
             running: true,
-            counter: 0,
             events: EventHandler::new(),
+            tab_index: 0,
+            max_tab: 10,
         }
     }
 }
@@ -40,9 +42,8 @@ impl App {
                     _ => {}
                 },
                 Event::App(app_event) => match app_event {
-                    AppEvent::Increment => self.increment_counter(),
-                    AppEvent::Decrement => self.decrement_counter(),
                     AppEvent::Quit => self.quit(),
+                    _ => {}
                 },
             }
         }
@@ -52,12 +53,13 @@ impl App {
     /// Handles the key events and updates the state of [`App`].
     pub fn handle_key_events(&mut self, key_event: KeyEvent) -> color_eyre::Result<()> {
         match key_event.code {
-            KeyCode::Esc | KeyCode::Char('q') => self.events.send(AppEvent::Quit),
+            KeyCode::Esc => self.tab_index = 0,
+            KeyCode::Char('q') if self.tab_index == 0 => self.events.send(AppEvent::Quit),
             KeyCode::Char('c' | 'C') if key_event.modifiers == KeyModifiers::CONTROL => {
                 self.events.send(AppEvent::Quit)
             }
-            KeyCode::Right => self.events.send(AppEvent::Increment),
-            KeyCode::Left => self.events.send(AppEvent::Decrement),
+            KeyCode::Tab => self.tab_index = (self.tab_index + 1) / self.max_tab,
+            KeyCode::BackTab => self.tab_index = (self.tab_index - 1) % self.max_tab,
             // Other handlers you could add here.
             _ => {}
         }
@@ -73,13 +75,5 @@ impl App {
     /// Set running to false to quit the application.
     pub fn quit(&mut self) {
         self.running = false;
-    }
-
-    pub fn increment_counter(&mut self) {
-        self.counter = self.counter.saturating_add(1);
-    }
-
-    pub fn decrement_counter(&mut self) {
-        self.counter = self.counter.saturating_sub(1);
     }
 }

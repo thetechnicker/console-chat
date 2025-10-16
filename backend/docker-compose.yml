@@ -1,0 +1,76 @@
+# This file currently is for development
+# it will get updated once the chat api works good enougth
+services:
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    restart: on-failure
+    env_file:
+      - .env
+    #environment:
+    #  POSTGRES_USER: DEBUG
+    #  POSTGRES_PASSWORD: DEBUG
+    #  POSTGRES_DB: DEBUG
+    ports:
+      #- "127.0.0.1:5432:5432"
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U your_user -d DEBUG"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 5s
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - internalnet
+      - externalnet
+  valkey:
+    image: valkey/valkey:latest
+    container_name: valkey
+    restart: on-failure
+    ports:
+      #- "127.0.0.1:6379:6379"
+      - "6379:6379"
+    volumes:
+      - valkey_data:/data
+    networks:
+      - internalnet
+  tuichat:
+    # image: tuichat
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: on-failure
+    build:
+      context: .
+      dockerfile: Dockerfile
+    develop:
+      watch:
+        - action: sync
+          path: ./app
+          target: /app
+          #initial_sync: true
+          #ignore:
+          #  - node_modules/
+        - action: rebuild
+          path: .
+    networks:
+      - internalnet
+      - externalnet
+    ports:
+      - "8000:8000"
+volumes:
+  postgres_data:
+    driver: local
+  valkey_data:
+    driver: local
+networks:
+  internalnet:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_ip_masquerade: "false" # Disable NAT for this network to block internet
+  externalnet:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.host_binding_ipv4: "127.0.0.1"

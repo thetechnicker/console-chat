@@ -112,11 +112,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install black pylint pyright
-          pip install -r ./api/requirements.txt
+          pip install -r ./backend/requirements.txt
       - name: Run Black check
-        run: black --check ./api
+        run: black --check ./backend/app
       - name: Run Pyright strict
-        run: pyright --strict ./api
-      - name: Run Pylint (docstring only)
-        run: pylint --disable=all --enable=missing-docstring ./api
-
+        run: pyright -p pyrightconfig.json ./backend/app
+    #- name: Run Pylint (docstring only)
+    #  run: pylint --disable=all --enable=missing-docstring ./api

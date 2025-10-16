@@ -9,8 +9,12 @@ updates:
     directory: "/tui-chat" # Location of package manifests
     schedule:
       interval: "weekly"
+  - package-ecosystem: "cargo"
+    directory: "/tui-chat-event" # Location of package manifests
+    schedule:
+      interval: "weekly"
   - package-ecosystem: "pip"
-    directory: "/api" # Location of package manifests
+    directory: "/backend" # Location of package manifests
     schedule:
       interval: "weekly"
   # Maintain dependencies for GitHub Actions

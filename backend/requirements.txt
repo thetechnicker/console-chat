@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+valkey
+pydantic
+pwdlib
+pyjwt
+python-dotenv
+psycopg2-binary
+sqlalchemy 
