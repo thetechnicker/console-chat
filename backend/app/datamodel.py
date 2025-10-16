@@ -8,10 +8,6 @@ from typing_extensions import Self
 #                                   API User
 # ------------------------------------------------------------------------
 
-# NOTE: only for development, once production ready, this will get removed and the logic is then forever fixed.
-# This must be hardcoded!
-OPT_IN_PRIVACY = False
-
 
 class PublicUser(BaseModel):
     display_name: str
@@ -35,18 +31,11 @@ class BetterUser(BaseModel):
         if not kwargs.get("db"):
             # For public API responses, hide username when private is True
             # You might control this by passing `public=True` explicitly
-            a = OPT_IN_PRIVACY and kwargs.get("public") is not None
-            b = not OPT_IN_PRIVACY and kwargs.get("private") is None
-            if (a or b) and data.get("private", not OPT_IN_PRIVACY):
-                data.pop("username", None)
+            # if kwargs.get("public") and data.get("private"):
+            #    data.pop("username", None)
 
             # Always hide password_hash in any serialized output, expept for db
-            data.pop("password_hash", None)
-
-        # TODO: Deside if nesesery
-        # else:
-        #    pub = data.pop("public_data")
-        #    data.update(pub)
+            data["password_hash"] = None
 
         return data
 
@@ -94,7 +83,7 @@ class ClientMessage(BaseMessage):
 
 
 class ServerMessage(BaseMessage):
-    user: Optional[UserConfig] = None
+    user: Optional[PublicUser] = None
 
     @model_validator(mode="after")
     def check_message_type_match(self) -> Self:

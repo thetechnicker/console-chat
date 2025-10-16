@@ -2,7 +2,7 @@ import asyncio
 import hashlib
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Any, NamedTuple, Optional, cast
+from typing import Any, NamedTuple, Optional
 import warnings
 from uuid import uuid4
 import jwt
@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from jwt import PyJWTError
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from pydantic import ValidationError
 
@@ -23,11 +24,9 @@ from app.datamodel import (
     ClientMessage,
     MessageType,
     ServerMessage,
-    User,
-    UserConfig,
     UserStatus,
 )
-from app.database import init_postgesql_connection
+from app.database import init_postgesql_connection, DBUser
 
 # import psycopg2
 # import psycopg2.extras
@@ -78,19 +77,17 @@ app.add_middleware(
 
 Context = NamedTuple("Context", [("v", valkey.Valkey), ("p", Session)])
 
-# v = lambda: valkey.Valkey.from_pool(v_pool)
-# p = lambda: cast(psycopg2.extensions.connection, postgreSQL_pool.getconn())
-
 
 async def get_context():
     context = Context(
         valkey.Valkey.from_pool(v_pool),
         postgreSQL_Session(),
     )
-    # cast(psycopg2.extensions.connection, postgreSQL_pool.getconn()),
-    yield context
-    # postgreSQL_pool.putconn(context.p)
-    await context.v.aclose()
+    try:
+        yield context
+    finally:
+        await context.v.aclose()
+        context.p.close()  # or await if async session
 
 
 def hash_password(password: str) -> str:
@@ -111,23 +108,27 @@ def create_access_token(
 
 async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Security(bearer_scheme),
-) -> UserConfig:
+    # context: Context = Depends(get_context),
+) -> BetterUser:
     if credentials is None:
-        return UserConfig(display_name="anonymous")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing credentials"
+        )
     token = credentials.credentials
     try:
         payload: dict[Any, Any] = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        # print(payload)
-        user = User.model_validate(payload)
+        print(payload)
+        user = BetterUser.model_validate(payload)
+        # stmt = select(DBUser).where(DBUser.username == user.username)
+        # db_user = context.p.execute(stmt).scalar_one_or_none()
 
-        # TODO: User validation
-
+        # if db_user is None:
         #    raise HTTPException(
         #        status_code=status.HTTP_401_UNAUTHORIZED,
         #        detail="Invalid token: no user",
         #    )
 
-        return user.config
+        return user
     except (PyJWTError, ValidationError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token"
@@ -135,7 +136,7 @@ async def get_current_user(
 
 
 def validate_api_key(key: str = Depends(api_key)):
-    dest_key = os.environ.get("DEV_API_KEY", "test")
+    dest_key = os.environ.get("DEV_API_KEY")
     if dest_key and dest_key == key:
         return
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
@@ -146,15 +147,46 @@ async def root(_: None = Depends(validate_api_key)):
     return {"message": "Hello World"}
 
 
+@app.post("/register", response_model=UserStatus)
+async def register(
+    password: str = Body(),
+    user: BetterUser = Depends(get_current_user),
+    overwrite_username: Optional[str] = Body(None),
+    context: Context = Depends(get_context),
+):
+    return {
+        "password": password,
+        "user": user,
+        "overwrite_username": overwrite_username,
+        "context": context,
+    }
+
+
 @app.post("/login", response_model=UserStatus)
 async def login(
     username: Optional[str] = Body(None),
     password: Optional[str] = Body(None),
+    context: Context = Depends(get_context),
 ):
     password = hash_password(password) if password else password
     is_new = True
     if username and password:
-        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED)
+        stmt = (
+            select(DBUser)
+            .where(DBUser.username == username)
+            .where(DBUser.password_hash == password)
+        )
+        db_user = context.p.execute(stmt).scalars().one_or_none()
+        if db_user:
+            is_new = False
+            user = BetterUser.model_validate(db_user)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Wrong Credentials"
+            )
+        # raise HTTPException(
+        #    status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=f"{db_user}"
+        # )
     elif password or username:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -188,8 +220,8 @@ async def get_valkey_status(
     return {"status": "OK"}
 
 
-@app.get("/user/status", response_model=UserConfig)
-async def get_user_status(user: UserConfig = Depends(get_current_user)):
+@app.get("/user/status", response_model=BetterUser)
+async def get_user_status(user: BetterUser = Depends(get_current_user)):
     return user
 
 
@@ -197,16 +229,16 @@ async def get_user_status(user: UserConfig = Depends(get_current_user)):
 async def get(
     room: str,
     listen_seconds: int = Query(30, description="How long to listen in seconds"),
-    user: UserConfig = Depends(get_current_user),
+    user: BetterUser = Depends(get_current_user),
     context: Context = Depends(get_context),
 ):
     await context.v.publish(
         room,
         ServerMessage(
             type=MessageType.JOIN,
-            text=f"User: {user.display_name} Joined",
+            text=f"User: {user.public_data.display_name} Joined",
             # timestamp=datetime.now(timezone.utc),
-            user=user,  # Assign new user model
+            user=user.public_data,  # Assign new user model
         ).model_dump_json(),
     )
     return StreamingResponse(
@@ -218,11 +250,11 @@ async def get(
 async def send(
     room: str,
     message: ClientMessage,  # Use the new Message model
-    user: UserConfig = Depends(get_current_user),
+    user: BetterUser = Depends(get_current_user),
     context: Context = Depends(get_context),
 ):
     msg = ServerMessage(
-        user=user,
+        user=user.public_data,
         text=message.text,
         # timestamp=datetime.now(timezone.utc),
         type=MessageType.TEXT,
@@ -230,7 +262,7 @@ async def send(
     await context.v.publish(
         room, msg.model_dump_json()
     )  # Use model_dump_json for serialization
-    return {"message": f"send successful by user {user.display_name}"}
+    return {"message": f"send successful by user {user.public_data.display_name}"}
 
 
 async def get_message(

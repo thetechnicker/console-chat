@@ -42,7 +42,7 @@ class DBUser(Base):
     password_hash = Column(String, nullable=True)
     private = Column(Boolean, default=False)
 
-    public_data_id = Column(String, ForeignKey("public_user.id"))
+    public_data_id = Column(Integer, ForeignKey("public_user.id"))
     public_data = relationship("PublicUser", back_populates="better_user")
 
 
