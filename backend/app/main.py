@@ -26,8 +26,8 @@ from app.datamodel import (
     User,
     UserConfig,
     UserStatus,
-    create_user_db,
 )
+from app.database import create_user_db
 
 # import psycopg2.extras
 
@@ -55,7 +55,7 @@ postgreSQL_pool = pool.SimpleConnectionPool(
     password=os.environ["POSTGRES_PASSWORD"],
     host="postgres",
     port=5432,
-    database="DEBUG",
+    database=os.getenv("POSTGRES_DB"),
 )
 
 app = FastAPI()
@@ -150,6 +150,7 @@ async def login(
     username: Optional[str] = Body(None),
     password: Optional[str] = Body(None),
 ):
+    password = hash_password(password) if password else password
     is_new = True
     if username and password:
         raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED)

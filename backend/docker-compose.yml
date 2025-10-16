@@ -5,13 +5,21 @@ services:
     image: postgres:latest
     container_name: postgres
     restart: on-failure
-    environment:
-      POSTGRES_USER: DEBUG
-      POSTGRES_PASSWORD: DEBUG
-      POSTGRES_DB: DEBUG
+    env_file:
+      - .env
+    #environment:
+    #  POSTGRES_USER: DEBUG
+    #  POSTGRES_PASSWORD: DEBUG
+    #  POSTGRES_DB: DEBUG
     ports:
       #- "127.0.0.1:5432:5432"
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U your_user -d DEBUG"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 5s
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -30,6 +38,10 @@ services:
       - internalnet
   tuichat:
     # image: tuichat
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: on-failure
     build:
       context: .
       dockerfile: Dockerfile

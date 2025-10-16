@@ -1,9 +1,6 @@
 import warnings
-import os
-from enum import Enum, auto
+from enum import Enum  # , auto
 from typing import Any, Optional
-from sqlalchemy import create_engine, Column, Integer, String, Boolean
-from sqlalchemy.orm import declarative_base
 from pydantic import BaseModel, model_validator
 from typing_extensions import Self
 
@@ -46,40 +43,12 @@ class BetterUser(BaseModel):
             # Always hide password_hash in any serialized output, expept for db
             data.pop("password_hash", None)
 
+        # TODO: Deside if nesesery
+        # else:
+        #    pub = data.pop("public_data")
+        #    data.update(pub)
+
         return data
-
-
-# ------------------------------------------------------------------------
-#                                    DB User
-# ------------------------------------------------------------------------
-
-
-Base = declarative_base()
-
-
-class DBUser(Base):
-    __tablename__ = "users"
-
-    # User Identity
-    id = Column(Integer, primary_key=True)
-    username = Column(String, unique=True, nullable=False)
-    password_hash = Column(String, nullable=False)
-    private = Column(Boolean, default=True)
-
-    # Customisation
-    display_name = Column(String)
-
-
-def create_user_db():
-    user = os.getenv("POSTGRES_USER")
-    password = os.getenv("POSTGRES_PASSWORD")
-    host = "postgres"  # or actual host
-    port = "5432"
-    database = os.getenv("POSTGRES_DATABASE")
-
-    connection_str = f"postgresql://{user}:{password}@{host}:{port}/{database}"
-    engine = create_engine(connection_str)
-    Base.metadata.create_all(engine)
 
 
 # ------------------------------------------------------------------------
