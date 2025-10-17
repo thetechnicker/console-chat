@@ -1,12 +1,15 @@
 use ratatui::{
     buffer::Buffer,
-    layout::{Alignment, Rect},
-    style::{Color, Style, Stylize},
-    symbols,
-    widgets::{self, Block, BorderType, Widget},
+    layout::{Alignment, Constraint, Layout, Rect},
+    style::{Color, Style},
+    widgets::{Block, BorderType, Paragraph, Widget},
 };
 
+const DEFAULT_BORDER: BorderType = BorderType::Double;
+
+use crate::app;
 use crate::app::App;
+//use crate::widgets as appWidgets;
 
 impl Widget for &App {
     /// Renders the user interface widgets.
@@ -16,10 +19,55 @@ impl Widget for &App {
     // - https://docs.rs/ratatui/latest/ratatui/widgets/index.html
     // - https://github.com/ratatui/ratatui/tree/master/examples
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let block = Block::bordered()
-            .title("tui-chat")
-            .title_alignment(Alignment::Center)
-            .border_type(BorderType::Rounded);
-        block.render(area, buf);
+        let outer_block = Block::bordered()
+            .border_type(BorderType::Double)
+            .title("TUI-CHAT")
+            .title_alignment(Alignment::Center);
+        let inner = outer_block.inner(area);
+
+        outer_block.render(area, buf);
+        let [left, main, right] = Layout::horizontal([
+            Constraint::Percentage(20),
+            Constraint::Percentage(60),
+            Constraint::Percentage(20),
+        ])
+        .areas(inner);
+
+        // LEFT
+
+        let left_block = Block::bordered().border_type(DEFAULT_BORDER);
+        let left_inner = left_block.inner(left);
+        left_block.render(left, buf);
+
+        // RIGHT
+
+        let right_block = Block::bordered().border_type(DEFAULT_BORDER);
+        let right_inner = right_block.inner(right);
+        right_block.render(right, buf);
+
+        // MAIN
+        let chat_block = Block::bordered().border_type(DEFAULT_BORDER);
+        let chat_inner = chat_block.inner(main);
+
+        chat_block.render(main, buf);
+        let [input, chat] =
+            Layout::vertical([Constraint::Min(10), Constraint::Max(3)]).areas(chat_inner);
+
+        // Input
+        let style = match self.input_mode {
+            app::InputMode::Normal => Style::default(),
+            app::InputMode::Editing => Color::Yellow.into(),
+        };
+        let width = area.width.max(3) - 3;
+        let scroll = self.input.visual_scroll(width as usize);
+        let input = Paragraph::new("")
+            .style(style)
+            .scroll((0, scroll as u16))
+            .block(
+                Block::bordered()
+                    .border_type(BorderType::Rounded)
+                    .title("Chat"),
+            );
+        input.render(chat, buf);
     }
 }

@@ -1,6 +1,6 @@
 use color_eyre::eyre::OptionExt;
-use crossterm::event::Event as CrosstermEvent;
 use futures::{FutureExt, StreamExt};
+use ratatui::crossterm::event::{self, Event as CrosstermEvent, KeyEvent};
 use std::time::Duration;
 use tokio::sync::mpsc;
 
@@ -26,6 +26,12 @@ pub enum Event {
     App(AppEvent),
 }
 
+#[derive(Clone, Debug)]
+pub enum WidgetEvent {
+    Clear,
+    KeyEvent(KeyEvent),
+}
+
 /// Application events.
 ///
 /// You can extend this enum with your own custom events.
@@ -33,8 +39,7 @@ pub enum Event {
 pub enum AppEvent {
     /// Quit the application.
     Quit,
-    Backspace,
-    KeyInput(char),
+    WidgetEvent(WidgetEvent),
 }
 
 /// Terminal event handler.

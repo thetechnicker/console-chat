@@ -1,17 +1,15 @@
-use crate::event::{AppEvent, Event, EventHandler};
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crate::event::{AppEvent, Event, EventHandler, WidgetEvent};
+use crate::widgets;
 use ratatui::DefaultTerminal;
+use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 /// Application.
 #[derive(Debug)]
 pub struct App {
-    /// Is the application running?
     pub running: bool,
-    /// Event handler.
     pub events: EventHandler,
 
     pub tab_index: usize,
-    pub max_tab: usize,
 }
 
 impl Default for App {
@@ -20,7 +18,6 @@ impl Default for App {
             running: true,
             events: EventHandler::new(),
             tab_index: 0,
-            max_tab: 10,
         }
     }
 }
@@ -34,16 +31,21 @@ impl App {
     /// Run the application's main loop.
     pub async fn run(mut self, mut terminal: DefaultTerminal) -> color_eyre::Result<()> {
         while self.running {
-            terminal.draw(|frame| frame.render_widget(&self, frame.area()))?;
+            terminal.draw(|frame| {
+                frame.render_widget(&self, frame.area());
+            })?;
+
             match self.events.next().await? {
                 Event::Tick => self.tick(),
                 Event::Crossterm(event) => match event {
-                    crossterm::event::Event::Key(key_event) => self.handle_key_events(key_event)?,
+                    ratatui::crossterm::event::Event::Key(key_event) => {
+                        self.handle_key_events(key_event)?
+                    }
                     _ => {}
                 },
                 Event::App(app_event) => match app_event {
                     AppEvent::Quit => self.quit(),
-                    _ => {}
+                    AppEvent::WidgetEvent(event) => {}
                 },
             }
         }
@@ -53,15 +55,20 @@ impl App {
     /// Handles the key events and updates the state of [`App`].
     pub fn handle_key_events(&mut self, key_event: KeyEvent) -> color_eyre::Result<()> {
         match key_event.code {
-            KeyCode::Esc => self.tab_index = 0,
+            KeyCode::Esc => {
+                self.tab_index = 0;
+                //self.events.send(AppEvent::WidgetEvent(WidgetEvent::Clear));
+            }
             KeyCode::Char('q') if self.tab_index == 0 => self.events.send(AppEvent::Quit),
             KeyCode::Char('c' | 'C') if key_event.modifiers == KeyModifiers::CONTROL => {
                 self.events.send(AppEvent::Quit)
             }
-            KeyCode::Tab => self.tab_index = (self.tab_index + 1) / self.max_tab,
-            KeyCode::BackTab => self.tab_index = (self.tab_index - 1) % self.max_tab,
+            KeyCode::Tab => self.tab_index = (self.tab_index + 1) % 10,
+            KeyCode::BackTab => self.tab_index = (self.tab_index - 1) % 10,
             // Other handlers you could add here.
-            _ => {}
+            _ => self
+                .events
+                .send(AppEvent::WidgetEvent(WidgetEvent::KeyEvent(key_event))),
         }
         Ok(())
     }
@@ -70,7 +77,9 @@ impl App {
     ///
     /// The tick event is where you can update the state of your application with any logic that
     /// needs to be updated at a fixed frame rate. E.g. polling a server, updating an animation.
-    pub fn tick(&self) {}
+    pub fn tick(&mut self) {
+        self.tab_index = (self.tab_index + 1) % 1000;
+    }
 
     /// Set running to false to quit the application.
     pub fn quit(&mut self) {
