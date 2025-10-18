@@ -1,5 +1,5 @@
 use color_eyre::eyre::OptionExt;
-use futures::{FutureExt, StreamExt};
+//use futures::{FutureExt, StreamExt};
 use ratatui::crossterm::event::{self, Event as CrosstermEvent, KeyEvent};
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -25,13 +25,17 @@ pub enum Event {
     /// Use this event to emit custom events that are specific to your application.
     App(AppEvent),
 }
-
 #[derive(Clone, Debug)]
 pub enum WidgetEvent {
+    Focus,
+    NoFocus,
     Clear,
     KeyEvent(KeyEvent),
+    /*
+    KeyPress(KeyEvent),
+    KeyRelease(KeyEvent),
+    */
 }
-
 /// Application events.
 ///
 /// You can extend this enum with your own custom events.
@@ -39,7 +43,13 @@ pub enum WidgetEvent {
 pub enum AppEvent {
     /// Quit the application.
     Quit,
+    /*
+    KeyPress(KeyEvent),
+    KeyRelease(KeyEvent),
+    */
+    KeyEvent(KeyEvent),
     WidgetEvent(WidgetEvent),
+    NetworkEvent,
 }
 
 /// Terminal event handler.
@@ -93,6 +103,13 @@ struct EventTask {
     sender: mpsc::UnboundedSender<Event>,
 }
 
+async fn get_event() -> Option<CrosstermEvent> {
+    if let Ok(evt) = event::read() {
+        return Some(evt);
+    }
+    None
+}
+
 impl EventTask {
     /// Constructs a new instance of [`EventThread`].
     fn new(sender: mpsc::UnboundedSender<Event>) -> Self {
@@ -104,11 +121,11 @@ impl EventTask {
     /// This function emits tick events at a fixed rate and polls for crossterm events in between.
     async fn run(self) -> color_eyre::Result<()> {
         let tick_rate = Duration::from_secs_f64(1.0 / TICK_FPS);
-        let mut reader = crossterm::event::EventStream::new();
+        //let mut reader = crossterm::event::EventStream::new();
         let mut tick = tokio::time::interval(tick_rate);
         loop {
             let tick_delay = tick.tick();
-            let crossterm_event = reader.next().fuse();
+            let crossterm_event = get_event(); //reader.next().fuse();
             tokio::select! {
               _ = self.sender.closed() => {
                 break;
@@ -116,7 +133,7 @@ impl EventTask {
               _ = tick_delay => {
                 self.send(Event::Tick);
               }
-              Some(Ok(evt)) = crossterm_event => {
+              Some(evt) = crossterm_event => {
                 self.send(Event::Crossterm(evt));
               }
             };

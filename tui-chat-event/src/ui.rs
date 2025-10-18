@@ -7,8 +7,8 @@ use ratatui::{
 
 const DEFAULT_BORDER: BorderType = BorderType::Double;
 
-use crate::app;
 use crate::app::App;
+use crate::widgets::InputMode;
 //use crate::widgets as appWidgets;
 
 impl Widget for &App {
@@ -36,13 +36,13 @@ impl Widget for &App {
         // LEFT
 
         let left_block = Block::bordered().border_type(DEFAULT_BORDER);
-        let left_inner = left_block.inner(left);
+        let _left_inner = left_block.inner(left);
         left_block.render(left, buf);
 
         // RIGHT
 
         let right_block = Block::bordered().border_type(DEFAULT_BORDER);
-        let right_inner = right_block.inner(right);
+        let _right_inner = right_block.inner(right);
         right_block.render(right, buf);
 
         // MAIN
@@ -50,17 +50,23 @@ impl Widget for &App {
         let chat_inner = chat_block.inner(main);
 
         chat_block.render(main, buf);
-        let [input, chat] =
+        let [chat, input] =
             Layout::vertical([Constraint::Min(10), Constraint::Max(3)]).areas(chat_inner);
 
+        let x = Paragraph::new(format!(
+            "{:?}\n{:?}\n{}",
+            self.last_event, self.input, self.tab_index
+        ));
+        x.render(chat, buf);
+
         // Input
-        let style = match self.input_mode {
-            app::InputMode::Normal => Style::default(),
-            app::InputMode::Editing => Color::Yellow.into(),
+        let style = match self.input.input_mode {
+            InputMode::Normal => Style::default(),
+            InputMode::Editing => Color::Yellow.into(),
         };
         let width = area.width.max(3) - 3;
-        let scroll = self.input.visual_scroll(width as usize);
-        let input = Paragraph::new("")
+        let scroll = self.input.input.visual_scroll(width as usize);
+        let input_elem = Paragraph::new(format!("{}", self.input.input.value()))
             .style(style)
             .scroll((0, scroll as u16))
             .block(
@@ -68,6 +74,6 @@ impl Widget for &App {
                     .border_type(BorderType::Rounded)
                     .title("Chat"),
             );
-        input.render(chat, buf);
+        input_elem.render(input, buf);
     }
 }

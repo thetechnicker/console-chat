@@ -1,5 +1,6 @@
 use super::event::WidgetEvent;
 //use ratatui::widgets as ratatui_widgets;
+//use ratatui::crossterm::event::KeyEvent;
 use std::fmt::Debug;
 
 pub trait Widget: Debug {
@@ -7,3 +8,4 @@ pub trait Widget: Debug {
 }
 
 pub mod input;
+pub use input::*;

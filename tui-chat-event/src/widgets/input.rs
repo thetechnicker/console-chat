@@ -1,7 +1,6 @@
 use super::Widget;
 use crate::event::WidgetEvent;
-//use crossterm::event::{Event, KeyCode};
-use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
+use ratatui::crossterm::event::{Event, KeyCode};
 use tui_input::Input;
 use tui_input::backend::crossterm::EventHandler;
 
@@ -40,28 +39,20 @@ impl InputWidget {
 impl Widget for InputWidget {
     fn handle_event(&mut self, event: WidgetEvent) {
         match event {
-            WidgetEvent::KeyEvent(key) => {
-                match self.input_mode {
-                    InputMode::Normal => match key.code {
-                        KeyCode::Char('e') => self.start_editing(),
-                        //KeyCode::Char('q') => return Ok(()), // exit
-                        _ => {}
-                    },
-                    InputMode::Editing => match key.code {
-                        //KeyCode::Enter => self.push_message(),
-                        KeyCode::Esc => self.stop_editing(),
-                        _ => {
-                            let x = KeyEvent {
-                                code: key.code,
-                                modifiers: key.modifiers,
-                                kind: key.kind,
-                                state: key.state,
-                            };
-                            self.input.handle_event();
-                        }
-                    },
-                }
-            }
+            WidgetEvent::NoFocus => self.stop_editing(),
+            WidgetEvent::Focus => self.start_editing(),
+            WidgetEvent::KeyEvent(key) => match self.input_mode {
+                InputMode::Normal => match key.code {
+                    //KeyCode::Char('e') => self.start_editing(),
+                    _ => {}
+                },
+                InputMode::Editing => match key.code {
+                    //KeyCode::Esc => self.stop_editing(),
+                    _ => {
+                        self.input.handle_event(&Event::Key(key));
+                    }
+                },
+            },
             _ => {}
         }
     }
