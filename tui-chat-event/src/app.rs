@@ -1,31 +1,29 @@
 use crate::event::{AppEvent, Event, EventHandler, WidgetEvent};
-use crate::widgets;
-use crate::widgets::Widget;
+use crate::screens;
 use ratatui::DefaultTerminal;
-use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 /// Application.
 #[derive(Debug)]
 pub struct App {
     pub running: bool,
     pub events: EventHandler,
-
-    pub tab_index: usize,
-    pub max_tab: usize,
-
-    pub input: widgets::InputWidget,
-
+    pub current_screen: screens::CurrentScreen,
+    pub chat_screen: screens::ChatScreen,
+    pub login_screen: screens::LoginScreen,
     pub last_event: Option<AppEvent>,
 }
 
 impl Default for App {
     fn default() -> Self {
+        let event_handler = EventHandler::new();
+        let event_sender = event_handler.get_event_sender();
         Self {
             running: true,
-            events: EventHandler::new(),
-            tab_index: 0,
-            max_tab: 2, // Num Selectable Elements + 1
-            input: widgets::InputWidget::default(),
+            events: event_handler,
+            current_screen: screens::CurrentScreen::default(),
+            chat_screen: screens::ChatScreen::new(event_sender.clone()),
+            login_screen: screens::LoginScreen::new(event_sender.clone()),
             last_event: None,
         }
     }
@@ -39,9 +37,15 @@ impl App {
 
     /// Run the application's main loop.
     pub async fn run(mut self, mut terminal: DefaultTerminal) -> color_eyre::Result<()> {
+        //self.events.send(AppEvent::SwitchScreen(screens::CurrentScreen::Chat));
         while self.running {
-            terminal.draw(|frame| {
-                frame.render_widget(&self, frame.area());
+            terminal.draw(|frame| match self.current_screen {
+                screens::CurrentScreen::Login => {
+                    frame.render_widget(&self.login_screen, frame.area())
+                }
+                screens::CurrentScreen::Chat => {
+                    frame.render_widget(&self.chat_screen, frame.area())
+                }
             })?;
 
             match self.events.next().await? {
@@ -56,28 +60,8 @@ impl App {
                     self.last_event = Some(app_event.clone());
                     match app_event {
                         AppEvent::Quit => self.quit(),
-                        AppEvent::KeyEvent(key_event) => {
-                            match key_event.code {
-                                KeyCode::Tab if key_event.kind == KeyEventKind::Press => {
-                                    self.send_current_widget_event(WidgetEvent::NoFocus);
-                                    self.tab_index = (self.tab_index + 1) % self.max_tab;
-                                    self.send_current_widget_event(WidgetEvent::Focus);
-                                }
-                                KeyCode::BackTab if key_event.kind == KeyEventKind::Press => {
-                                    self.send_current_widget_event(WidgetEvent::NoFocus);
-                                    self.tab_index = (self.tab_index - 1) % self.max_tab;
-                                    self.send_current_widget_event(WidgetEvent::Focus);
-                                }
-                                KeyCode::Esc => {
-                                    self.send_all_widgets_event(WidgetEvent::NoFocus);
-                                    self.tab_index = 0;
-                                }
-
-                                _ => {}
-                            }
-                            self.send_current_widget_event(WidgetEvent::KeyEvent(key_event));
-                        }
-                        AppEvent::WidgetEvent(w_event) => self.send_current_widget_event(w_event),
+                        AppEvent::WidgetEvent(w_event) => self.send_current_screen(w_event),
+                        AppEvent::SwitchScreen(new_screen) => self.current_screen = new_screen,
                         _ => {}
                     };
                 }
@@ -85,42 +69,30 @@ impl App {
         }
         Ok(())
     }
-    pub fn send_current_widget_event(&mut self, event: WidgetEvent) {
-        if let Some(elem) = self.current_widget() {
-            elem.handle_event(event)
-        }
-    }
-    pub fn send_all_widgets_event(&mut self, event: WidgetEvent) {
-        for i in 0..self.max_tab {
-            if let Some(elem) = self.widget_at(i) {
-                elem.handle_event(event.clone());
-            }
-        }
-    }
 
-    pub fn widget_at(&mut self, index: usize) -> Option<&mut dyn Widget> {
-        match index {
-            1 => Some(&mut self.input as &mut dyn Widget),
-            _ => None,
+    fn send_current_screen(&mut self, event: WidgetEvent) {
+        if let Some(screen) = self.get_current_screen() {
+            screen.handle_event(event);
         }
     }
-    pub fn current_widget(&mut self) -> Option<&mut dyn Widget> {
-        match self.tab_index {
-            1 => Some(&mut self.input as &mut dyn Widget),
-            _ => None,
+    pub fn get_current_screen(&mut self) -> Option<&mut dyn screens::Screen> {
+        match self.current_screen {
+            screens::CurrentScreen::Chat => Some(&mut self.chat_screen as &mut dyn screens::Screen),
+            screens::CurrentScreen::Login => {
+                Some(&mut self.login_screen as &mut dyn screens::Screen)
+            } //_ => None,
         }
     }
-
     /// Handles the key events and updates the state of [`App`].
     pub fn handle_key_events(&mut self, key_event: KeyEvent) -> color_eyre::Result<()> {
         match key_event.code {
-            KeyCode::Char('q') if self.tab_index == 0 => self.events.send(AppEvent::Quit),
             KeyCode::Char('c' | 'C') if key_event.modifiers == KeyModifiers::CONTROL => {
                 self.events.send(AppEvent::Quit)
             }
             // Other handlers you could add here.
             _ => {
-                self.events.send(AppEvent::KeyEvent(key_event));
+                self.events
+                    .send(AppEvent::WidgetEvent(WidgetEvent::KeyEvent(key_event)));
             }
         }
         Ok(())

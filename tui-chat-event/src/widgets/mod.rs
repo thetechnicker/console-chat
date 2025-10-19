@@ -1,4 +1,4 @@
-use super::event::WidgetEvent;
+use crate::event::WidgetEvent;
 //use ratatui::widgets as ratatui_widgets;
 //use ratatui::crossterm::event::KeyEvent;
 use std::fmt::Debug;

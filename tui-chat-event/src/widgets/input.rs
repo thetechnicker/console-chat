@@ -1,6 +1,6 @@
-use super::Widget;
 use crate::event::WidgetEvent;
-use ratatui::crossterm::event::{Event, KeyCode};
+use crate::widgets::Widget;
+use ratatui::crossterm::event::Event;
 use tui_input::Input;
 use tui_input::backend::crossterm::EventHandler;
 
@@ -43,11 +43,9 @@ impl Widget for InputWidget {
             WidgetEvent::Focus => self.start_editing(),
             WidgetEvent::KeyEvent(key) => match self.input_mode {
                 InputMode::Normal => match key.code {
-                    //KeyCode::Char('e') => self.start_editing(),
                     _ => {}
                 },
                 InputMode::Editing => match key.code {
-                    //KeyCode::Esc => self.stop_editing(),
                     _ => {
                         self.input.handle_event(&Event::Key(key));
                     }

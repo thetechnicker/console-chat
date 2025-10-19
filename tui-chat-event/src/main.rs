@@ -2,8 +2,11 @@ use crate::app::App;
 
 pub mod app;
 pub mod event;
-pub mod ui;
+pub mod screens;
 pub mod widgets;
+
+use ratatui::widgets::BorderType;
+pub const DEFAULT_BORDER: BorderType = BorderType::Double;
 
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {

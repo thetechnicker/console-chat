@@ -1,5 +1,5 @@
+use crate::screens::CurrentScreen;
 use color_eyre::eyre::OptionExt;
-//use futures::{FutureExt, StreamExt};
 use ratatui::crossterm::event::{self, Event as CrosstermEvent, KeyEvent};
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -43,11 +43,7 @@ pub enum WidgetEvent {
 pub enum AppEvent {
     /// Quit the application.
     Quit,
-    /*
-    KeyPress(KeyEvent),
-    KeyRelease(KeyEvent),
-    */
-    KeyEvent(KeyEvent),
+    SwitchScreen(CurrentScreen),
     WidgetEvent(WidgetEvent),
     NetworkEvent,
 }
@@ -68,6 +64,10 @@ impl EventHandler {
         let actor = EventTask::new(sender.clone());
         tokio::spawn(async { actor.run().await });
         Self { sender, receiver }
+    }
+
+    pub fn get_event_sender(&self) -> EventSender {
+        EventSender::new(self.sender.clone())
     }
 
     /// Receives an event from the sender.
@@ -94,6 +94,22 @@ impl EventHandler {
         // Ignore the result as the reciever cannot be dropped while this struct still has a
         // reference to it
         let _ = self.sender.send(Event::App(app_event));
+    }
+}
+///Simple struct so Screens can send back events to app
+#[derive(Debug, Clone)]
+pub struct EventSender {
+    sender: mpsc::UnboundedSender<Event>,
+}
+
+impl EventSender {
+    pub fn new(sender: mpsc::UnboundedSender<Event>) -> Self {
+        Self { sender }
+    }
+    pub fn send(&self, event: Event) {
+        // Ignores the result because shutting down the app drops the receiver, which causes the send
+        // operation to fail. This is expected behavior and should not panic.
+        let _ = self.sender.send(event);
     }
 }
 
