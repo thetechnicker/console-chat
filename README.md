@@ -1,4 +1,4 @@
-# Tui-Chat
+# ConsoleChat
 
 This is a simple chat service for the terminal where.
 
