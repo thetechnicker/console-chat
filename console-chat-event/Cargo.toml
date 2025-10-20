@@ -1,5 +1,5 @@
 [package]
-name = "tui-chat"
+name = "Console-Chat"
 version = "0.1.0"
 description = "Simple Tui Chat"
 authors = ["Thetechnicker <106349149+thetechnicker@users.noreply.github.com>"]
