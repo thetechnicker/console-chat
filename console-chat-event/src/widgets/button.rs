@@ -1,4 +1,4 @@
-use crate::event::WidgetEvent;
+use crate::event::{AppEvent, EventSender};
 use crate::widgets::Widget;
 use ratatui::{
     buffer::Buffer,
@@ -49,14 +49,16 @@ pub struct Button {
     state: ButtonState,
     label: String,
     theme: Theme,
+    event_sender: EventSender,
 }
 
 impl Button {
-    pub fn new(label: &str) -> Self {
+    pub fn new(label: &str, event_sender: EventSender) -> Self {
         Self {
             state: ButtonState::Normal,
             label: String::from(label),
             theme: BLUE,
+            event_sender,
         }
     }
     pub fn is_pressed(&self) -> bool {
@@ -77,14 +79,18 @@ impl Button {
 }
 
 impl Widget for Button {
-    fn handle_event(&mut self, event: WidgetEvent) {
+    fn handle_event(&mut self, event: AppEvent) {
         match event {
-            WidgetEvent::NoFocus => self.state = ButtonState::Normal,
-            WidgetEvent::Focus => self.state = ButtonState::Selected,
-            WidgetEvent::KeyEvent(key) => match key.kind {
+            AppEvent::NoFocus => self.state = ButtonState::Normal,
+            AppEvent::Focus => self.state = ButtonState::Selected,
+            AppEvent::KeyEvent(key) => match key.kind {
                 KeyEventKind::Press => {
                     if self.state == ButtonState::Selected {
-                        self.state = ButtonState::Active
+                        self.state = ButtonState::Active;
+                        self.event_sender.send(
+                            AppEvent::ButtonPress(format!("#{}", self.label.replace(' ', "_")))
+                                .into(),
+                        );
                     }
                 }
                 KeyEventKind::Release => {

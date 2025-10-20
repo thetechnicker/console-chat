@@ -1,5 +1,5 @@
 use crate::DEFAULT_BORDER;
-use crate::event::{EventSender, WidgetEvent};
+use crate::event::{AppEvent, EventSender};
 use crate::screens::Screen;
 use crate::widgets;
 use crate::widgets::Widget;
@@ -27,12 +27,12 @@ impl ChatScreen {
             input: widgets::InputWidget::default(),
         }
     }
-    pub fn send_current_widget_event(&mut self, event: WidgetEvent) {
+    pub fn send_current_widget_event(&mut self, event: AppEvent) {
         if let Some(elem) = self.current_widget() {
             elem.handle_event(event)
         }
     }
-    pub fn send_all_widgets_event(&mut self, event: WidgetEvent) {
+    pub fn send_all_widgets_event(&mut self, event: AppEvent) {
         for i in 0..self.max_tab {
             if let Some(elem) = self.widget_at(i) {
                 elem.handle_event(event.clone());
@@ -55,28 +55,28 @@ impl ChatScreen {
 }
 
 impl Screen for ChatScreen {
-    fn handle_event(&mut self, event: WidgetEvent) {
+    fn handle_event(&mut self, event: AppEvent) {
         match event {
-            WidgetEvent::KeyEvent(key_event) => {
+            AppEvent::KeyEvent(key_event) => {
                 match key_event.code {
                     KeyCode::Tab if key_event.kind == KeyEventKind::Press => {
-                        self.send_current_widget_event(WidgetEvent::NoFocus);
+                        self.send_current_widget_event(AppEvent::NoFocus);
                         self.tab_index = (self.tab_index + 1) % self.max_tab;
-                        self.send_current_widget_event(WidgetEvent::Focus);
+                        self.send_current_widget_event(AppEvent::Focus);
                     }
                     KeyCode::BackTab if key_event.kind == KeyEventKind::Press => {
-                        self.send_current_widget_event(WidgetEvent::NoFocus);
+                        self.send_current_widget_event(AppEvent::NoFocus);
                         self.tab_index = (self.tab_index - 1) % self.max_tab;
-                        self.send_current_widget_event(WidgetEvent::Focus);
+                        self.send_current_widget_event(AppEvent::Focus);
                     }
                     KeyCode::Esc => {
-                        self.send_all_widgets_event(WidgetEvent::NoFocus);
+                        self.send_all_widgets_event(AppEvent::NoFocus);
                         self.tab_index = 0;
                     }
 
                     _ => {}
                 }
-                self.send_current_widget_event(WidgetEvent::KeyEvent(key_event));
+                self.send_current_widget_event(AppEvent::KeyEvent(key_event));
             }
             _ => {}
         };

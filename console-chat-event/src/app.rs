@@ -1,5 +1,5 @@
 use crate::DEFAULT_BORDER;
-use crate::event::{AppEvent, Event, EventHandler, WidgetEvent};
+use crate::event::{AppEvent, Event, EventHandler};
 use crate::network;
 use crate::screens;
 use ratatui::DefaultTerminal;
@@ -7,7 +7,7 @@ use ratatui::{
     Frame,
     crossterm::event::Event as CrosstermEvent,
     layout::{Alignment, Constraint, Layout},
-    widgets::{Block, BorderType},
+    widgets::{Block, BorderType, Paragraph},
 };
 
 /// Application.
@@ -19,7 +19,7 @@ pub struct App {
     pub chat_screen: screens::ChatScreen,
     pub login_screen: screens::LoginScreen,
     pub api: Option<network::client::ApiClient>,
-    //pub last_event: Option<AppEvent>,
+    pub last_event: Option<AppEvent>,
 }
 
 impl Default for App {
@@ -33,7 +33,7 @@ impl Default for App {
             chat_screen: screens::ChatScreen::new(event_sender.clone()),
             login_screen: screens::LoginScreen::new(event_sender.clone()),
             api: network::client::ApiClient::new("localhost:8000").ok(),
-            //last_event: None,
+            last_event: None,
         }
     }
 }
@@ -59,12 +59,11 @@ impl App {
                     _ => {}
                 },
                 Event::App(app_event) => {
-                    //self.last_event = Some(app_event.clone());
+                    self.last_event = Some(app_event.clone());
                     match app_event {
                         AppEvent::Quit => self.quit(),
-                        AppEvent::WidgetEvent(w_event) => self.send_current_screen(w_event),
                         AppEvent::SwitchScreen(new_screen) => self.current_screen = new_screen,
-                        _ => {}
+                        _ => self.send_current_screen(app_event),
                     };
                 }
             }
@@ -83,9 +82,9 @@ impl App {
         frame.render_widget(outer_block, area);
 
         let [left, main, right] = Layout::horizontal([
-            Constraint::Percentage(20),
+            Constraint::Max(1),
             Constraint::Percentage(60),
-            Constraint::Percentage(20),
+            Constraint::Fill(20),
         ])
         .areas(inner);
 
@@ -98,8 +97,10 @@ impl App {
         // RIGHT
 
         let right_block = Block::bordered().border_type(DEFAULT_BORDER);
-        let _right_inner = right_block.inner(right);
+        let right_inner = right_block.inner(right);
         frame.render_widget(right_block, right);
+        let x = Paragraph::new(format!("{:?}", self.last_event));
+        frame.render_widget(x, right_inner);
 
         match self.current_screen {
             screens::CurrentScreen::Login => frame.render_widget(&self.login_screen, main),
@@ -107,7 +108,7 @@ impl App {
         }
     }
 
-    fn send_current_screen(&mut self, event: WidgetEvent) {
+    fn send_current_screen(&mut self, event: AppEvent) {
         if let Some(screen) = self.get_current_screen() {
             screen.handle_event(event);
         }

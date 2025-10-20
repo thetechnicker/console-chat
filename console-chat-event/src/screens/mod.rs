@@ -1,4 +1,4 @@
-use crate::event::WidgetEvent;
+use crate::event::AppEvent;
 use ratatui::layout::Rect;
 use std::fmt::Debug;
 
@@ -15,7 +15,7 @@ pub struct ScreenState {
 }
 
 pub trait Screen: Debug {
-    fn handle_event(&mut self, event: WidgetEvent);
+    fn handle_event(&mut self, event: AppEvent);
     //fn render(&self, area: Rect, buf: &mut Buffer);
 }
 

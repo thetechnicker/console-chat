@@ -1,5 +1,5 @@
 use crate::DEFAULT_BORDER;
-use crate::event::{AppEvent, Event, EventSender, WidgetEvent};
+use crate::event::{AppEvent, Event, EventSender};
 use crate::screens::CurrentScreen;
 use crate::screens::Screen;
 use crate::widgets;
@@ -28,20 +28,21 @@ impl LoginScreen {
         Self {
             tab_index: 0,
             max_tab: 6,
-            event_sender,
+            event_sender: event_sender.clone(),
             user_input: widgets::InputWidget::new("Username"),
             pwd_input: widgets::InputWidget::new("Password").password(),
-            skip_button: widgets::Button::new("Join as Anonym").theme(widgets::GREEN),
-            ok_button: widgets::Button::new("OK").theme(widgets::BLUE),
-            cancel_button: widgets::Button::new("CANCEL").theme(widgets::RED),
+            skip_button: widgets::Button::new("Join as Anonym", event_sender.clone())
+                .theme(widgets::GREEN),
+            ok_button: widgets::Button::new("OK", event_sender.clone()).theme(widgets::BLUE),
+            cancel_button: widgets::Button::new("CANCEL", event_sender.clone()).theme(widgets::RED),
         }
     }
-    pub fn send_current_widget_event(&mut self, event: WidgetEvent) {
+    pub fn send_current_widget_event(&mut self, event: AppEvent) {
         if let Some(elem) = self.current_widget() {
             elem.handle_event(event)
         }
     }
-    pub fn send_all_widgets_event(&mut self, event: WidgetEvent) {
+    pub fn send_all_widgets_event(&mut self, event: AppEvent) {
         for i in 0..self.max_tab {
             if let Some(elem) = self.widget_at(i) {
                 elem.handle_event(event.clone());
@@ -65,25 +66,25 @@ impl LoginScreen {
 }
 
 impl Screen for LoginScreen {
-    fn handle_event(&mut self, event: WidgetEvent) {
+    fn handle_event(&mut self, event: AppEvent) {
         match event {
-            WidgetEvent::KeyEvent(key_event) => match key_event.code {
+            AppEvent::KeyEvent(key_event) => match key_event.code {
                 KeyCode::Tab if key_event.kind == KeyEventKind::Press => {
-                    self.send_current_widget_event(WidgetEvent::NoFocus);
+                    self.send_current_widget_event(AppEvent::NoFocus);
                     self.tab_index = (self.tab_index.wrapping_add(1)) % self.max_tab;
-                    self.send_current_widget_event(WidgetEvent::Focus);
+                    self.send_current_widget_event(AppEvent::Focus);
                 }
                 KeyCode::BackTab if key_event.kind == KeyEventKind::Press => {
-                    self.send_current_widget_event(WidgetEvent::NoFocus);
+                    self.send_current_widget_event(AppEvent::NoFocus);
                     self.tab_index = (self.tab_index.wrapping_sub(1)) % self.max_tab;
-                    self.send_current_widget_event(WidgetEvent::Focus);
+                    self.send_current_widget_event(AppEvent::Focus);
                 }
                 KeyCode::Esc => {
-                    self.send_all_widgets_event(WidgetEvent::NoFocus);
+                    self.send_all_widgets_event(AppEvent::NoFocus);
                     self.tab_index = 0;
                 }
                 _ => {
-                    self.send_current_widget_event(WidgetEvent::KeyEvent(key_event));
+                    self.send_current_widget_event(AppEvent::KeyEvent(key_event));
                 }
             },
             _ => {}

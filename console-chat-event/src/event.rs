@@ -25,17 +25,29 @@ pub enum Event {
     /// Use this event to emit custom events that are specific to your application.
     App(AppEvent),
 }
+
+impl From<AppEvent> for Event {
+    fn from(app_event: AppEvent) -> Self {
+        Self::App(app_event)
+    }
+}
+
+impl From<CrosstermEvent> for Event {
+    fn from(event: CrosstermEvent) -> Self {
+        Self::Crossterm(event)
+    }
+}
+
+/*
 #[derive(Clone, Debug)]
-pub enum WidgetEvent {
+pub enum AppEvent {
     Focus,
     NoFocus,
     Clear,
     KeyEvent(KeyEvent),
-    /*
-    KeyPress(KeyEvent),
-    KeyRelease(KeyEvent),
-    */
 }
+*/
+
 /// Application events.
 ///
 /// You can extend this enum with your own custom events.
@@ -45,7 +57,13 @@ pub enum AppEvent {
     Quit,
     ButtonPress(String),
     SwitchScreen(CurrentScreen),
-    WidgetEvent(WidgetEvent),
+
+    //   WidgetEvent(WidgetEvent),
+    Focus,
+    NoFocus,
+    Clear,
+    KeyEvent(KeyEvent),
+
     NetworkEvent,
 }
 
@@ -183,6 +201,6 @@ pub fn handle_key_events(key_event: KeyEvent) -> Event {
         KeyCode::Char('c' | 'C') if key_event.modifiers == KeyModifiers::CONTROL => {
             return Event::App(AppEvent::Quit);
         }
-        _ => return Event::App(AppEvent::WidgetEvent(WidgetEvent::KeyEvent(key_event))),
+        _ => return Event::App(AppEvent::KeyEvent(key_event)),
     }
 }

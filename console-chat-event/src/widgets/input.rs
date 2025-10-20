@@ -1,4 +1,4 @@
-use crate::event::WidgetEvent;
+use crate::event::AppEvent;
 use crate::widgets::Widget;
 use ratatui::crossterm::event::Event;
 use ratatui::{
@@ -74,11 +74,11 @@ impl InputWidget {
 }
 
 impl Widget for InputWidget {
-    fn handle_event(&mut self, event: WidgetEvent) {
+    fn handle_event(&mut self, event: AppEvent) {
         match event {
-            WidgetEvent::NoFocus => self.stop_editing(),
-            WidgetEvent::Focus => self.start_editing(),
-            WidgetEvent::KeyEvent(key) => match self.input_mode {
+            AppEvent::NoFocus => self.stop_editing(),
+            AppEvent::Focus => self.start_editing(),
+            AppEvent::KeyEvent(key) => match self.input_mode {
                 InputMode::Normal => match key.code {
                     _ => {}
                 },
