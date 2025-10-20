@@ -1,7 +1,6 @@
 use crate::event::{AppEvent, Event, EventHandler, WidgetEvent};
 use crate::screens;
 use ratatui::DefaultTerminal;
-use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 /// Application.
 #[derive(Debug)]
@@ -11,7 +10,7 @@ pub struct App {
     pub current_screen: screens::CurrentScreen,
     pub chat_screen: screens::ChatScreen,
     pub login_screen: screens::LoginScreen,
-    pub last_event: Option<AppEvent>,
+    //pub last_event: Option<AppEvent>,
 }
 
 impl Default for App {
@@ -24,7 +23,7 @@ impl Default for App {
             current_screen: screens::CurrentScreen::default(),
             chat_screen: screens::ChatScreen::new(event_sender.clone()),
             login_screen: screens::LoginScreen::new(event_sender.clone()),
-            last_event: None,
+            //last_event: None,
         }
     }
 }
@@ -50,14 +49,9 @@ impl App {
 
             match self.events.next().await? {
                 Event::Tick => self.tick(),
-                Event::Crossterm(event) => match event {
-                    ratatui::crossterm::event::Event::Key(key_event) => {
-                        self.handle_key_events(key_event)?
-                    }
-                    _ => {}
-                },
+                Event::Crossterm(_event) => {}
                 Event::App(app_event) => {
-                    self.last_event = Some(app_event.clone());
+                    //self.last_event = Some(app_event.clone());
                     match app_event {
                         AppEvent::Quit => self.quit(),
                         AppEvent::WidgetEvent(w_event) => self.send_current_screen(w_event),
@@ -80,22 +74,8 @@ impl App {
             screens::CurrentScreen::Chat => Some(&mut self.chat_screen as &mut dyn screens::Screen),
             screens::CurrentScreen::Login => {
                 Some(&mut self.login_screen as &mut dyn screens::Screen)
-            } //_ => None,
-        }
-    }
-    /// Handles the key events and updates the state of [`App`].
-    pub fn handle_key_events(&mut self, key_event: KeyEvent) -> color_eyre::Result<()> {
-        match key_event.code {
-            KeyCode::Char('c' | 'C') if key_event.modifiers == KeyModifiers::CONTROL => {
-                self.events.send(AppEvent::Quit)
-            }
-            // Other handlers you could add here.
-            _ => {
-                self.events
-                    .send(AppEvent::WidgetEvent(WidgetEvent::KeyEvent(key_event)));
             }
         }
-        Ok(())
     }
 
     /// Handles the tick event of the terminal.
@@ -107,5 +87,6 @@ impl App {
     /// Set running to false to quit the application.
     pub fn quit(&mut self) {
         self.running = false;
+        self.events.stop();
     }
 }

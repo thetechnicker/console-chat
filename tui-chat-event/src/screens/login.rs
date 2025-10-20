@@ -1,15 +1,14 @@
 use crate::DEFAULT_BORDER;
-use crate::event::{EventSender, WidgetEvent};
+use crate::event::{AppEvent, Event, EventSender, WidgetEvent};
+use crate::screens::CurrentScreen;
 use crate::screens::Screen;
 use crate::widgets;
-use crate::widgets::InputMode;
 use crate::widgets::Widget;
 use ratatui::crossterm::event::{KeyCode, KeyEventKind};
 use ratatui::{
     buffer::Buffer,
     layout::{Alignment, Constraint, Layout, Rect},
-    style::{Color, Style},
-    widgets::{Block, BorderType, Paragraph, Widget as UiWidget},
+    widgets::{Block, BorderType, Widget as UiWidget},
 };
 
 #[derive(Debug)]
@@ -19,16 +18,20 @@ pub struct LoginScreen {
     pub event_sender: EventSender,
     pub user_input: widgets::InputWidget,
     pub pwd_input: widgets::InputWidget,
+    pub ok_button: widgets::Button,
+    pub cancel_button: widgets::Button,
 }
 
 impl LoginScreen {
     pub fn new(event_sender: EventSender) -> Self {
         Self {
             tab_index: 0,
-            max_tab: 3,
+            max_tab: 5,
             event_sender,
-            user_input: widgets::InputWidget::default(),
-            pwd_input: widgets::InputWidget::default(),
+            user_input: widgets::InputWidget::new("Username"),
+            pwd_input: widgets::InputWidget::new("Password").password(),
+            ok_button: widgets::Button::new("OK").theme(widgets::BLUE),
+            cancel_button: widgets::Button::new("CANCEL").theme(widgets::RED),
         }
     }
     pub fn send_current_widget_event(&mut self, event: WidgetEvent) {
@@ -48,6 +51,8 @@ impl LoginScreen {
         match index {
             1 => Some(&mut self.user_input as &mut dyn Widget),
             2 => Some(&mut self.pwd_input as &mut dyn Widget),
+            3 => Some(&mut self.ok_button as &mut dyn Widget),
+            4 => Some(&mut self.cancel_button as &mut dyn Widget),
             _ => None,
         }
     }
@@ -59,27 +64,32 @@ impl LoginScreen {
 impl Screen for LoginScreen {
     fn handle_event(&mut self, event: WidgetEvent) {
         match event {
-            WidgetEvent::KeyEvent(key_event) => {
-                match key_event.code {
-                    KeyCode::Tab if key_event.kind == KeyEventKind::Press => {
-                        self.send_current_widget_event(WidgetEvent::NoFocus);
-                        self.tab_index = (self.tab_index + 1) % self.max_tab;
-                        self.send_current_widget_event(WidgetEvent::Focus);
-                    }
-                    KeyCode::BackTab if key_event.kind == KeyEventKind::Press => {
-                        self.send_current_widget_event(WidgetEvent::NoFocus);
-                        self.tab_index = (self.tab_index - 1) % self.max_tab;
-                        self.send_current_widget_event(WidgetEvent::Focus);
-                    }
-                    KeyCode::Esc => {
-                        self.send_all_widgets_event(WidgetEvent::NoFocus);
-                        self.tab_index = 0;
-                    }
-
-                    _ => {}
+            WidgetEvent::KeyEvent(key_event) => match key_event.code {
+                KeyCode::Tab if key_event.kind == KeyEventKind::Press => {
+                    self.send_current_widget_event(WidgetEvent::NoFocus);
+                    self.tab_index = (self.tab_index + 1) % self.max_tab;
+                    self.send_current_widget_event(WidgetEvent::Focus);
                 }
-                self.send_current_widget_event(WidgetEvent::KeyEvent(key_event));
-            }
+                KeyCode::BackTab if key_event.kind == KeyEventKind::Press => {
+                    self.send_current_widget_event(WidgetEvent::NoFocus);
+                    self.tab_index = (self.tab_index - 1) % self.max_tab;
+                    self.send_current_widget_event(WidgetEvent::Focus);
+                }
+                KeyCode::Esc => {
+                    self.send_all_widgets_event(WidgetEvent::NoFocus);
+                    self.tab_index = 0;
+                }
+                _ => {
+                    self.send_current_widget_event(WidgetEvent::KeyEvent(key_event));
+                    if self.ok_button.is_pressed() {
+                        self.event_sender
+                            .send(Event::App(AppEvent::SwitchScreen(CurrentScreen::Chat)))
+                    }
+                    if self.cancel_button.is_pressed() {
+                        self.event_sender.send(Event::App(AppEvent::Quit))
+                    }
+                }
+            },
             _ => {}
         };
     }
@@ -126,8 +136,9 @@ impl UiWidget for &LoginScreen {
         .areas(login_inner);
 
         // Input
-        let [_, user_input, pwd_input, _] = Layout::vertical([
+        let [_, user_input, pwd_input, buttons, _] = Layout::vertical([
             Constraint::Fill(1),
+            Constraint::Max(3),
             Constraint::Max(3),
             Constraint::Max(3),
             Constraint::Fill(1),
@@ -135,37 +146,16 @@ impl UiWidget for &LoginScreen {
         .areas(input_area);
 
         // User Input
-        let style = match self.user_input.input_mode {
-            InputMode::Normal => Style::default(),
-            InputMode::Editing => Color::Yellow.into(),
-        };
-        let width = area.width.max(3) - 3;
-        let scroll = self.user_input.input.visual_scroll(width as usize);
-        let input_elem = Paragraph::new(format!("{}", self.user_input.input.value()))
-            .style(style)
-            .scroll((0, scroll as u16))
-            .block(
-                Block::bordered()
-                    .border_type(BorderType::Rounded)
-                    .title("Chat"),
-            );
-        input_elem.render(user_input, buf);
+        self.user_input.draw(user_input, buf);
 
         // Password Input
-        let style = match self.pwd_input.input_mode {
-            InputMode::Normal => Style::default(),
-            InputMode::Editing => Color::Yellow.into(),
-        };
-        let width = area.width.max(3) - 3;
-        let scroll = self.pwd_input.input.visual_scroll(width as usize);
-        let input_elem = Paragraph::new(format!("{}", self.pwd_input.input.value()))
-            .style(style)
-            .scroll((0, scroll as u16))
-            .block(
-                Block::bordered()
-                    .border_type(BorderType::Rounded)
-                    .title("Chat"),
-            );
-        input_elem.render(pwd_input, buf);
+        self.pwd_input.draw(pwd_input, buf);
+
+        // Buttons
+        let [ok_area, cancel_area] =
+            Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
+                .areas(buttons);
+        self.ok_button.draw(ok_area, buf);
+        self.cancel_button.draw(cancel_area, buf);
     }
 }

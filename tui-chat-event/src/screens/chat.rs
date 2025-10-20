@@ -2,13 +2,11 @@ use crate::DEFAULT_BORDER;
 use crate::event::{EventSender, WidgetEvent};
 use crate::screens::Screen;
 use crate::widgets;
-use crate::widgets::InputMode;
 use crate::widgets::Widget;
 use ratatui::crossterm::event::{KeyCode, KeyEventKind};
 use ratatui::{
     buffer::Buffer,
     layout::{Alignment, Constraint, Layout, Rect},
-    style::{Color, Style},
     widgets::{Block, BorderType, Paragraph, Widget as UiWidget},
 };
 
@@ -124,20 +122,6 @@ impl UiWidget for &ChatScreen {
         x.render(chat, buf);
 
         // Input
-        let style = match self.input.input_mode {
-            InputMode::Normal => Style::default(),
-            InputMode::Editing => Color::Yellow.into(),
-        };
-        let width = area.width.max(3) - 3;
-        let scroll = self.input.input.visual_scroll(width as usize);
-        let input_elem = Paragraph::new(format!("{}", self.input.input.value()))
-            .style(style)
-            .scroll((0, scroll as u16))
-            .block(
-                Block::bordered()
-                    .border_type(BorderType::Rounded)
-                    .title("Chat"),
-            );
-        input_elem.render(input, buf);
+        self.input.draw(input, buf);
     }
 }

@@ -1,11 +1,11 @@
 use crate::screens::CurrentScreen;
 use color_eyre::eyre::OptionExt;
-use ratatui::crossterm::event::{self, Event as CrosstermEvent, KeyEvent};
+use ratatui::crossterm::event::{self, Event as CrosstermEvent, KeyCode, KeyEvent, KeyModifiers};
 use std::time::Duration;
 use tokio::sync::mpsc;
 
 /// The frequency at which tick events are emitted.
-const TICK_FPS: f64 = 30.0;
+const TICK_FPS: f64 = 1.0; //30.0;
 
 /// Representation of all possible events.
 #[derive(Clone, Debug)]
@@ -31,6 +31,7 @@ pub enum WidgetEvent {
     NoFocus,
     Clear,
     KeyEvent(KeyEvent),
+    ButtonPress,
     /*
     KeyPress(KeyEvent),
     KeyRelease(KeyEvent),
@@ -55,6 +56,7 @@ pub struct EventHandler {
     sender: mpsc::UnboundedSender<Event>,
     /// Event receiver channel.
     receiver: mpsc::UnboundedReceiver<Event>,
+    handle: tokio::task::JoinHandle<Result<(), color_eyre::eyre::Error>>,
 }
 
 impl EventHandler {
@@ -62,12 +64,20 @@ impl EventHandler {
     pub fn new() -> Self {
         let (sender, receiver) = mpsc::unbounded_channel();
         let actor = EventTask::new(sender.clone());
-        tokio::spawn(async { actor.run().await });
-        Self { sender, receiver }
+        let handle = tokio::spawn(async { actor.run().await });
+        Self {
+            sender,
+            receiver,
+            handle,
+        }
     }
 
     pub fn get_event_sender(&self) -> EventSender {
         EventSender::new(self.sender.clone())
+    }
+
+    pub fn stop(&self) {
+        self.handle.abort();
     }
 
     /// Receives an event from the sender.
@@ -149,9 +159,12 @@ impl EventTask {
               _ = tick_delay => {
                 self.send(Event::Tick);
               }
-              Some(evt) = crossterm_event => {
-                self.send(Event::Crossterm(evt));
-              }
+              Some(evt) = crossterm_event => match evt {
+                    ratatui::crossterm::event::Event::Key(key_event) => {
+                        self.send(handle_key_events(key_event))
+                    }
+                    _ => self.send(Event::Crossterm(evt))
+                },
             };
         }
         Ok(())
@@ -162,5 +175,14 @@ impl EventTask {
         // Ignores the result because shutting down the app drops the receiver, which causes the send
         // operation to fail. This is expected behavior and should not panic.
         let _ = self.sender.send(event);
+    }
+}
+
+pub fn handle_key_events(key_event: KeyEvent) -> Event {
+    match key_event.code {
+        KeyCode::Char('c' | 'C') if key_event.modifiers == KeyModifiers::CONTROL => {
+            return Event::App(AppEvent::Quit);
+        }
+        _ => return Event::App(AppEvent::WidgetEvent(WidgetEvent::KeyEvent(key_event))),
     }
 }
