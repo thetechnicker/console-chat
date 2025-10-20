@@ -2,7 +2,7 @@ use crate::app::App;
 
 pub mod app;
 pub mod event;
-//pub mod network;
+pub mod network;
 pub mod screens;
 pub mod widgets;
 
