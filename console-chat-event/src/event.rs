@@ -31,7 +31,6 @@ pub enum WidgetEvent {
     NoFocus,
     Clear,
     KeyEvent(KeyEvent),
-    ButtonPress,
     /*
     KeyPress(KeyEvent),
     KeyRelease(KeyEvent),
@@ -44,6 +43,7 @@ pub enum WidgetEvent {
 pub enum AppEvent {
     /// Quit the application.
     Quit,
+    ButtonPress(String),
     SwitchScreen(CurrentScreen),
     WidgetEvent(WidgetEvent),
     NetworkEvent,

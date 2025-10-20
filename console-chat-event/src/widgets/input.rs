@@ -60,6 +60,10 @@ impl InputWidget {
         self
     }
 
+    pub fn get_content(&self) -> String {
+        String::from(self.input.value())
+    }
+
     fn start_editing(&mut self) {
         self.input_mode = InputMode::Editing
     }

@@ -18,6 +18,7 @@ pub struct LoginScreen {
     pub event_sender: EventSender,
     pub user_input: widgets::InputWidget,
     pub pwd_input: widgets::InputWidget,
+    pub skip_button: widgets::Button,
     pub ok_button: widgets::Button,
     pub cancel_button: widgets::Button,
 }
@@ -26,10 +27,11 @@ impl LoginScreen {
     pub fn new(event_sender: EventSender) -> Self {
         Self {
             tab_index: 0,
-            max_tab: 5,
+            max_tab: 6,
             event_sender,
             user_input: widgets::InputWidget::new("Username"),
             pwd_input: widgets::InputWidget::new("Password").password(),
+            skip_button: widgets::Button::new("Join as Anonym").theme(widgets::GREEN),
             ok_button: widgets::Button::new("OK").theme(widgets::BLUE),
             cancel_button: widgets::Button::new("CANCEL").theme(widgets::RED),
         }
@@ -53,6 +55,7 @@ impl LoginScreen {
             2 => Some(&mut self.pwd_input as &mut dyn Widget),
             3 => Some(&mut self.ok_button as &mut dyn Widget),
             4 => Some(&mut self.cancel_button as &mut dyn Widget),
+            5 => Some(&mut self.skip_button as &mut dyn Widget),
             _ => None,
         }
     }
@@ -81,13 +84,6 @@ impl Screen for LoginScreen {
                 }
                 _ => {
                     self.send_current_widget_event(WidgetEvent::KeyEvent(key_event));
-                    if self.ok_button.is_pressed() {
-                        self.event_sender
-                            .send(Event::App(AppEvent::SwitchScreen(CurrentScreen::Chat)))
-                    }
-                    if self.cancel_button.is_pressed() {
-                        self.event_sender.send(Event::App(AppEvent::Quit))
-                    }
                 }
             },
             _ => {}
@@ -104,14 +100,15 @@ impl UiWidget for &LoginScreen {
         login_block.render(area, buf);
         let [_, input_area, _] = Layout::horizontal([
             Constraint::Fill(1),
-            Constraint::Percentage(60),
+            Constraint::Percentage(70),
             Constraint::Fill(1),
         ])
         .areas(login_inner);
 
         // Input
-        let [_, user_input, pwd_input, buttons, _] = Layout::vertical([
+        let [_, user_input, pwd_input, buttons, idk, _] = Layout::vertical([
             Constraint::Fill(1),
+            Constraint::Max(3),
             Constraint::Max(3),
             Constraint::Max(3),
             Constraint::Max(3),
@@ -126,10 +123,12 @@ impl UiWidget for &LoginScreen {
         self.pwd_input.draw(pwd_input, buf);
 
         // Buttons
+        let x = 50;
         let [ok_area, cancel_area] =
-            Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
+            Layout::horizontal([Constraint::Percentage(x), Constraint::Percentage(x)])
                 .areas(buttons);
         self.ok_button.draw(ok_area, buf);
         self.cancel_button.draw(cancel_area, buf);
+        self.skip_button.draw(idk, buf);
     }
 }

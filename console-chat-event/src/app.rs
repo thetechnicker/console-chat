@@ -1,5 +1,6 @@
 use crate::DEFAULT_BORDER;
 use crate::event::{AppEvent, Event, EventHandler, WidgetEvent};
+use crate::network;
 use crate::screens;
 use ratatui::DefaultTerminal;
 use ratatui::{
@@ -17,6 +18,7 @@ pub struct App {
     pub current_screen: screens::CurrentScreen,
     pub chat_screen: screens::ChatScreen,
     pub login_screen: screens::LoginScreen,
+    pub api: Option<network::client::ApiClient>,
     //pub last_event: Option<AppEvent>,
 }
 
@@ -30,6 +32,7 @@ impl Default for App {
             current_screen: screens::CurrentScreen::default(),
             chat_screen: screens::ChatScreen::new(event_sender.clone()),
             login_screen: screens::LoginScreen::new(event_sender.clone()),
+            api: network::client::ApiClient::new("localhost:8000").ok(),
             //last_event: None,
         }
     }

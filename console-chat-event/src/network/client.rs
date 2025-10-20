@@ -5,6 +5,7 @@ use crate::network::{
 use reqwest::Url;
 use std::sync::Arc;
 
+#[derive(Debug)]
 pub struct ApiClient {
     base_url: Url,
     client: Arc<reqwest::Client>,
@@ -29,6 +30,20 @@ impl ApiClient {
 
     pub fn set_bearer_token(&mut self, token: String) {
         self.bearer_token = Some(token);
+    }
+
+    pub async fn auth(&self) -> Result<UserStatus, ApiError> {
+        let url = self.base_url.join("auth")?;
+        //let body = serde_json::json!({ "username": username, "password": password });
+        let resp = self
+            .client
+            .post(url)
+            //.json(&body)
+            .send()
+            .await?
+            .json::<UserStatus>()
+            .await?;
+        Ok(resp)
     }
 
     pub async fn login(&self, username: &str, password: &str) -> Result<UserStatus, ApiError> {
