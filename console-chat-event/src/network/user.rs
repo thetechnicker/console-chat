@@ -1,6 +1,11 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize)]
-pub struct UserStatus;
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UserStatus {
+    pub is_new: bool,
+    pub ttl: u32,
+    pub token: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct BetterUser;

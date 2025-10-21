@@ -2,6 +2,7 @@ use crate::app::App;
 
 pub mod app;
 pub mod event;
+pub mod log;
 pub mod network;
 pub mod screens;
 pub mod widgets;
@@ -16,6 +17,8 @@ pub const DEFAULT_BORDER: BorderType = BorderType::Double;
 
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {
+    log::init_logging_file("terminal-chat.log");
+
     color_eyre::install()?;
     let terminal = ratatui::init();
     //execute!(stdout(), EnableMouseCapture)?;

@@ -1,6 +1,6 @@
 use crate::screens::CurrentScreen;
 use color_eyre::eyre::OptionExt;
-use crossterm::event::{self, Event as CrosstermEvent, KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{Event as CrosstermEvent, KeyCode, KeyEvent, KeyModifiers};
 use futures::{FutureExt, StreamExt};
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -58,6 +58,7 @@ pub enum AppEvent {
     Quit,
     ButtonPress(String),
     SwitchScreen(CurrentScreen),
+    SimpleMSG(String),
     //   WidgetEvent(WidgetEvent),
     Focus,
     NoFocus,

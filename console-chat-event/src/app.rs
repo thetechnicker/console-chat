@@ -3,6 +3,7 @@ use crate::event::{AppEvent, Event, EventHandler};
 use crate::network;
 use crate::screens;
 use crossterm::event::Event as CrosstermEvent;
+use log::error;
 use ratatui::DefaultTerminal;
 use ratatui::{
     Frame,
@@ -10,6 +11,7 @@ use ratatui::{
     widgets::{Block, BorderType, Paragraph},
 };
 use std::sync::Arc;
+use tokio::sync::Mutex;
 
 /// Application.
 #[derive(Debug)]
@@ -19,7 +21,7 @@ pub struct App {
     pub current_screen: screens::CurrentScreen,
     pub chat_screen: screens::ChatScreen,
     pub login_screen: screens::LoginScreen,
-    pub api: Option<Arc<network::client::ApiClient>>,
+    pub api: Option<Arc<Mutex<network::client::ApiClient>>>,
     pub last_event: Option<AppEvent>,
     help: String,
     exit: Option<std::time::Instant>,
@@ -35,7 +37,7 @@ impl Default for App {
             current_screen: screens::CurrentScreen::default(),
             chat_screen: screens::ChatScreen::new(event_sender.clone()),
             login_screen: screens::LoginScreen::new(event_sender.clone()),
-            api: network::client::ApiClient::new("localhost:8000").ok(),
+            api: network::client::ApiClient::new("http://localhost:8000").ok(),
             last_event: None,
             help: String::new(),
             exit: None,
@@ -56,7 +58,7 @@ impl App {
     ) -> color_eyre::Result<Option<std::time::Duration>> {
         //self.events.send(AppEvent::SwitchScreen(screens::CurrentScreen::Chat));
         while self.running {
-            let start = std::time::Instant::now();
+            //let start = std::time::Instant::now();
             terminal.draw(|frame| self.render(frame))?;
 
             match self.events.next().await? {
@@ -72,12 +74,29 @@ impl App {
                     match app_event {
                         AppEvent::Quit => self.quit(),
                         AppEvent::SwitchScreen(new_screen) => self.current_screen = new_screen,
+                        AppEvent::SimpleMSG(str) => self.help += &(str + "\n"),
                         AppEvent::ButtonPress(str) => match str.as_str() {
                             "LOGIN" => {
                                 let sender = self.events.get_event_sender();
                                 let login = self.login_screen.get_login_data();
-                                self.help += &format!("sender: {:?}\nlogin: {:?}\n", sender, login);
-                                //if let Some(api) = self.api.as_ref() {}
+                                //self.help += &format!("sender: {:?}\nlogin: {:?}\n", sender, login);
+                                if let Some(api) = self.api.as_ref() {
+                                    let api_clone = Arc::clone(api);
+                                    tokio::spawn(async move {
+                                        let mut api = api_clone.lock().await;
+                                        let resp = api.auth(Some(login)).await;
+                                        sender.send(Event::App(AppEvent::SimpleMSG(format!(
+                                            "{:?}",
+                                            resp
+                                        ))));
+                                        match resp {
+                                            Err(e) => {
+                                                error!("Error: {e}")
+                                            }
+                                            Ok(_) => {}
+                                        }
+                                    });
+                                }
                             }
                             _ => {}
                         },
@@ -85,8 +104,8 @@ impl App {
                     };
                 }
             }
-            let duration = start.elapsed();
-            self.help = format!("{:?}", duration);
+            //let duration = start.elapsed();
+            //self.help = format!("{:?}", duration);
         }
         if let Some(exit) = self.exit {
             return Ok(Some(exit.elapsed()));

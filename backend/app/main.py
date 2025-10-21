@@ -172,7 +172,15 @@ async def login(
         # raise HTTPException(
         #    status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=f"{db_user}"
         # )
-    elif password or username:
+    elif username:
+        public = PublicUser(display_name=username)
+        user = BetterUser(
+            username=str(uuid4()),
+            password_hash=None,
+            private=True,
+            public_data=public,
+        )
+    elif password:  # or username:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incomplete login parameters",
