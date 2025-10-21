@@ -1,6 +1,6 @@
 use crate::event::AppEvent;
 use crate::widgets::Widget;
-use ratatui::crossterm::event::Event;
+use crossterm::event::Event;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,

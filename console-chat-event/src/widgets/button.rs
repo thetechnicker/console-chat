@@ -1,8 +1,8 @@
 use crate::event::{AppEvent, EventSender};
 use crate::widgets::Widget;
+use crossterm::event::KeyEventKind;
 use ratatui::{
     buffer::Buffer,
-    crossterm::event::KeyEventKind,
     layout::Rect,
     style::{Color, Style},
     text::Line,

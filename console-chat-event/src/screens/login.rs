@@ -3,7 +3,7 @@ use crate::event::{AppEvent, EventSender};
 use crate::screens::Screen;
 use crate::widgets;
 use crate::widgets::Widget;
-use ratatui::crossterm::event::{KeyCode, KeyEventKind};
+use crossterm::event::{KeyCode, KeyEventKind};
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Layout, Rect},

@@ -2,10 +2,10 @@ use crate::DEFAULT_BORDER;
 use crate::event::{AppEvent, Event, EventHandler};
 use crate::network;
 use crate::screens;
+use crossterm::event::Event as CrosstermEvent;
 use ratatui::DefaultTerminal;
 use ratatui::{
     Frame,
-    crossterm::event::Event as CrosstermEvent,
     layout::{Alignment, Constraint, Layout},
     widgets::{Block, BorderType, Paragraph},
 };

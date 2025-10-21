@@ -1,6 +1,7 @@
 use crate::screens::CurrentScreen;
 use color_eyre::eyre::OptionExt;
-use ratatui::crossterm::event::{self, Event as CrosstermEvent, KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{self, Event as CrosstermEvent, KeyCode, KeyEvent, KeyModifiers};
+use futures::{FutureExt, StreamExt};
 use std::time::Duration;
 use tokio::sync::mpsc;
 
@@ -145,6 +146,7 @@ struct EventTask {
     sender: mpsc::UnboundedSender<Event>,
 }
 
+/*
 async fn get_event() -> Option<CrosstermEvent> {
     if event::poll(Duration::from_millis(1000)).unwrap_or(false) {
         if let Ok(event) = event::read() {
@@ -153,6 +155,7 @@ async fn get_event() -> Option<CrosstermEvent> {
     }
     None
 }
+*/
 
 impl EventTask {
     /// Constructs a new instance of [`EventThread`].
@@ -165,11 +168,12 @@ impl EventTask {
     /// This function emits tick events at a fixed rate and polls for crossterm events in between.
     async fn run(self) -> color_eyre::Result<()> {
         let tick_rate = Duration::from_secs_f64(1.0 / TICK_FPS);
-        //let mut reader = crossterm::event::EventStream::new();
+        let mut reader = crossterm::event::EventStream::new();
         let mut tick = tokio::time::interval(tick_rate);
         loop {
             let tick_delay = tick.tick();
-            let crossterm_event = get_event(); //reader.next().fuse();
+            //let crossterm_event = get_event();
+            let crossterm_event = reader.next().fuse();
             tokio::select! {
               _ = self.sender.closed() => {
                 break;
@@ -177,8 +181,8 @@ impl EventTask {
               _ = tick_delay => {
                 self.send(Event::Tick);
               }
-              Some(evt) = crossterm_event => match evt {
-                    ratatui::crossterm::event::Event::Key(key_event) => {
+              Some(Ok(evt)) = crossterm_event => match evt {
+                    crossterm::event::Event::Key(key_event) => {
                         self.send(handle_key_events(key_event))
                     }
                     _ => self.send(Event::Crossterm(evt))
