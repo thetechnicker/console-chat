@@ -57,13 +57,11 @@ pub enum AppEvent {
     Quit,
     ButtonPress(String),
     SwitchScreen(CurrentScreen),
-
     //   WidgetEvent(WidgetEvent),
     Focus,
     NoFocus,
     Clear,
     KeyEvent(KeyEvent),
-
     NetworkEvent,
 }
 
@@ -148,8 +146,10 @@ struct EventTask {
 }
 
 async fn get_event() -> Option<CrosstermEvent> {
-    if let Ok(evt) = event::read() {
-        return Some(evt);
+    if event::poll(Duration::from_millis(1000)).unwrap_or(false) {
+        if let Ok(event) = event::read() {
+            return Some(event);
+        }
     }
     None
 }
@@ -196,7 +196,8 @@ impl EventTask {
     }
 }
 
-pub fn handle_key_events(key_event: KeyEvent) -> Event {
+#[inline]
+fn handle_key_events(key_event: KeyEvent) -> Event {
     match key_event.code {
         KeyCode::Char('c' | 'C') if key_event.modifiers == KeyModifiers::CONTROL => {
             return Event::App(AppEvent::Quit);

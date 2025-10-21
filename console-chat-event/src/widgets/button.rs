@@ -50,15 +50,17 @@ pub struct Button {
     label: String,
     theme: Theme,
     event_sender: EventSender,
+    on_press: AppEvent,
 }
 
 impl Button {
-    pub fn new(label: &str, event_sender: EventSender) -> Self {
+    pub fn new(label: &str, event_sender: EventSender, on_press: AppEvent) -> Self {
         Self {
             state: ButtonState::Normal,
             label: String::from(label),
             theme: BLUE,
             event_sender,
+            on_press,
         }
     }
     pub fn is_pressed(&self) -> bool {
@@ -87,10 +89,7 @@ impl Widget for Button {
                 KeyEventKind::Press => {
                     if self.state == ButtonState::Selected {
                         self.state = ButtonState::Active;
-                        self.event_sender.send(
-                            AppEvent::ButtonPress(format!("#{}", self.label.replace(' ', "_")))
-                                .into(),
-                        );
+                        self.event_sender.send(self.on_press.clone().into());
                     }
                 }
                 KeyEventKind::Release => {

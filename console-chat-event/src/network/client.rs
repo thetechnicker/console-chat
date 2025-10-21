@@ -14,14 +14,14 @@ pub struct ApiClient {
 }
 
 impl ApiClient {
-    pub fn new(base_url: &str) -> Result<Self, ApiError> {
+    pub fn new(base_url: &str) -> Result<Arc<Self>, ApiError> {
         let client = Arc::new(reqwest::Client::new());
-        Ok(ApiClient {
+        Ok(Arc::new(ApiClient {
             base_url: Url::parse(base_url)?,
             client,
             api_key: None,
             bearer_token: None,
-        })
+        }))
     }
 
     pub fn set_api_key(&mut self, key: String) {
@@ -32,17 +32,24 @@ impl ApiClient {
         self.bearer_token = Some(token);
     }
 
-    pub async fn auth(&self) -> Result<UserStatus, ApiError> {
+    pub async fn auth(&self, args: Option<serde_json::Value>) -> Result<UserStatus, ApiError> {
         let url = self.base_url.join("auth")?;
-        //let body = serde_json::json!({ "username": username, "password": password });
-        let resp = self
-            .client
-            .post(url)
-            //.json(&body)
-            .send()
-            .await?
-            .json::<UserStatus>()
-            .await?;
+        let resp = if let Some(body) = args {
+            self.client
+                .post(url)
+                .json(&body)
+                .send()
+                .await?
+                .json::<UserStatus>()
+                .await?
+        } else {
+            self.client
+                .post(url)
+                .send()
+                .await?
+                .json::<UserStatus>()
+                .await?
+        };
         Ok(resp)
     }
 

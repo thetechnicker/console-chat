@@ -24,5 +24,12 @@ async fn main() -> color_eyre::Result<()> {
     //if let Err(err) = execute!(stdout(), DisableMouseCapture) {
     //    eprintln!("Error disabling mouse capture: {err}");
     //}
-    result
+    match result {
+        Ok(Some(d)) => {
+            println!("{:?}", d);
+            return Ok(());
+        }
+        Ok(None) => return Ok(()),
+        Err(e) => return Err(e),
+    }
 }

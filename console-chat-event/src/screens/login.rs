@@ -1,6 +1,5 @@
 use crate::DEFAULT_BORDER;
-use crate::event::{AppEvent, Event, EventSender};
-use crate::screens::CurrentScreen;
+use crate::event::{AppEvent, EventSender};
 use crate::screens::Screen;
 use crate::widgets;
 use crate::widgets::Widget;
@@ -10,6 +9,7 @@ use ratatui::{
     layout::{Constraint, Layout, Rect},
     widgets::{Block, Widget as UiWidget},
 };
+use serde_json;
 
 #[derive(Debug)]
 pub struct LoginScreen {
@@ -31,10 +31,20 @@ impl LoginScreen {
             event_sender: event_sender.clone(),
             user_input: widgets::InputWidget::new("Username"),
             pwd_input: widgets::InputWidget::new("Password").password(),
-            skip_button: widgets::Button::new("Join as Anonym", event_sender.clone())
-                .theme(widgets::GREEN),
-            ok_button: widgets::Button::new("OK", event_sender.clone()).theme(widgets::BLUE),
-            cancel_button: widgets::Button::new("CANCEL", event_sender.clone()).theme(widgets::RED),
+            skip_button: widgets::Button::new(
+                "Join as Anonym",
+                event_sender.clone(),
+                AppEvent::ButtonPress("LOGIN".to_string()),
+            )
+            .theme(widgets::GREEN),
+            ok_button: widgets::Button::new(
+                "OK",
+                event_sender.clone(),
+                AppEvent::ButtonPress("LOGIN".to_string()),
+            )
+            .theme(widgets::BLUE),
+            cancel_button: widgets::Button::new("CANCEL", event_sender.clone(), AppEvent::Quit)
+                .theme(widgets::RED),
         }
     }
     pub fn send_current_widget_event(&mut self, event: AppEvent) {
@@ -62,6 +72,13 @@ impl LoginScreen {
     }
     pub fn current_widget(&mut self) -> Option<&mut dyn Widget> {
         self.widget_at(self.tab_index)
+    }
+
+    pub fn get_login_data(&self) -> serde_json::Value {
+        serde_json::json!({
+            "username":self.user_input.get_content(),
+            "password":self.pwd_input.get_content(),
+        })
     }
 }
 
