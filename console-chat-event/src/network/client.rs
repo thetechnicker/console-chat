@@ -6,6 +6,8 @@ use reqwest::{StatusCode, Url};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+pub type ApiClientType = Arc<Mutex<ApiClient>>;
+
 #[derive(Debug)]
 pub struct ApiClient {
     base_url: Url,
@@ -23,6 +25,11 @@ impl ApiClient {
             api_key: None,
             bearer_token: None,
         })))
+    }
+
+    pub fn reset(&mut self) {
+        self.api_key = None;
+        self.bearer_token = None;
     }
 
     pub fn set_api_key(&mut self, key: String) {

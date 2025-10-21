@@ -32,18 +32,18 @@ impl LoginScreen {
             user_input: widgets::InputWidget::new("Username"),
             pwd_input: widgets::InputWidget::new("Password").password(),
             skip_button: widgets::Button::new(
-                "Join as Anonym",
+                "Anonym",
                 event_sender.clone(),
                 AppEvent::ButtonPress("LOGIN".to_string()),
             )
             .theme(widgets::GREEN),
             ok_button: widgets::Button::new(
-                "OK",
+                "Login",
                 event_sender.clone(),
                 AppEvent::ButtonPress("LOGIN".to_string()),
             )
             .theme(widgets::BLUE),
-            cancel_button: widgets::Button::new("CANCEL", event_sender.clone(), AppEvent::Quit)
+            cancel_button: widgets::Button::new("Exit", event_sender.clone(), AppEvent::Quit)
                 .theme(widgets::RED),
         }
     }

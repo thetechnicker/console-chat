@@ -3,52 +3,73 @@ use crate::event::{AppEvent, Event, EventHandler};
 use crate::network;
 use crate::screens;
 use crossterm::event::Event as CrosstermEvent;
-use log::error;
+use log::{error, info};
 use ratatui::DefaultTerminal;
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Layout},
-    widgets::{Block, BorderType, Paragraph},
+    widgets::{Block, BorderType},
 };
 use std::sync::Arc;
-use tokio::sync::Mutex;
+//use tokio::sync::Mutex;
 
 /// Application.
 #[derive(Debug)]
 pub struct App {
-    pub running: bool,
-    pub events: EventHandler,
-    pub current_screen: screens::CurrentScreen,
-    pub chat_screen: screens::ChatScreen,
-    pub login_screen: screens::LoginScreen,
-    pub api: Option<Arc<Mutex<network::client::ApiClient>>>,
-    pub last_event: Option<AppEvent>,
-    help: String,
-    exit: Option<std::time::Instant>,
+    running: bool,
+    events: EventHandler,
+
+    current_screen: screens::CurrentScreen,
+    chat_screen: screens::ChatScreen,
+    login_screen: screens::LoginScreen,
+    home_screen: screens::HomeScreen,
+
+    exit_time: Option<std::time::Instant>,
+
+    api: Option<network::client::ApiClientType>,
+    max_api_failure_count: u32,
+    api_failure_count: u32,
+    api_failures: Vec<network::ApiError>,
 }
 
-impl Default for App {
-    fn default() -> Self {
+impl App {
+    /// Constructs a new instance of [`App`].
+    pub fn new() -> Self {
+        // Creating a Client might fail, this shouldnt be a reason to crash the app
+        let mut api_failures = Vec::new();
+        let mut api_failure_count = 0;
+        let api_client_res = network::client::ApiClient::new("http://localhost:8000");
+        let mut api = None;
+        match api_client_res {
+            Ok(a) => api = Some(a),
+            Err(e) => {
+                error!("{}", e);
+                api_failure_count += 1;
+                api_failures.push(e)
+            }
+        }
+
         let event_handler = EventHandler::new();
         let event_sender = event_handler.get_event_sender();
+
         Self {
             running: true,
             events: event_handler,
             current_screen: screens::CurrentScreen::default(),
             chat_screen: screens::ChatScreen::new(event_sender.clone()),
             login_screen: screens::LoginScreen::new(event_sender.clone()),
-            api: network::client::ApiClient::new("http://localhost:8000").ok(),
-            last_event: None,
-            help: String::new(),
-            exit: None,
+            home_screen: screens::HomeScreen::new(event_sender.clone()),
+            api,
+
+            exit_time: None,
+            api_failure_count,
+            max_api_failure_count: 10,
+            api_failures,
         }
     }
-}
 
-impl App {
-    /// Constructs a new instance of [`App`].
-    pub fn new() -> Self {
-        Self::default()
+    fn get_api(&mut self) -> Option<&network::client::ApiClientType> {
+        self.api.as_ref()
     }
 
     /// Run the application's main loop.
@@ -70,32 +91,41 @@ impl App {
                     _ => {}
                 },
                 Event::App(app_event) => {
-                    self.last_event = Some(app_event.clone());
+                    //self.last_event = Some(app_event.clone());
                     match app_event {
                         AppEvent::Quit => self.quit(),
                         AppEvent::SwitchScreen(new_screen) => self.current_screen = new_screen,
-                        AppEvent::SimpleMSG(str) => self.help += &(str + "\n"),
+                        AppEvent::SimpleMSG(str) => info!("{}", str),
+                        AppEvent::TriggerApiReconnect => self.reconnect_api(),
                         AppEvent::ButtonPress(str) => match str.as_str() {
                             "LOGIN" => {
                                 let sender = self.events.get_event_sender();
                                 let login = self.login_screen.get_login_data();
                                 //self.help += &format!("sender: {:?}\nlogin: {:?}\n", sender, login);
-                                if let Some(api) = self.api.as_ref() {
+                                if let Some(api) = self.get_api() {
                                     let api_clone = Arc::clone(api);
                                     tokio::spawn(async move {
                                         let mut api = api_clone.lock().await;
                                         let resp = api.auth(Some(login)).await;
-                                        sender.send(Event::App(AppEvent::SimpleMSG(format!(
-                                            "{:?}",
-                                            resp
-                                        ))));
                                         match resp {
                                             Err(e) => {
                                                 error!("Error: {e}")
                                             }
-                                            Ok(_) => {}
+                                            Ok(_) => {
+                                                sender.send(Event::App(AppEvent::SwitchScreen(
+                                                    screens::CurrentScreen::Home,
+                                                )))
+                                            }
                                         }
                                     });
+                                }
+                            }
+                            "LOGOUT" => {
+                                if let Some(api) = self.api.as_ref() {
+                                    api.lock().await.reset();
+                                    self.events.send(AppEvent::SwitchScreen(
+                                        screens::CurrentScreen::Login,
+                                    ));
                                 }
                             }
                             _ => {}
@@ -107,7 +137,7 @@ impl App {
             //let duration = start.elapsed();
             //self.help = format!("{:?}", duration);
         }
-        if let Some(exit) = self.exit {
+        if let Some(exit) = self.exit_time {
             return Ok(Some(exit.elapsed()));
         }
         Ok(None)
@@ -124,8 +154,8 @@ impl App {
         frame.render_widget(outer_block, area);
 
         let [left, main, right] = Layout::horizontal([
-            Constraint::Max(1),
-            Constraint::Percentage(40),
+            Constraint::Fill(1),
+            Constraint::Percentage(60),
             Constraint::Fill(1),
         ])
         .areas(inner);
@@ -139,14 +169,13 @@ impl App {
         // RIGHT
 
         let right_block = Block::bordered().border_type(DEFAULT_BORDER);
-        let right_inner = right_block.inner(right);
+        let _right_inner = right_block.inner(right);
         frame.render_widget(right_block, right);
-        let x = Paragraph::new(format!("{}", self.help));
-        frame.render_widget(x, right_inner);
 
         match self.current_screen {
             screens::CurrentScreen::Login => frame.render_widget(&self.login_screen, main),
             screens::CurrentScreen::Chat => frame.render_widget(&self.chat_screen, main),
+            screens::CurrentScreen::Home => frame.render_widget(&self.home_screen, main),
         }
     }
 
@@ -161,6 +190,21 @@ impl App {
             screens::CurrentScreen::Login => {
                 Some(&mut self.login_screen as &mut dyn screens::Screen)
             }
+            screens::CurrentScreen::Home => Some(&mut self.home_screen as &mut dyn screens::Screen),
+        }
+    }
+
+    pub fn reconnect_api(&mut self) {
+        if self.api.is_none() {
+            let api_client_res = network::client::ApiClient::new("http://localhost:8000");
+            match api_client_res {
+                Ok(a) => self.api = Some(a),
+                Err(e) => {
+                    error!("{}", e);
+                    self.api_failure_count += 1;
+                    self.api_failures.push(e)
+                }
+            }
         }
     }
 
@@ -168,11 +212,15 @@ impl App {
     ///
     /// The tick event is where you can update the state of your application with any logic that
     /// needs to be updated at a fixed frame rate. E.g. polling a server, updating an animation.
-    pub fn tick(&mut self) {}
+    pub fn tick(&mut self) {
+        if self.api_failure_count >= self.max_api_failure_count {
+            self.events.send(AppEvent::Quit);
+        }
+    }
 
     /// Set running to false to quit the application.
     pub fn quit(&mut self) {
-        self.exit = Some(std::time::Instant::now());
+        self.exit_time = Some(std::time::Instant::now());
         self.events.stop();
         self.running = false;
     }

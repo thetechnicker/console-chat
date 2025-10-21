@@ -56,15 +56,18 @@ pub enum AppEvent {
 pub enum AppEvent {
     /// Quit the application.
     Quit,
-    ButtonPress(String),
-    SwitchScreen(CurrentScreen),
-    SimpleMSG(String),
-    //   WidgetEvent(WidgetEvent),
+
     Focus,
     NoFocus,
     Clear,
-    KeyEvent(KeyEvent),
+
+    TriggerApiReconnect,
     NetworkEvent,
+
+    KeyEvent(KeyEvent),
+    ButtonPress(String),
+    SwitchScreen(CurrentScreen),
+    SimpleMSG(String),
 }
 
 /// Terminal event handler.

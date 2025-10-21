@@ -7,6 +7,7 @@ pub enum CurrentScreen {
     #[default]
     Login,
     Chat,
+    Home,
 }
 
 pub struct ScreenState {
@@ -23,3 +24,5 @@ pub mod chat;
 pub use chat::*;
 pub mod login;
 pub use login::*;
+pub mod home;
+pub use home::*;
