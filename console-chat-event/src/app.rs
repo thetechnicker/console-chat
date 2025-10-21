@@ -32,13 +32,21 @@ pub struct App {
     api_failures: Vec<network::ApiError>,
 }
 
+impl Default for App {
+    fn default() -> Self {
+        Self::new(None, None)
+    }
+}
+
 impl App {
     /// Constructs a new instance of [`App`].
-    pub fn new() -> Self {
+    pub fn new(max_api_failure_count: Option<u32>, server_url: Option<&str>) -> Self {
         // Creating a Client might fail, this shouldnt be a reason to crash the app
         let mut api_failures = Vec::new();
+
         let mut api_failure_count = 0;
-        let api_client_res = network::client::ApiClient::new("http://localhost:8000");
+        let api_client_res =
+            network::client::ApiClient::new(server_url.unwrap_or("https://localhost:8000"));
         let mut api = None;
         match api_client_res {
             Ok(a) => api = Some(a),
@@ -63,9 +71,17 @@ impl App {
 
             exit_time: None,
             api_failure_count,
-            max_api_failure_count: 10,
+            max_api_failure_count: max_api_failure_count.unwrap_or(10),
             api_failures,
         }
+    }
+
+    pub fn set_ap_url(url: &str) -> Self {
+        Self::new(None, Some(url))
+    }
+
+    pub fn set_max_error(max_api_failure_count: u32) -> Self {
+        Self::new(Some(max_api_failure_count), None)
     }
 
     fn get_api(&mut self) -> Option<&network::client::ApiClientType> {
