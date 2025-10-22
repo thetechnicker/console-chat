@@ -92,7 +92,7 @@ impl Widget for InputWidget {
         }
     }
 
-    fn draw(&self, area: Rect, buf: &mut Buffer) {
+    fn draw(&self, area: Rect, buf: &mut Buffer, ret: &mut Option<u16>) {
         let style = match self.input_mode {
             InputMode::Normal => Style::default(),
             InputMode::Editing => Color::Yellow.into(),
@@ -121,5 +121,9 @@ impl Widget for InputWidget {
                     .title(title),
             );
         input_elem.render(area, buf);
+
+        if self.input_mode == InputMode::Editing {
+            *ret = Some((self.input.visual_cursor().max(scroll) - scroll + 1) as u16);
+        }
     }
 }

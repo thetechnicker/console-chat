@@ -102,7 +102,7 @@ impl Widget for Button {
             _ => {}
         }
     }
-    fn draw(&self, area: Rect, buf: &mut Buffer) {
+    fn draw(&self, area: Rect, buf: &mut Buffer, _: &mut Option<u16>) {
         let (background, text, shadow, highlight) = self.colors();
         buf.set_style(area, Style::new().bg(background).fg(text));
 

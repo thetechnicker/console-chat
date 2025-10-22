@@ -1,6 +1,6 @@
 use crate::DEFAULT_BORDER;
 use crate::event::{AppEvent, EventSender};
-use crate::screens::Screen;
+use crate::screens::{CursorPos, Screen};
 use crate::widgets;
 use crate::widgets::Widget;
 use crossterm::event::{KeyCode, KeyEventKind};
@@ -81,10 +81,13 @@ impl Screen for ChatScreen {
             _ => {}
         };
     }
-}
+    /*
+    }
 
-impl UiWidget for &ChatScreen {
-    fn render(self, area: Rect, buf: &mut Buffer) {
+    impl UiWidget for &ChatScreen {
+        fn render(self, area: Rect, buf: &mut Buffer) {
+        */
+    fn draw(&self, area: Rect, buf: &mut Buffer) -> Option<CursorPos> {
         // MAIN
         let chat_block = Block::bordered().border_type(DEFAULT_BORDER);
         let chat_inner = chat_block.inner(area);
@@ -97,6 +100,7 @@ impl UiWidget for &ChatScreen {
         x.render(chat, buf);
 
         // Input
-        self.input.draw(input, buf);
+        self.input.draw(input, buf, &mut None);
+        None
     }
 }

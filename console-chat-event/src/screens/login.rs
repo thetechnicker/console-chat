@@ -1,6 +1,6 @@
 use crate::DEFAULT_BORDER;
 use crate::event::{AppEvent, EventSender};
-use crate::screens::Screen;
+use crate::screens::{CursorPos, Screen};
 use crate::widgets;
 use crate::widgets::Widget;
 use crossterm::event::{KeyCode, KeyEventKind};
@@ -48,19 +48,32 @@ impl LoginScreen {
         }
     }
     pub fn send_current_widget_event(&mut self, event: AppEvent) {
-        if let Some(elem) = self.current_widget() {
+        if let Some(elem) = self.current_widget_mut() {
             elem.handle_event(event)
         }
     }
     pub fn send_all_widgets_event(&mut self, event: AppEvent) {
         for i in 0..self.max_tab {
-            if let Some(elem) = self.widget_at(i) {
+            if let Some(elem) = self.widget_at_mut(i) {
                 elem.handle_event(event.clone());
             }
         }
     }
 
-    pub fn widget_at(&mut self, index: usize) -> Option<&mut dyn Widget> {
+    pub fn widget_at(&self, index: usize) -> Option<&dyn Widget> {
+        match index {
+            1 => Some(&self.user_input as &dyn Widget),
+            2 => Some(&self.pwd_input as &dyn Widget),
+            3 => Some(&self.ok_button as &dyn Widget),
+            4 => Some(&self.cancel_button as &dyn Widget),
+            5 => Some(&self.skip_button as &dyn Widget),
+            _ => None,
+        }
+    }
+    pub fn current_widget(&self) -> Option<&dyn Widget> {
+        self.widget_at(self.tab_index)
+    }
+    pub fn widget_at_mut(&mut self, index: usize) -> Option<&mut dyn Widget> {
         match index {
             1 => Some(&mut self.user_input as &mut dyn Widget),
             2 => Some(&mut self.pwd_input as &mut dyn Widget),
@@ -70,15 +83,8 @@ impl LoginScreen {
             _ => None,
         }
     }
-    pub fn current_widget(&mut self) -> Option<&mut dyn Widget> {
-        self.widget_at(self.tab_index)
-    }
-
-    pub fn get_login_data(&self) -> serde_json::Value {
-        serde_json::json!({
-            "username":self.user_input.get_content(),
-            "password":self.pwd_input.get_content(),
-        })
+    pub fn current_widget_mut(&mut self) -> Option<&mut dyn Widget> {
+        self.widget_at_mut(self.tab_index)
     }
 }
 
@@ -107,10 +113,13 @@ impl Screen for LoginScreen {
             _ => {}
         };
     }
-}
 
-impl UiWidget for &LoginScreen {
-    fn render(self, area: Rect, buf: &mut Buffer) {
+    /*
+    }
+    impl UiWidget for &LoginScreen {
+        fn render(self, area: Rect, buf: &mut Buffer) {
+        */
+    fn draw(&self, area: Rect, buf: &mut Buffer) -> Option<CursorPos> {
         // MAIN
         let login_block = Block::bordered().border_type(DEFAULT_BORDER);
         let login_inner = login_block.inner(area);
@@ -134,19 +143,43 @@ impl UiWidget for &LoginScreen {
         ])
         .areas(input_area);
 
+        let mut u_x: Option<u16> = None;
+        let mut p_x: Option<u16> = None;
+
         // User Input
-        self.user_input.draw(user_input, buf);
+        self.user_input.draw(user_input, buf, &mut u_x);
 
         // Password Input
-        self.pwd_input.draw(pwd_input, buf);
+        self.pwd_input.draw(pwd_input, buf, &mut p_x);
 
         // Buttons
         let x = 50;
         let [ok_area, cancel_area] =
             Layout::horizontal([Constraint::Percentage(x), Constraint::Percentage(x)])
                 .areas(buttons);
-        self.ok_button.draw(ok_area, buf);
-        self.cancel_button.draw(cancel_area, buf);
-        self.skip_button.draw(idk, buf);
+        self.ok_button.draw(ok_area, buf, &mut None);
+        self.cancel_button.draw(cancel_area, buf, &mut None);
+        self.skip_button.draw(idk, buf, &mut None);
+
+        if let Some(x) = u_x {
+            Some(CursorPos {
+                x: x + user_input.x as u16,
+                y: user_input.y + 1 as u16,
+            })
+        } else if let Some(x) = p_x {
+            Some(CursorPos {
+                x: x + pwd_input.x as u16,
+                y: pwd_input.y + 1 as u16,
+            })
+        } else {
+            None
+        }
+    }
+
+    fn get_data(&self) -> serde_json::Value {
+        serde_json::json!({
+            "username":self.user_input.get_content(),
+            "password":self.pwd_input.get_content(),
+        })
     }
 }

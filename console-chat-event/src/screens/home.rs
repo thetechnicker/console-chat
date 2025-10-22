@@ -1,6 +1,6 @@
 use crate::DEFAULT_BORDER;
 use crate::event::{AppEvent, EventSender};
-use crate::screens::Screen;
+use crate::screens::{CursorPos, Screen};
 use crate::widgets;
 use crate::widgets::Widget;
 use crossterm::event::{KeyCode, KeyEventKind};
@@ -70,12 +70,6 @@ impl HomeScreen {
     pub fn current_widget(&mut self) -> Option<&mut dyn Widget> {
         self.widget_at(self.tab_index)
     }
-
-    pub fn get_login_data(&self) -> serde_json::Value {
-        serde_json::json!({
-            "room":self.room_input.get_content(),
-        })
-    }
 }
 
 impl Screen for HomeScreen {
@@ -103,10 +97,18 @@ impl Screen for HomeScreen {
             _ => {}
         };
     }
-}
 
-impl UiWidget for &HomeScreen {
-    fn render(self, area: Rect, buf: &mut Buffer) {
+    fn get_data(&self) -> serde_json::Value {
+        serde_json::json!(self.room_input.get_content())
+    }
+
+    /*
+    }
+
+    impl UiWidget for &HomeScreen {
+        fn render(self, area: Rect, buf: &mut Buffer) {
+        */
+    fn draw(&self, area: Rect, buf: &mut Buffer) -> Option<CursorPos> {
         // MAIN
         let login_block = Block::bordered().border_type(DEFAULT_BORDER);
         let login_inner = login_block.inner(area);
@@ -131,15 +133,16 @@ impl UiWidget for &HomeScreen {
         .areas(input_area);
 
         // User Input
-        self.room_input.draw(user_input, buf);
+        self.room_input.draw(user_input, buf, &mut None);
 
         // Buttons
         let x = 50;
         let [join_area, logout_area] =
             Layout::horizontal([Constraint::Percentage(x), Constraint::Percentage(x)])
                 .areas(buttons1);
-        self.join_button.draw(join_area, buf);
-        self.logout_button.draw(logout_area, buf);
-        self.exit_button.draw(buttons2, buf);
+        self.join_button.draw(join_area, buf, &mut None);
+        self.logout_button.draw(logout_area, buf, &mut None);
+        self.exit_button.draw(buttons2, buf, &mut None);
+        None
     }
 }

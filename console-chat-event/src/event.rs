@@ -1,3 +1,4 @@
+use crate::network::NetworkEvent;
 use crate::screens::CurrentScreen;
 use color_eyre::eyre::OptionExt;
 use crossterm::event::{Event as CrosstermEvent, KeyCode, KeyEvent, KeyModifiers};
@@ -61,8 +62,8 @@ pub enum AppEvent {
     NoFocus,
     Clear,
 
-    TriggerApiReconnect,
-    NetworkEvent,
+    //TriggerApiReconnect,
+    NetworkEvent(NetworkEvent),
 
     KeyEvent(KeyEvent),
     ButtonPress(String),
@@ -141,6 +142,38 @@ impl EventSender {
         // Ignores the result because shutting down the app drops the receiver, which causes the send
         // operation to fail. This is expected behavior and should not panic.
         let _ = self.sender.send(event);
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AppEventSender {
+    sender: mpsc::UnboundedSender<Event>,
+}
+
+impl AppEventSender {
+    pub fn new(sender: mpsc::UnboundedSender<Event>) -> Self {
+        Self { sender }
+    }
+    pub fn send(&self, event: AppEvent) {
+        // Ignores the result because shutting down the app drops the receiver, which causes the send
+        // operation to fail. This is expected behavior and should not panic.
+        let _ = self.sender.send(Event::App(event));
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct NetworkEventSender {
+    sender: mpsc::UnboundedSender<Event>,
+}
+
+impl NetworkEventSender {
+    pub fn new(sender: mpsc::UnboundedSender<Event>) -> Self {
+        Self { sender }
+    }
+    pub fn send(&self, event: NetworkEvent) {
+        // Ignores the result because shutting down the app drops the receiver, which causes the send
+        // operation to fail. This is expected behavior and should not panic.
+        let _ = self.sender.send(Event::App(AppEvent::NetworkEvent(event)));
     }
 }
 

@@ -6,7 +6,7 @@ use std::fmt::Debug;
 
 pub trait Widget: Debug {
     fn handle_event(&mut self, event: AppEvent);
-    fn draw(&self, area: Rect, buf: &mut Buffer);
+    fn draw(&self, area: Rect, buf: &mut Buffer, ret: &mut Option<u16>);
 }
 
 pub mod input;

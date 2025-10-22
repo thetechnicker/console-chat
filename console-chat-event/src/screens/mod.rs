@@ -1,5 +1,5 @@
 use crate::event::AppEvent;
-use ratatui::layout::Rect;
+use ratatui::{buffer::Buffer, layout::Rect};
 use std::fmt::Debug;
 
 #[derive(Default, Debug, Clone)]
@@ -10,14 +10,20 @@ pub enum CurrentScreen {
     Home,
 }
 
-pub struct ScreenState {
-    pub title: String,
-    pub hint_area: Rect,
+#[derive(Default, Debug)]
+pub struct CursorPos {
+    pub x: u16,
+    pub y: u16,
 }
 
-pub trait Screen: Debug {
+pub trait Screen: Debug //where
+//    for<'a> &'a Self: Widget,
+{
     fn handle_event(&mut self, event: AppEvent);
-    //fn render(&self, area: Rect, buf: &mut Buffer);
+    fn draw(&self, area: Rect, buf: &mut Buffer) -> Option<CursorPos>;
+    fn get_data(&self) -> serde_json::Value {
+        serde_json::Value::Null
+    }
 }
 
 pub mod chat;
