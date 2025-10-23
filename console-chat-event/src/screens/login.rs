@@ -34,7 +34,7 @@ impl LoginScreen {
             skip_button: widgets::Button::new(
                 "Anonym",
                 event_sender.clone(),
-                AppEvent::ButtonPress("LOGIN".to_string()),
+                AppEvent::ButtonPress("LOGIN_ANONYM".to_string()),
             )
             .theme(widgets::GREEN),
             ok_button: widgets::Button::new(
@@ -91,11 +91,11 @@ impl LoginScreen {
 impl Screen for LoginScreen {
     fn handle_event(&mut self, event: AppEvent) {
         match event {
-            AppEvent::Clear => {
+            AppEvent::Clear(hard) => {
                 self.tab_index = 0;
                 for i in 0..self.max_tab {
                     if let Some(w) = self.widget_at_mut(i) {
-                        w.handle_event(AppEvent::Clear);
+                        w.handle_event(AppEvent::Clear(hard));
                     }
                 }
             }

@@ -90,10 +90,3 @@ where
 }
 
 impl Error for ApiError {}
-
-#[derive(Clone, Debug)]
-pub enum NetworkEvent {
-    None,
-    Message,
-    Error(ApiError),
-}

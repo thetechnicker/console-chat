@@ -83,7 +83,7 @@ impl Button {
 impl Widget for Button {
     fn handle_event(&mut self, event: AppEvent) {
         match event {
-            AppEvent::Clear => self.state = ButtonState::Normal,
+            AppEvent::Clear(_) => self.state = ButtonState::Normal,
             AppEvent::NoFocus => self.state = ButtonState::Normal,
             AppEvent::Focus => self.state = ButtonState::Selected,
             AppEvent::KeyEvent(key) => match key.kind {

@@ -3,13 +3,21 @@ use crate::event::{AppEvent, Event, EventHandler};
 use crate::network::{self, ApiError};
 use crate::screens::{self, Screen};
 use crossterm::event::Event as CrosstermEvent;
-use log::{error, info};
+use log::{debug, error, info, trace};
 use ratatui::DefaultTerminal;
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Layout},
-    widgets::{Block, BorderType, Paragraph, Wrap},
+    style::{Color, Modifier, Style},
+    widgets::{Block, BorderType, Clear, Padding, Paragraph, Wrap},
 };
+
+#[derive(Debug)]
+struct Popup {
+    pub content: ApiError,
+    pub timeout: std::time::Duration,
+    pub creation: std::time::Instant,
+}
 
 /// Application.
 #[derive(Debug)]
@@ -25,7 +33,7 @@ pub struct App {
     exit_time: Option<std::time::Instant>,
     api: network::client::ApiClient,
 
-    error_box: Option<ApiError>,
+    error_box: Option<Popup>,
 }
 
 impl Default for App {
@@ -85,7 +93,9 @@ impl App {
             //let start = std::time::Instant::now();
             terminal.draw(|frame| self.render(frame))?;
 
-            match self.events.next().await? {
+            let event = self.events.next().await?;
+            trace!("Handling Event: {event:?}");
+            match event {
                 Event::Tick => self.tick(),
                 Event::Crossterm(event) => match event {
                     CrosstermEvent::Resize(_, _) => {
@@ -96,16 +106,28 @@ impl App {
                 Event::App(app_event) => {
                     match app_event {
                         AppEvent::Quit => self.quit(),
-                        AppEvent::SwitchScreen(new_screen) => self.current_screen = new_screen,
+                        AppEvent::SwitchScreen(new_screen) => {
+                            self.current_screen = new_screen;
+                            self.events.send(AppEvent::Clear(true));
+                        }
                         AppEvent::SimpleMSG(str) => info!("{}", str),
                         AppEvent::NetworkEvent(network::NetworkEvent::Error(e)) => {
-                            self.error_box = Some(e);
+                            self.error_box = Some(Popup {
+                                content: e,
+                                timeout: std::time::Duration::from_secs(5),
+                                creation: std::time::Instant::now(),
+                            });
+                            self.events.send(AppEvent::Clear(false));
                         }
                         //AppEvent::TriggerApiReconnect => self.reconnect_api(),
                         AppEvent::ButtonPress(str) => match str.as_str() {
-                            "LOGIN" => {
-                                let login = self.login_screen.get_data();
-                                match self.api.auth(Some(login)).await {
+                            _ if str.starts_with("LOGIN") => {
+                                let login = if str == "LOGIN_ANONYM" {
+                                    None
+                                } else {
+                                    Some(self.login_screen.get_data())
+                                };
+                                match self.api.auth(login).await {
                                     Ok(()) => self
                                         .events
                                         .send(AppEvent::SwitchScreen(screens::CurrentScreen::Home)),
@@ -159,7 +181,22 @@ impl App {
                                 info!("Unhandled Button: {str}")
                             }
                         },
-                        _ => self.send_current_screen(app_event),
+                        _ => {
+                            let mut reset_error = false;
+                            match self.error_box.as_ref() {
+                                None => self.send_to_current_screen(app_event),
+                                Some(e)
+                                    if e.creation.elapsed()
+                                        > std::time::Duration::from_millis(20) =>
+                                {
+                                    reset_error = true;
+                                }
+                                Some(_) => {}
+                            }
+                            if reset_error {
+                                self.error_box = None;
+                            }
+                        }
                     };
                 }
             }
@@ -183,7 +220,7 @@ impl App {
         frame.render_widget(outer_block, area);
 
         let [left, main, right] = Layout::horizontal([
-            Constraint::Max(1),
+            Constraint::Fill(1),
             Constraint::Percentage(60),
             Constraint::Fill(1),
         ])
@@ -198,32 +235,57 @@ impl App {
         // RIGHT
 
         let right_block = Block::bordered().border_type(DEFAULT_BORDER);
-        let right_inner = right_block.inner(right);
+        let _right_inner = right_block.inner(right);
         frame.render_widget(right_block, right);
-        let error_box = Paragraph::new(
-            self.error_box
-                .clone()
-                .map_or(String::new(), |e| format!("{e}")),
-        )
-        .wrap(Wrap { trim: true });
-        frame.render_widget(error_box, right_inner);
-        //match self.current_screen {
-        //    screens::CurrentScreen::Login => frame.render_widget(&self.login_screen, main),
-        //    screens::CurrentScreen::Chat => frame.render_widget(&self.chat_screen, main),
-        //    screens::CurrentScreen::Home => frame.render_widget(&self.home_screen, main),
-        //}
+
+        // Render Main Screen
         let mut cursor = None;
         if let Some(screen) = self.get_current_screen() {
             let buf = frame.buffer_mut();
             cursor = screen.draw(main, buf);
         }
-        info!("{cursor:?}");
+        debug!("{cursor:?}");
         if let Some(cursor) = cursor {
             frame.set_cursor_position((cursor.x, cursor.y));
         }
+
+        // Debug Popup
+        if let Some(e) = self.error_box.as_ref() {
+            let [_, center, _] =
+                Layout::vertical([Constraint::Fill(1), Constraint::Min(5), Constraint::Fill(1)])
+                    .areas(
+                        Layout::horizontal([
+                            Constraint::Fill(1),
+                            Constraint::Percentage(60),
+                            Constraint::Fill(1),
+                        ])
+                        .split(main)[1],
+                    );
+            frame.render_widget(Clear, center);
+            let error_text = format!("⚠️  {}", e.content);
+            let e_box = Paragraph::new(error_text)
+                .style(
+                    Style::default()
+                        .fg(Color::Red)
+                        .bg(Color::Black)
+                        .add_modifier(Modifier::BOLD),
+                )
+                .alignment(Alignment::Center)
+                .wrap(Wrap { trim: true })
+                .block(
+                    Block::bordered()
+                        .border_type(BorderType::Double)
+                        .title("Error")
+                        .title_alignment(Alignment::Center)
+                        .border_style(Style::default().fg(Color::Red))
+                        .padding(Padding::new(1, 1, 1, 1)),
+                );
+
+            frame.render_widget(e_box, center);
+        }
     }
 
-    fn send_current_screen(&mut self, event: AppEvent) {
+    fn send_to_current_screen(&mut self, event: AppEvent) {
         if let Some(screen) = self.get_current_screen_mut() {
             screen.handle_event(event);
         }
@@ -249,7 +311,20 @@ impl App {
     ///
     /// The tick event is where you can update the state of your application with any logic that
     /// needs to be updated at a fixed frame rate. E.g. polling a server, updating an animation.
-    pub fn tick(&mut self) {}
+    pub fn tick(&mut self) {
+        // Popup
+        {
+            let mut del_error_box = false;
+            if let Some(e) = self.error_box.as_mut() {
+                if e.creation.elapsed() > e.timeout {
+                    del_error_box = true;
+                }
+            }
+            if del_error_box {
+                self.error_box = None;
+            }
+        }
+    }
 
     /// Set running to false to quit the application.
     pub fn quit(&mut self) {

@@ -57,11 +57,11 @@ impl ChatScreen {
 impl Screen for ChatScreen {
     fn handle_event(&mut self, event: AppEvent) {
         match event {
-            AppEvent::Clear => {
+            AppEvent::Clear(hard) => {
                 self.tab_index = 0;
                 for i in 0..self.max_tab {
                     if let Some(w) = self.widget_at(i) {
-                        w.handle_event(AppEvent::Clear);
+                        w.handle_event(AppEvent::Clear(hard));
                     }
                 }
             }

@@ -7,7 +7,7 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 
 /// The frequency at which tick events are emitted.
-const TICK_FPS: f64 = 1.0; //30.0;
+const TICK_FPS: f64 = 30.0; // 1.0;
 
 /// Representation of all possible events.
 #[derive(Clone, Debug)]
@@ -60,7 +60,7 @@ pub enum AppEvent {
 
     Focus,
     NoFocus,
-    Clear,
+    Clear(bool),
 
     //TriggerApiReconnect,
     NetworkEvent(NetworkEvent),
