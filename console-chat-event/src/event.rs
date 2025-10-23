@@ -144,6 +144,17 @@ impl EventSender {
         let _ = self.sender.send(event);
     }
 }
+impl Into<AppEventSender> for EventSender {
+    fn into(self) -> AppEventSender {
+        AppEventSender::new(self.sender)
+    }
+}
+
+impl Into<NetworkEventSender> for EventSender {
+    fn into(self) -> NetworkEventSender {
+        NetworkEventSender::new(self.sender)
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct AppEventSender {

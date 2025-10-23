@@ -1,14 +1,14 @@
 use crate::DEFAULT_BORDER;
 use crate::event::{AppEvent, Event, EventHandler};
-use crate::network;
-use crate::screens;
+use crate::network::{self, ApiError};
+use crate::screens::{self, Screen};
 use crossterm::event::Event as CrosstermEvent;
 use log::{error, info};
 use ratatui::DefaultTerminal;
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Layout},
-    widgets::{Block, BorderType},
+    widgets::{Block, BorderType, Paragraph, Wrap},
 };
 
 /// Application.
@@ -23,6 +23,9 @@ pub struct App {
     home_screen: screens::HomeScreen,
 
     exit_time: Option<std::time::Instant>,
+    api: network::client::ApiClient,
+
+    error_box: Option<ApiError>,
 }
 
 impl Default for App {
@@ -33,13 +36,16 @@ impl Default for App {
 
 impl App {
     /// Constructs a new instance of [`App`].
-    pub fn new(_max_api_failure_count: Option<u32>, _server_url: Option<&str>) -> Self {
-        /*
-         *"http://localhost:8000"
-         */
+    pub fn new(server_url: Option<&str>, _max_api_failure_count: Option<u32>) -> Self {
+        let url = server_url.unwrap_or("http://localhost:8000");
 
         let event_handler = EventHandler::new();
         let event_sender = event_handler.get_event_sender();
+        let api =
+            network::client::ApiClient::new(url, event_sender.clone().into()).unwrap_or_else(|e| {
+                error!("ApiClient initialization failed: {e}");
+                panic!("ApiClient initialization failed: {e}");
+            });
 
         Self {
             running: true,
@@ -50,15 +56,17 @@ impl App {
             home_screen: screens::HomeScreen::new(event_sender.clone()),
 
             exit_time: None,
+            api,
+            error_box: None,
         }
     }
 
     pub fn with_api_url(url: &str) -> Self {
-        Self::new(None, Some(url))
+        Self::new(Some(url), None)
     }
 
     pub fn with_max_error(max_api_failure_count: u32) -> Self {
-        Self::new(Some(max_api_failure_count), None)
+        Self::new(None, Some(max_api_failure_count))
     }
 
     /*
@@ -90,40 +98,32 @@ impl App {
                         AppEvent::Quit => self.quit(),
                         AppEvent::SwitchScreen(new_screen) => self.current_screen = new_screen,
                         AppEvent::SimpleMSG(str) => info!("{}", str),
+                        AppEvent::NetworkEvent(network::NetworkEvent::Error(e)) => {
+                            self.error_box = Some(e);
+                        }
                         //AppEvent::TriggerApiReconnect => self.reconnect_api(),
                         AppEvent::ButtonPress(str) => match str.as_str() {
+                            "LOGIN" => {
+                                let login = self.login_screen.get_data();
+                                match self.api.auth(Some(login)).await {
+                                    Ok(()) => self
+                                        .events
+                                        .send(AppEvent::SwitchScreen(screens::CurrentScreen::Home)),
+
+                                    Err(e) => {
+                                        error!("Error when logging in: {e}");
+                                        self.events.send(AppEvent::NetworkEvent(
+                                            network::NetworkEvent::Error(e),
+                                        ));
+                                    }
+                                }
+                            }
+                            "LOGOUT" => {
+                                self.api.reset();
+                                self.events
+                                    .send(AppEvent::SwitchScreen(screens::CurrentScreen::Login));
+                            }
                             /*
-                                                        "LOGIN" => {
-                                                            let sender = self.events.get_event_sender();
-                                                            let login = self.login_screen.get_data();
-
-                                                            if let Some(api) = self.get_api() {
-                                                                let api_clone = Arc::clone(api);
-                                                                tokio::spawn(async move {
-                                                                    let mut api = api_clone.lock().await;
-                                                                    let resp = api.auth(Some(login)).await;
-                                                                    match resp {
-                                                                        Err(e) => {
-                                                                            error!("Error: {e}")
-                                                                        }
-                                                                        Ok(_) => {
-                                                                            sender.send(Event::App(AppEvent::SwitchScreen(
-                                                                                screens::CurrentScreen::Home,
-                                                                            )))
-                                                                        }
-                                                                    }
-                                                                });
-                                                            }
-                                                        }
-                                                        "LOGOUT" => {
-                                                            if let Some(api) = self.api.as_ref() {
-                                                                api.lock().await.reset();
-                                                                self.events.send(AppEvent::SwitchScreen(
-                                                                    screens::CurrentScreen::Login,
-                                                                ));
-                                                            }
-
-                                                        }
                                                         "JOIN" => {
                                                             let sender = self.events.get_event_sender();
                                                             let room_val = self.home_screen.get_data();
@@ -183,7 +183,7 @@ impl App {
         frame.render_widget(outer_block, area);
 
         let [left, main, right] = Layout::horizontal([
-            Constraint::Fill(1),
+            Constraint::Max(1),
             Constraint::Percentage(60),
             Constraint::Fill(1),
         ])
@@ -198,8 +198,15 @@ impl App {
         // RIGHT
 
         let right_block = Block::bordered().border_type(DEFAULT_BORDER);
-        let _right_inner = right_block.inner(right);
-
+        let right_inner = right_block.inner(right);
+        frame.render_widget(right_block, right);
+        let error_box = Paragraph::new(
+            self.error_box
+                .clone()
+                .map_or(String::new(), |e| format!("{e}")),
+        )
+        .wrap(Wrap { trim: true });
+        frame.render_widget(error_box, right_inner);
         //match self.current_screen {
         //    screens::CurrentScreen::Login => frame.render_widget(&self.login_screen, main),
         //    screens::CurrentScreen::Chat => frame.render_widget(&self.chat_screen, main),

@@ -76,6 +76,10 @@ impl InputWidget {
 impl Widget for InputWidget {
     fn handle_event(&mut self, event: AppEvent) {
         match event {
+            AppEvent::Clear => {
+                self.stop_editing();
+                self.input.reset();
+            }
             AppEvent::NoFocus => self.stop_editing(),
             AppEvent::Focus => self.start_editing(),
             AppEvent::KeyEvent(key) => match self.input_mode {
