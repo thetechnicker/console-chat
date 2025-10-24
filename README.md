@@ -2,5 +2,7 @@
 
 This is a simple chat service for the terminal where.
 
-> [!IMPORTANT]
-> This project is still in an early dev phase.
+## Overview
+
+- `backend`: This folder contains the backend for this chat application.
+- `console-chat`: This is the current TUI chat application.
