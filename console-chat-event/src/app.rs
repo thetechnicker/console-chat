@@ -1,9 +1,9 @@
 use crate::DEFAULT_BORDER;
 use crate::event::{AppEvent, Event, EventHandler};
-use crate::network::{self, ApiError};
+use crate::network::{self, ApiError, user::ClientMessage};
 use crate::screens::{self, Screen};
 use crossterm::event::Event as CrosstermEvent;
-use log::{debug, error, info, trace};
+use log; //::{debug, error, info, trace};
 use ratatui::DefaultTerminal;
 use ratatui::{
     Frame,
@@ -34,6 +34,7 @@ pub struct App {
     api: network::client::ApiClient,
 
     error_box: Option<Popup>,
+    error_qeue: Vec<ApiError>,
 }
 
 impl Default for App {
@@ -51,7 +52,7 @@ impl App {
         let event_sender = event_handler.get_event_sender();
         let api =
             network::client::ApiClient::new(url, event_sender.clone().into()).unwrap_or_else(|e| {
-                error!("ApiClient initialization failed: {e}");
+                log::error!("ApiClient initialization failed: {e}");
                 panic!("ApiClient initialization failed: {e}");
             });
 
@@ -59,13 +60,14 @@ impl App {
             running: true,
             events: event_handler,
             current_screen: screens::CurrentScreen::default(),
-            chat_screen: screens::ChatScreen::new(event_sender.clone()),
+            chat_screen: screens::ChatScreen::new(event_sender.clone().into()),
             login_screen: screens::LoginScreen::new(event_sender.clone()),
             home_screen: screens::HomeScreen::new(event_sender.clone()),
 
             exit_time: None,
             api,
             error_box: None,
+            error_qeue: Vec::new(),
         }
     }
 
@@ -94,7 +96,7 @@ impl App {
             terminal.draw(|frame| self.render(frame))?;
 
             let event = self.events.next().await?;
-            trace!("Handling Event: {event:?}");
+            log::trace!("Handling Event: {event:?}");
             match event {
                 Event::Tick => self.tick(),
                 Event::Crossterm(event) => match event {
@@ -110,16 +112,23 @@ impl App {
                             self.current_screen = new_screen;
                             self.events.send(AppEvent::Clear(true));
                         }
-                        AppEvent::SimpleMSG(str) => info!("{}", str),
+                        AppEvent::SimpleMSG(str) => log::info!("{}", str),
                         AppEvent::NetworkEvent(network::NetworkEvent::Error(e)) => {
-                            self.error_box = Some(Popup {
-                                content: e,
-                                timeout: std::time::Duration::from_secs(5),
-                                creation: std::time::Instant::now(),
-                            });
-                            self.events.send(AppEvent::Clear(false));
+                            self.handle_network_error(e);
                         }
-                        //AppEvent::TriggerApiReconnect => self.reconnect_api(),
+                        AppEvent::NetworkEvent(network::NetworkEvent::RequestReconnect) => {
+                            if self.current_screen == screens::CurrentScreen::Chat {
+                                if let Err(e) = self.api.listen_reconnect().await {
+                                    self.handle_network_error(e)
+                                }
+                            }
+                        }
+                        AppEvent::SendMessage(msg) => {
+                            log::debug!("Sending: {}", msg);
+                            if let Err(e) = self.api.send(ClientMessage::new(&msg)).await {
+                                self.handle_network_error(e)
+                            }
+                        }
                         AppEvent::ButtonPress(str) => match str.as_str() {
                             _ if str.starts_with("LOGIN") => {
                                 let login = if str == "LOGIN_ANONYM" {
@@ -133,7 +142,7 @@ impl App {
                                         .send(AppEvent::SwitchScreen(screens::CurrentScreen::Home)),
 
                                     Err(e) => {
-                                        error!("Error when logging in: {e}");
+                                        log::error!("Error when logging in: {e}");
                                         self.events.send(AppEvent::NetworkEvent(
                                             network::NetworkEvent::Error(e),
                                         ));
@@ -145,57 +154,44 @@ impl App {
                                 self.events
                                     .send(AppEvent::SwitchScreen(screens::CurrentScreen::Login));
                             }
+                            "JOIN" => {
+                                let room_val = self.home_screen.get_data();
+                                if let Some(room) = room_val.as_str() {
+                                    if let Err(e) = self.api.listen(room).await {
+                                        self.handle_network_error(e);
+                                    } else {
+                                        self.events.send(AppEvent::SwitchScreen(
+                                            screens::CurrentScreen::Chat,
+                                        ));
+                                    }
+                                }
+                            }
                             /*
-                                                        "JOIN" => {
-                                                            let sender = self.events.get_event_sender();
-                                                            let room_val = self.home_screen.get_data();
-                                                            let room = if let Some(room) = room_val.as_str() {
-                                                                room
-                                                            } else {
-                                                                break;
-                                                            };
-                                                            if let Some(api) = self.api.as_ref() {
-                                                                let api_clone = Arc::clone(api);
-                                                                let locked_api = api_clone.lock().await;
-                                                                let mut resp = locked_api.listen(room).await;
-                                                                match resp {
-                                                                    Err(e) => {
-                                                                        error!("Error: {e}")
-                                                                    }
-                                                                    Ok(_) => {
-                                                                        sender.send(Event::App(AppEvent::SwitchScreen(
-                                                                            screens::CurrentScreen::Chat,
-                                                                        )));
-
-                                                                        //tokio::spawn(async move {
-                                                                        //    while let Some(chunk) = resp.next().await {
-                                                                        //        sender.send(Event::App(AppEvent::NetworkEvent));
-                                                                        //    }
-                                                                        //});
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                            */
+                             */
                             str => {
-                                info!("Unhandled Button: {str}")
+                                log::info!("Unhandled Button: {str}")
                             }
                         },
-                        _ => {
-                            let mut reset_error = false;
-                            match self.error_box.as_ref() {
-                                None => self.send_to_current_screen(app_event),
-                                Some(e)
-                                    if e.creation.elapsed()
-                                        > std::time::Duration::from_millis(20) =>
-                                {
-                                    reset_error = true;
+                        AppEvent::KeyEvent(k) if self.error_box.is_none() => {
+                            self.send_to_current_screen(AppEvent::KeyEvent(k))
+                        }
+                        AppEvent::KeyEvent(k) if self.error_box.is_some() => {
+                            if k.is_press() {
+                                let mut reset_err_box = false;
+                                if let Some(err) = self.error_box.as_ref() {
+                                    if err.creation.elapsed() > std::time::Duration::from_millis(20)
+                                    {
+                                        reset_err_box = true;
+                                    }
                                 }
-                                Some(_) => {}
+                                if reset_err_box {
+                                    self.error_box = None
+                                }
                             }
-                            if reset_error {
-                                self.error_box = None;
-                            }
+                        }
+                        _ => {
+                            log::debug!("Unhandled Event: {app_event:#?}");
+                            self.send_to_current_screen(app_event);
                         }
                     };
                 }
@@ -207,6 +203,20 @@ impl App {
             return Ok(Some(exit.elapsed()));
         }
         Ok(None)
+    }
+
+    fn handle_network_error(&mut self, e: ApiError) {
+        log::error!("Network Error: {e}");
+        if self.error_box.is_some() {
+            self.error_qeue.push(e);
+            return;
+        }
+        self.error_box = Some(Popup {
+            content: e,
+            timeout: std::time::Duration::from_secs(5),
+            creation: std::time::Instant::now(),
+        });
+        self.events.send(AppEvent::Clear(false));
     }
 
     fn render(&self, frame: &mut Frame) {
@@ -244,7 +254,7 @@ impl App {
             let buf = frame.buffer_mut();
             cursor = screen.draw(main, buf);
         }
-        debug!("{cursor:?}");
+        log::trace!("{cursor:?}");
         if let Some(cursor) = cursor {
             frame.set_cursor_position((cursor.x, cursor.y));
         }
@@ -322,6 +332,9 @@ impl App {
             }
             if del_error_box {
                 self.error_box = None;
+                if let Some(e) = self.error_qeue.pop() {
+                    self.handle_network_error(e)
+                }
             }
         }
     }

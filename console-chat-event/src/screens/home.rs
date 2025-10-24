@@ -26,7 +26,7 @@ impl HomeScreen {
     pub fn new(event_sender: EventSender) -> Self {
         Self {
             tab_index: 0,
-            max_tab: 6,
+            max_tab: 5,
             event_sender: event_sender.clone(),
             room_input: widgets::InputWidget::new("Room"),
             join_button: widgets::Button::new(

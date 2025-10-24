@@ -68,6 +68,7 @@ pub enum AppEvent {
     KeyEvent(KeyEvent),
     ButtonPress(String),
     SwitchScreen(CurrentScreen),
+    SendMessage(String),
     SimpleMSG(String),
 }
 

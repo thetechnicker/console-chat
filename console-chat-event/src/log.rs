@@ -15,14 +15,21 @@ pub fn init_logging_file(file_name: &str) {
     Dispatch::new()
         .format(|out, message, record| {
             out.finish(format_args!(
-                "{}[{}][{}] {}",
+                "{}[{}][{}][{}] {}",
                 chrono::Local::now().format("[%Y-%m-%d][%H:%M:%S]"),
                 record.level(),
                 record.target(),
+                record.file_static().map_or(String::new(), |f| format!(
+                    "{}:{}",
+                    f,
+                    record.line().unwrap_or(0)
+                )),
                 message
             ))
         })
-        .level(log::LevelFilter::Info)
+        //.level(log::LevelFilter::Trace)
+        .level(log::LevelFilter::Debug)
+        //.level(log::LevelFilter::Warn)
         .chain(log_file) // Write logs to file only
         .apply()
         .expect("Failed to initialize logging");

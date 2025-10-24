@@ -7,6 +7,7 @@ pub use error::*;
 #[derive(Clone, Debug)]
 pub enum NetworkEvent {
     None,
-    Message,
+    RequestReconnect,
+    Message(user::ServerMessage),
     Error(ApiError),
 }

@@ -60,26 +60,26 @@ impl LoginScreen {
         }
     }
 
+    pub fn current_widget(&self) -> Option<&dyn Widget> {
+        self.widget_at(self.tab_index)
+    }
     pub fn widget_at(&self, index: usize) -> Option<&dyn Widget> {
         match index {
             1 => Some(&self.user_input as &dyn Widget),
             2 => Some(&self.pwd_input as &dyn Widget),
             3 => Some(&self.ok_button as &dyn Widget),
-            4 => Some(&self.cancel_button as &dyn Widget),
-            5 => Some(&self.skip_button as &dyn Widget),
+            4 => Some(&self.skip_button as &dyn Widget),
+            5 => Some(&self.cancel_button as &dyn Widget),
             _ => None,
         }
-    }
-    pub fn current_widget(&self) -> Option<&dyn Widget> {
-        self.widget_at(self.tab_index)
     }
     pub fn widget_at_mut(&mut self, index: usize) -> Option<&mut dyn Widget> {
         match index {
             1 => Some(&mut self.user_input as &mut dyn Widget),
             2 => Some(&mut self.pwd_input as &mut dyn Widget),
             3 => Some(&mut self.ok_button as &mut dyn Widget),
-            4 => Some(&mut self.cancel_button as &mut dyn Widget),
-            5 => Some(&mut self.skip_button as &mut dyn Widget),
+            4 => Some(&mut self.skip_button as &mut dyn Widget),
+            5 => Some(&mut self.cancel_button as &mut dyn Widget),
             _ => None,
         }
     }
@@ -162,12 +162,12 @@ impl Screen for LoginScreen {
 
         // Buttons
         let x = 50;
-        let [ok_area, cancel_area] =
+        let [ok_area, anonym_area] =
             Layout::horizontal([Constraint::Percentage(x), Constraint::Percentage(x)])
                 .areas(buttons);
         self.ok_button.draw(ok_area, buf, &mut None);
-        self.cancel_button.draw(cancel_area, buf, &mut None);
-        self.skip_button.draw(idk, buf, &mut None);
+        self.skip_button.draw(anonym_area, buf, &mut None);
+        self.cancel_button.draw(idk, buf, &mut None);
 
         if let Some(x) = u_x {
             Some(CursorPos {

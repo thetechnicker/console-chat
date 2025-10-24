@@ -1,11 +1,10 @@
 use crate::{
     event,
-    network::{ApiError, NetworkEvent, ResponseErrorData, user::UserStatus},
+    network::{ApiError, NetworkEvent, ResponseErrorData, user},
 };
 //use bytes::Bytes;
 use reqwest::{StatusCode, Url};
 use std::str;
-use std::sync::Arc;
 use tokio::task::JoinHandle;
 use tokio_stream::{self, StreamExt};
 
@@ -14,7 +13,7 @@ use tokio_stream::{self, StreamExt};
 #[derive(Debug)]
 pub struct ApiClient {
     base_url: Url,
-    client: Arc<reqwest::Client>,
+    client: reqwest::Client,
     api_key: Option<String>,
     bearer_token: Option<String>,
 
@@ -22,11 +21,12 @@ pub struct ApiClient {
     _api_failure_count: u32,
     event_sender: event::NetworkEventSender,
     listen_task: Option<JoinHandle<Result<(), ApiError>>>,
+    current_room: Option<String>,
 }
 
 impl ApiClient {
     pub fn new(base_url: &str, event_sender: event::NetworkEventSender) -> Result<Self, ApiError> {
-        let client = Arc::new(reqwest::Client::new());
+        let client = reqwest::Client::new();
         Ok(ApiClient {
             base_url: Url::parse(base_url)?,
             client,
@@ -38,12 +38,18 @@ impl ApiClient {
             event_sender,
 
             listen_task: None,
+            current_room: None,
         })
     }
 
     pub fn reset(&mut self) {
         self.api_key = None;
         self.bearer_token = None;
+        self.current_room = None;
+        if let Some(t) = self.listen_task.as_mut() {
+            t.abort();
+        }
+        self.listen_task = None;
     }
 
     pub fn set_api_key(&mut self, key: String) {
@@ -64,45 +70,66 @@ impl ApiClient {
         .send()
         .await?;
 
-        let res: UserStatus = handle_errors_json(resp).await?;
+        let res: user::UserStatus = handle_errors_json(resp).await?;
         self.bearer_token = Some(res.token);
         Ok(())
     }
 
-    /*
-    #[allow(unreachable_code, unused_variables)]
-    pub async fn login(&self, username: &str, password: &str) -> Result<UserStatus, ApiError> {
-        todo!();
-        let url = self.base_url.join("auth")?;
-        let body = serde_json::json!({ "username": username, "password": password });
+    pub async fn send(&mut self, args: user::ClientMessage) -> Result<(), ApiError> {
+        log::trace!("Sending Message...");
+        let room = self.current_room.as_ref().map_or_else(
+            || {
+                Err(ApiError::GenericError(
+                    "You haven't joined a room yet".to_owned(),
+                ))
+            },
+            |t| Ok(t),
+        )?;
+        let url = self.base_url.join(&format!("room/{room}"))?;
+        let body = serde_json::json!(args);
+        log::debug!("{body}");
         let resp = self
             .client
             .post(url)
             .json(&body)
+            .bearer_auth(self.bearer_token.clone().expect("No Token Given"))
             .send()
-            .await?
-            .json::<UserStatus>()
             .await?;
-        Ok(resp)
+
+        let resp = handle_errors_raw(resp).await?;
+        //self.event_sender
+        //    .send(NetworkEvent::Error(ApiError::GenericError(format!(
+        //        "{}",
+        //        resp.text().await?
+        //    ))));
+        log::trace!("{}", resp.text().await?);
+        Ok(())
     }
-    pub async fn get_user_status(&self) -> Result<BetterUser, ApiError> {
-        let url = self.base_url.join("users/status")?;
-        let req = self.client.get(url);
-        let req = if let Some(token) = &self.bearer_token {
-            req.bearer_auth(token)
-        } else {
-            req
-        };
-        let resp = req.send().await?.json::<BetterUser>().await?;
-        Ok(resp)
-    }
-    */
 
     pub async fn listen(&mut self, room: &str) -> Result<(), ApiError> {
-        let url = self.base_url.join("auth")?.join(room)?;
+        self.listen_internal(room).await
+    }
+    pub async fn listen_reconnect(&mut self) -> Result<(), ApiError> {
+        if let Some(room) = self.current_room.as_ref() {
+            let r = room.clone();
+            self.listen_internal(&r).await
+        } else {
+            Err(ApiError::GenericError(
+                "You havent Joined a room yet".to_string(),
+            ))
+        }
+    }
+
+    async fn listen_internal(&mut self, room: &str) -> Result<(), ApiError> {
+        self.current_room = Some(room.to_string());
+        let timeout = 30;
+        let url = self.base_url.join(&format!("room/{room}"))?;
+
         let resp = self
             .client
             .get(url)
+            .query(&[("listen_seconds", &timeout.to_string())])
+            .timeout(std::time::Duration::from_secs(timeout))
             .bearer_auth(self.bearer_token.clone().expect("No Token Given"))
             .send()
             .await?;
@@ -112,9 +139,19 @@ impl ApiClient {
         self.listen_task = Some(tokio::spawn(async move {
             let mut stream = resp.bytes_stream();
             while let Some(chunk) = stream.next().await {
-                chunk?;
-                local_sender.send(NetworkEvent::Message);
+                log::debug!("{chunk:?}");
+                match chunk {
+                    Err(e) => local_sender.send(NetworkEvent::Error(e.into())),
+                    Ok(data) => match str::from_utf8(&data) {
+                        Ok(s) => match serde_json::from_str::<user::ServerMessage>(s) {
+                            Ok(msg) => local_sender.send(NetworkEvent::Message(msg)),
+                            Err(_) => {} //local_sender.send(NetworkEvent::Error(e.into())),
+                        },
+                        Err(e) => local_sender.send(NetworkEvent::Error(e.into())),
+                    },
+                }
             }
+            local_sender.send(NetworkEvent::RequestReconnect);
             Ok(())
         }));
         Ok(())

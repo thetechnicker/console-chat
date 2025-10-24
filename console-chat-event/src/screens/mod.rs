@@ -2,7 +2,7 @@ use crate::event::AppEvent;
 use ratatui::{buffer::Buffer, layout::Rect};
 use std::fmt::Debug;
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub enum CurrentScreen {
     #[default]
     Login,
