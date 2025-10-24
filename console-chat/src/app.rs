@@ -99,9 +99,11 @@ impl App {
             log::trace!("Handling Event: {event:?}");
             match event {
                 Event::Tick => self.tick(),
-                Event::Crossterm(event) => if let CrosstermEvent::Resize(_, _) = event {
-                    terminal.draw(|frame| self.render(frame))?;
-                },
+                Event::Crossterm(event) => {
+                    if let CrosstermEvent::Resize(_, _) = event {
+                        terminal.draw(|frame| self.render(frame))?;
+                    }
+                }
                 Event::App(app_event) => {
                     match app_event {
                         AppEvent::Quit => self.quit(),
@@ -115,9 +117,10 @@ impl App {
                         }
                         AppEvent::NetworkEvent(network::NetworkEvent::RequestReconnect) => {
                             if self.current_screen == screens::CurrentScreen::Chat
-                                && let Err(e) = self.api.listen_reconnect().await {
-                                    self.handle_network_error(e)
-                                }
+                                && let Err(e) = self.api.listen_reconnect().await
+                            {
+                                self.handle_network_error(e)
+                            }
                         }
                         AppEvent::SendMessage(msg) => {
                             log::debug!("Sending: {}", msg);
@@ -176,9 +179,9 @@ impl App {
                                 let mut reset_err_box = false;
                                 if let Some(err) = self.error_box.as_ref()
                                     && err.creation.elapsed() > std::time::Duration::from_millis(20)
-                                    {
-                                        reset_err_box = true;
-                                    }
+                                {
+                                    reset_err_box = true;
+                                }
                                 if reset_err_box {
                                     self.error_box = None
                                 }
@@ -321,9 +324,10 @@ impl App {
         {
             let mut del_error_box = false;
             if let Some(e) = self.error_box.as_mut()
-                && e.creation.elapsed() > e.timeout {
-                    del_error_box = true;
-                }
+                && e.creation.elapsed() > e.timeout
+            {
+                del_error_box = true;
+            }
             if del_error_box {
                 self.error_box = None;
                 if let Some(e) = self.error_qeue.pop() {

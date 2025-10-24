@@ -85,10 +85,10 @@ impl Widget for InputWidget {
             AppEvent::NoFocus => self.stop_editing(),
             AppEvent::Focus => self.start_editing(),
             AppEvent::KeyEvent(key) => match self.input_mode {
-                InputMode::Normal => {},
+                InputMode::Normal => {}
                 InputMode::Editing => {
                     self.input.handle_event(&Event::Key(key));
-                },
+                }
             },
             _ => {}
         }
