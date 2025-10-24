@@ -1,6 +1,6 @@
-use crate::event::WidgetEvent;
+use crate::event::AppEvent;
 use crate::widgets::Widget;
-use ratatui::crossterm::event::Event;
+use crossterm::event::Event;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -60,6 +60,10 @@ impl InputWidget {
         self
     }
 
+    pub fn get_content(&self) -> String {
+        String::from(self.input.value())
+    }
+
     fn start_editing(&mut self) {
         self.input_mode = InputMode::Editing
     }
@@ -70,25 +74,27 @@ impl InputWidget {
 }
 
 impl Widget for InputWidget {
-    fn handle_event(&mut self, event: WidgetEvent) {
+    fn handle_event(&mut self, event: AppEvent) {
         match event {
-            WidgetEvent::NoFocus => self.stop_editing(),
-            WidgetEvent::Focus => self.start_editing(),
-            WidgetEvent::KeyEvent(key) => match self.input_mode {
-                InputMode::Normal => match key.code {
-                    _ => {}
-                },
-                InputMode::Editing => match key.code {
-                    _ => {
-                        self.input.handle_event(&Event::Key(key));
-                    }
-                },
+            AppEvent::Clear(hard) => {
+                self.stop_editing();
+                if hard {
+                    self.input.reset();
+                }
+            }
+            AppEvent::NoFocus => self.stop_editing(),
+            AppEvent::Focus => self.start_editing(),
+            AppEvent::KeyEvent(key) => match self.input_mode {
+                InputMode::Normal => {}
+                InputMode::Editing => {
+                    self.input.handle_event(&Event::Key(key));
+                }
             },
             _ => {}
         }
     }
 
-    fn draw(&self, area: Rect, buf: &mut Buffer) {
+    fn draw(&self, area: Rect, buf: &mut Buffer, ret: &mut Option<u16>) {
         let style = match self.input_mode {
             InputMode::Normal => Style::default(),
             InputMode::Editing => Color::Yellow.into(),
@@ -96,16 +102,16 @@ impl Widget for InputWidget {
         let width = area.width.max(3) - 3;
         let scroll = self.input.visual_scroll(width as usize);
         let value = self.input.value();
-        let [content, title] = if value.len() > 0 {
+        let [content, title] = if !value.is_empty() {
             match self.input_type {
                 InputType::Password => [
-                    format!("{}", "*".repeat(self.input.value().len())),
+                    "*".repeat(self.input.value().len()).to_string(),
                     self.titel.clone(),
                 ],
-                _ => [format!("{}", self.input.value()), self.titel.clone()],
+                _ => [self.input.value().to_string(), self.titel.clone()],
             }
         } else {
-            [String::from(self.titel.clone()), String::from("")]
+            [self.titel.clone(), String::from("")]
         };
 
         let input_elem = Paragraph::new(content)
@@ -117,5 +123,9 @@ impl Widget for InputWidget {
                     .title(title),
             );
         input_elem.render(area, buf);
+
+        if self.input_mode == InputMode::Editing {
+            *ret = Some((self.input.visual_cursor().max(scroll) - scroll + 1) as u16);
+        }
     }
 }

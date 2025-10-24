@@ -1,8 +1,8 @@
-use crate::event::WidgetEvent;
+use crate::event::{AppEvent, EventSender};
 use crate::widgets::Widget;
+use crossterm::event::KeyEventKind;
 use ratatui::{
     buffer::Buffer,
-    crossterm::event::KeyEventKind,
     layout::Rect,
     style::{Color, Style},
     text::Line,
@@ -49,14 +49,18 @@ pub struct Button {
     state: ButtonState,
     label: String,
     theme: Theme,
+    event_sender: EventSender,
+    on_press: AppEvent,
 }
 
 impl Button {
-    pub fn new(label: &str) -> Self {
+    pub fn new(label: &str, event_sender: EventSender, on_press: AppEvent) -> Self {
         Self {
             state: ButtonState::Normal,
             label: String::from(label),
             theme: BLUE,
+            event_sender,
+            on_press,
         }
     }
     pub fn is_pressed(&self) -> bool {
@@ -77,14 +81,16 @@ impl Button {
 }
 
 impl Widget for Button {
-    fn handle_event(&mut self, event: WidgetEvent) {
+    fn handle_event(&mut self, event: AppEvent) {
         match event {
-            WidgetEvent::NoFocus => self.state = ButtonState::Normal,
-            WidgetEvent::Focus => self.state = ButtonState::Selected,
-            WidgetEvent::KeyEvent(key) => match key.kind {
+            AppEvent::Clear(_) => self.state = ButtonState::Normal,
+            AppEvent::NoFocus => self.state = ButtonState::Normal,
+            AppEvent::Focus => self.state = ButtonState::Selected,
+            AppEvent::KeyEvent(key) => match key.kind {
                 KeyEventKind::Press => {
                     if self.state == ButtonState::Selected {
-                        self.state = ButtonState::Active
+                        self.state = ButtonState::Active;
+                        self.event_sender.send(self.on_press.clone().into());
                     }
                 }
                 KeyEventKind::Release => {
@@ -97,7 +103,7 @@ impl Widget for Button {
             _ => {}
         }
     }
-    fn draw(&self, area: Rect, buf: &mut Buffer) {
+    fn draw(&self, area: Rect, buf: &mut Buffer, _: &mut Option<u16>) {
         let (background, text, shadow, highlight) = self.colors();
         buf.set_style(area, Style::new().bg(background).fg(text));
 

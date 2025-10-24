@@ -172,7 +172,15 @@ async def login(
         # raise HTTPException(
         #    status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=f"{db_user}"
         # )
-    elif password or username:
+    elif username:
+        public = PublicUser(display_name=username)
+        user = BetterUser(
+            username=str(uuid4()),
+            password_hash=None,
+            private=True,
+            public_data=public,
+        )
+    elif password:  # or username:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incomplete login parameters",
@@ -250,27 +258,6 @@ async def register(
         return {"status": "sugsesfully registered"}
 
 
-@app.get("/room/{room}", response_model=ServerMessage)
-async def get(
-    room: str,
-    listen_seconds: int = Query(30, description="How long to listen in seconds"),
-    user: BetterUser = Depends(get_current_user),
-    context: Context = Depends(get_context),
-):
-    await context.v.publish(
-        room,
-        ServerMessage(
-            type=MessageType.JOIN,
-            text=f"User: {user.public_data.display_name} Joined",
-            # timestamp=datetime.now(timezone.utc),
-            user=user.public_data,  # Assign new user model
-        ).model_dump_json(),
-    )
-    return StreamingResponse(
-        get_message(room, timeout=listen_seconds), media_type="application/json"
-    )
-
-
 @app.post("/room/{room}")
 async def send(
     room: str,
@@ -288,6 +275,28 @@ async def send(
         room, msg.model_dump_json()
     )  # Use model_dump_json for serialization
     return {"message": f"send successful by user {user.public_data.display_name}"}
+
+
+@app.get("/room/{room}", response_model=ServerMessage)
+async def get(
+    room: str,
+    listen_seconds: int = Query(30, description="How long to listen in seconds"),
+    user: BetterUser = Depends(get_current_user),
+    context: Context = Depends(get_context),
+):
+    await context.v.publish(
+        room,
+        ServerMessage(
+            type=MessageType.JOIN,
+            text=f"User: {user.public_data.display_name} Joined",
+            # timestamp=datetime.now(timezone.utc),
+            user=user.public_data,  # Assign new user model
+        ).model_dump_json(),
+    )
+    return StreamingResponse(
+        get_message(room, timeout=listen_seconds, context=context),
+        media_type="application/json",
+    )
 
 
 async def get_message(

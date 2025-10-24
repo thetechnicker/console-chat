@@ -1,11 +1,13 @@
+use crate::network::NetworkEvent;
 use crate::screens::CurrentScreen;
 use color_eyre::eyre::OptionExt;
-use ratatui::crossterm::event::{self, Event as CrosstermEvent, KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{Event as CrosstermEvent, KeyCode, KeyEvent, KeyModifiers};
+use futures::{FutureExt, StreamExt};
 use std::time::Duration;
 use tokio::sync::mpsc;
 
 /// The frequency at which tick events are emitted.
-const TICK_FPS: f64 = 1.0; //30.0;
+const TICK_FPS: f64 = 30.0; // 1.0;
 
 /// Representation of all possible events.
 #[derive(Clone, Debug)]
@@ -25,18 +27,29 @@ pub enum Event {
     /// Use this event to emit custom events that are specific to your application.
     App(AppEvent),
 }
+
+impl From<AppEvent> for Event {
+    fn from(app_event: AppEvent) -> Self {
+        Self::App(app_event)
+    }
+}
+
+impl From<CrosstermEvent> for Event {
+    fn from(event: CrosstermEvent) -> Self {
+        Self::Crossterm(event)
+    }
+}
+
+/*
 #[derive(Clone, Debug)]
-pub enum WidgetEvent {
+pub enum AppEvent {
     Focus,
     NoFocus,
     Clear,
     KeyEvent(KeyEvent),
-    ButtonPress,
-    /*
-    KeyPress(KeyEvent),
-    KeyRelease(KeyEvent),
-    */
 }
+*/
+
 /// Application events.
 ///
 /// You can extend this enum with your own custom events.
@@ -44,9 +57,19 @@ pub enum WidgetEvent {
 pub enum AppEvent {
     /// Quit the application.
     Quit,
+
+    Focus,
+    NoFocus,
+    Clear(bool),
+
+    //TriggerApiReconnect,
+    NetworkEvent(NetworkEvent),
+
+    KeyEvent(KeyEvent),
+    ButtonPress(String),
     SwitchScreen(CurrentScreen),
-    WidgetEvent(WidgetEvent),
-    NetworkEvent,
+    SendMessage(String),
+    SimpleMSG(String),
 }
 
 /// Terminal event handler.
@@ -57,6 +80,12 @@ pub struct EventHandler {
     /// Event receiver channel.
     receiver: mpsc::UnboundedReceiver<Event>,
     handle: tokio::task::JoinHandle<Result<(), color_eyre::eyre::Error>>,
+}
+
+impl Default for EventHandler {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl EventHandler {
@@ -122,6 +151,49 @@ impl EventSender {
         let _ = self.sender.send(event);
     }
 }
+impl From<EventSender> for AppEventSender {
+    fn from(val: EventSender) -> Self {
+        AppEventSender::new(val.sender)
+    }
+}
+
+impl From<EventSender> for NetworkEventSender {
+    fn from(val: EventSender) -> Self {
+        NetworkEventSender::new(val.sender)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AppEventSender {
+    sender: mpsc::UnboundedSender<Event>,
+}
+
+impl AppEventSender {
+    pub fn new(sender: mpsc::UnboundedSender<Event>) -> Self {
+        Self { sender }
+    }
+    pub fn send(&self, event: AppEvent) {
+        // Ignores the result because shutting down the app drops the receiver, which causes the send
+        // operation to fail. This is expected behavior and should not panic.
+        let _ = self.sender.send(Event::App(event));
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct NetworkEventSender {
+    sender: mpsc::UnboundedSender<Event>,
+}
+
+impl NetworkEventSender {
+    pub fn new(sender: mpsc::UnboundedSender<Event>) -> Self {
+        Self { sender }
+    }
+    pub fn send(&self, event: NetworkEvent) {
+        // Ignores the result because shutting down the app drops the receiver, which causes the send
+        // operation to fail. This is expected behavior and should not panic.
+        let _ = self.sender.send(Event::App(AppEvent::NetworkEvent(event)));
+    }
+}
 
 /// A thread that handles reading crossterm events and emitting tick events on a regular schedule.
 struct EventTask {
@@ -129,12 +201,16 @@ struct EventTask {
     sender: mpsc::UnboundedSender<Event>,
 }
 
+/*
 async fn get_event() -> Option<CrosstermEvent> {
-    if let Ok(evt) = event::read() {
-        return Some(evt);
+    if event::poll(Duration::from_millis(1000)).unwrap_or(false) {
+        if let Ok(event) = event::read() {
+            return Some(event);
+        }
     }
     None
 }
+*/
 
 impl EventTask {
     /// Constructs a new instance of [`EventThread`].
@@ -147,11 +223,12 @@ impl EventTask {
     /// This function emits tick events at a fixed rate and polls for crossterm events in between.
     async fn run(self) -> color_eyre::Result<()> {
         let tick_rate = Duration::from_secs_f64(1.0 / TICK_FPS);
-        //let mut reader = crossterm::event::EventStream::new();
+        let mut reader = crossterm::event::EventStream::new();
         let mut tick = tokio::time::interval(tick_rate);
         loop {
             let tick_delay = tick.tick();
-            let crossterm_event = get_event(); //reader.next().fuse();
+            //let crossterm_event = get_event();
+            let crossterm_event = reader.next().fuse();
             tokio::select! {
               _ = self.sender.closed() => {
                 break;
@@ -159,8 +236,8 @@ impl EventTask {
               _ = tick_delay => {
                 self.send(Event::Tick);
               }
-              Some(evt) = crossterm_event => match evt {
-                    ratatui::crossterm::event::Event::Key(key_event) => {
+              Some(Ok(evt)) = crossterm_event => match evt {
+                    crossterm::event::Event::Key(key_event) => {
                         self.send(handle_key_events(key_event))
                     }
                     _ => self.send(Event::Crossterm(evt))
@@ -178,11 +255,12 @@ impl EventTask {
     }
 }
 
-pub fn handle_key_events(key_event: KeyEvent) -> Event {
+#[inline]
+fn handle_key_events(key_event: KeyEvent) -> Event {
     match key_event.code {
         KeyCode::Char('c' | 'C') if key_event.modifiers == KeyModifiers::CONTROL => {
-            return Event::App(AppEvent::Quit);
+            Event::App(AppEvent::Quit)
         }
-        _ => return Event::App(AppEvent::WidgetEvent(WidgetEvent::KeyEvent(key_event))),
+        _ => Event::App(AppEvent::KeyEvent(key_event)),
     }
 }
