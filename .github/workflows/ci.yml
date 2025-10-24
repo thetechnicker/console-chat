@@ -17,7 +17,7 @@ jobs:
   fmt:
     defaults:
       run:
-        working-directory: console-chat-event
+        working-directory: console-chat
     name: fmt
     runs-on: ubuntu-latest
     steps:
@@ -34,7 +34,7 @@ jobs:
   clippy:
     defaults:
       run:
-        working-directory: console-chat-event
+        working-directory: console-chat
     name: clippy
     runs-on: ubuntu-latest
     permissions:
@@ -56,7 +56,7 @@ jobs:
   doc:
     defaults:
       run:
-        working-directory: console-chat-event
+        working-directory: console-chat
     # run docs generation on nightly rather than stable. This enables features like
     # https://doc.rust-lang.org/beta/unstable-book/language-features/doc-cfg.html which allows an
     # API be documented as only available in some specific platforms.
@@ -73,7 +73,7 @@ jobs:
   test:
     defaults:
       run:
-        working-directory: console-chat-event
+        working-directory: console-chat
     runs-on: ${{ matrix.os }}
     name: test ${{ matrix.os }}
     strategy:
