@@ -85,13 +85,9 @@ impl Widget for InputWidget {
             AppEvent::NoFocus => self.stop_editing(),
             AppEvent::Focus => self.start_editing(),
             AppEvent::KeyEvent(key) => match self.input_mode {
-                InputMode::Normal => match key.code {
-                    _ => {}
-                },
-                InputMode::Editing => match key.code {
-                    _ => {
-                        self.input.handle_event(&Event::Key(key));
-                    }
+                InputMode::Normal => {},
+                InputMode::Editing => {
+                    self.input.handle_event(&Event::Key(key));
                 },
             },
             _ => {}
@@ -106,16 +102,16 @@ impl Widget for InputWidget {
         let width = area.width.max(3) - 3;
         let scroll = self.input.visual_scroll(width as usize);
         let value = self.input.value();
-        let [content, title] = if value.len() > 0 {
+        let [content, title] = if !value.is_empty() {
             match self.input_type {
                 InputType::Password => [
-                    format!("{}", "*".repeat(self.input.value().len())),
+                    "*".repeat(self.input.value().len()).to_string(),
                     self.titel.clone(),
                 ],
-                _ => [format!("{}", self.input.value()), self.titel.clone()],
+                _ => [self.input.value().to_string(), self.titel.clone()],
             }
         } else {
-            [String::from(self.titel.clone()), String::from("")]
+            [self.titel.clone(), String::from("")]
         };
 
         let input_elem = Paragraph::new(content)

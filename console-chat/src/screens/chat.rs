@@ -111,7 +111,7 @@ impl Screen for ChatScreen {
                         if !input.is_empty() {
                             let msg = input.clone();
                             self.event_sender
-                                .send(AppEvent::SendMessage(String::from(msg.trim().to_owned())));
+                                .send(AppEvent::SendMessage(msg.trim().to_owned()));
                             self.send_current_widget_event(AppEvent::Clear(true));
                             self.send_current_widget_event(AppEvent::Focus);
                         }
@@ -185,7 +185,7 @@ impl From<&user::ServerMessage> for ListItem<'_> {
         let content = format!("{}: {}", user_display, item.base.text);
 
         // Create ListItem from single Spans line
-        ListItem::new(Span::from(Span::raw(content)))
+        ListItem::new(Span::raw(content))
     }
 }
 const fn alternate_colors(i: usize) -> Color {

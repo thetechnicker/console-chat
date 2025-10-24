@@ -99,11 +99,8 @@ impl App {
             log::trace!("Handling Event: {event:?}");
             match event {
                 Event::Tick => self.tick(),
-                Event::Crossterm(event) => match event {
-                    CrosstermEvent::Resize(_, _) => {
-                        terminal.draw(|frame| self.render(frame))?;
-                    }
-                    _ => {}
+                Event::Crossterm(event) => if let CrosstermEvent::Resize(_, _) = event {
+                    terminal.draw(|frame| self.render(frame))?;
                 },
                 Event::App(app_event) => {
                     match app_event {
@@ -117,11 +114,10 @@ impl App {
                             self.handle_network_error(e);
                         }
                         AppEvent::NetworkEvent(network::NetworkEvent::RequestReconnect) => {
-                            if self.current_screen == screens::CurrentScreen::Chat {
-                                if let Err(e) = self.api.listen_reconnect().await {
+                            if self.current_screen == screens::CurrentScreen::Chat
+                                && let Err(e) = self.api.listen_reconnect().await {
                                     self.handle_network_error(e)
                                 }
-                            }
                         }
                         AppEvent::SendMessage(msg) => {
                             log::debug!("Sending: {}", msg);
@@ -178,12 +174,11 @@ impl App {
                         AppEvent::KeyEvent(k) if self.error_box.is_some() => {
                             if k.is_press() {
                                 let mut reset_err_box = false;
-                                if let Some(err) = self.error_box.as_ref() {
-                                    if err.creation.elapsed() > std::time::Duration::from_millis(20)
+                                if let Some(err) = self.error_box.as_ref()
+                                    && err.creation.elapsed() > std::time::Duration::from_millis(20)
                                     {
                                         reset_err_box = true;
                                     }
-                                }
                                 if reset_err_box {
                                     self.error_box = None
                                 }
@@ -325,11 +320,10 @@ impl App {
         // Popup
         {
             let mut del_error_box = false;
-            if let Some(e) = self.error_box.as_mut() {
-                if e.creation.elapsed() > e.timeout {
+            if let Some(e) = self.error_box.as_mut()
+                && e.creation.elapsed() > e.timeout {
                     del_error_box = true;
                 }
-            }
             if del_error_box {
                 self.error_box = None;
                 if let Some(e) = self.error_qeue.pop() {

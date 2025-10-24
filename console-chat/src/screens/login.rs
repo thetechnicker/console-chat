@@ -171,17 +171,13 @@ impl Screen for LoginScreen {
 
         if let Some(x) = u_x {
             Some(CursorPos {
-                x: x + user_input.x as u16,
-                y: user_input.y + 1 as u16,
+                x: x + user_input.x,
+                y: user_input.y + 1_u16,
             })
-        } else if let Some(x) = p_x {
-            Some(CursorPos {
-                x: x + pwd_input.x as u16,
-                y: pwd_input.y + 1 as u16,
-            })
-        } else {
-            None
-        }
+        } else { p_x.map(|x| CursorPos {
+                x: x + pwd_input.x,
+                y: pwd_input.y + 1_u16,
+            }) }
     }
 
     fn get_data(&self) -> serde_json::Value {

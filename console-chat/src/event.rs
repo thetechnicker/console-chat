@@ -82,6 +82,12 @@ pub struct EventHandler {
     handle: tokio::task::JoinHandle<Result<(), color_eyre::eyre::Error>>,
 }
 
+impl Default for EventHandler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EventHandler {
     /// Constructs a new instance of [`EventHandler`] and spawns a new thread to handle events.
     pub fn new() -> Self {
@@ -145,15 +151,15 @@ impl EventSender {
         let _ = self.sender.send(event);
     }
 }
-impl Into<AppEventSender> for EventSender {
-    fn into(self) -> AppEventSender {
-        AppEventSender::new(self.sender)
+impl From<EventSender> for AppEventSender {
+    fn from(val: EventSender) -> Self {
+        AppEventSender::new(val.sender)
     }
 }
 
-impl Into<NetworkEventSender> for EventSender {
-    fn into(self) -> NetworkEventSender {
-        NetworkEventSender::new(self.sender)
+impl From<EventSender> for NetworkEventSender {
+    fn from(val: EventSender) -> Self {
+        NetworkEventSender::new(val.sender)
     }
 }
 
@@ -253,8 +259,8 @@ impl EventTask {
 fn handle_key_events(key_event: KeyEvent) -> Event {
     match key_event.code {
         KeyCode::Char('c' | 'C') if key_event.modifiers == KeyModifiers::CONTROL => {
-            return Event::App(AppEvent::Quit);
+            Event::App(AppEvent::Quit)
         }
-        _ => return Event::App(AppEvent::KeyEvent(key_event)),
+        _ => Event::App(AppEvent::KeyEvent(key_event)),
     }
 }

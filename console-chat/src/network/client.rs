@@ -83,7 +83,7 @@ impl ApiClient {
                     "You haven't joined a room yet".to_owned(),
                 ))
             },
-            |t| Ok(t),
+            Ok,
         )?;
         let url = self.base_url.join(&format!("room/{room}"))?;
         let body = serde_json::json!(args);
@@ -143,10 +143,11 @@ impl ApiClient {
                 match chunk {
                     Err(e) => local_sender.send(NetworkEvent::Error(e.into())),
                     Ok(data) => match str::from_utf8(&data) {
-                        Ok(s) => match serde_json::from_str::<user::ServerMessage>(s) {
-                            Ok(msg) => local_sender.send(NetworkEvent::Message(msg)),
-                            Err(_) => {} //local_sender.send(NetworkEvent::Error(e.into())),
-                        },
+                        Ok(s) => {
+                            if let Ok(msg) = serde_json::from_str::<user::ServerMessage>(s) {
+                                local_sender.send(NetworkEvent::Message(msg))
+                            }
+                        }
                         Err(e) => local_sender.send(NetworkEvent::Error(e.into())),
                     },
                 }
@@ -181,8 +182,9 @@ pub async fn handle_errors_raw(resp: reqwest::Response) -> Result<reqwest::Respo
     }
 }
 
+#[allow(unused_lifetimes)]
 #[inline]
-pub async fn handle_errors_json<'de, T>(resp: reqwest::Response) -> Result<T, ApiError>
+pub async fn handle_errors_json<'a, T>(resp: reqwest::Response) -> Result<T, ApiError>
 where
     T: serde::de::DeserializeOwned,
 {

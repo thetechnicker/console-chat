@@ -36,7 +36,7 @@ impl Clone for ApiError {
     fn clone(&self) -> Self {
         match self {
             Self::GenericError(e) => Self::GenericError(e.clone()),
-            Self::UrlParseError(e) => Self::UrlParseError(e.clone()),
+            Self::UrlParseError(e) => Self::UrlParseError(*e),
 
             Self::ReqwestError(e) => Self::ReqwestError(Arc::clone(e)),
             //Self::ReqwestErrorClone(e) => Self::ReqwestErrorClone(e.clone()),
@@ -46,7 +46,7 @@ impl Clone for ApiError {
             Self::ServerError(e) => Self::ServerError(e.clone()),
             Self::ClientError(e) => Self::ClientError(e.clone()),
 
-            Self::Utf8Error(e) => Self::Utf8Error(e.clone()),
+            Self::Utf8Error(e) => Self::Utf8Error(*e),
             Self::SerdeError(e) => Self::SerdeError(Arc::clone(e)),
         }
     }
