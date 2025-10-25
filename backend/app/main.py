@@ -16,7 +16,8 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from jwt import PyJWTError
 from sqlmodel import Session, select
-import sqlmodel
+
+# import sqlmodel
 from pydantic import ValidationError
 
 from app.database import (
@@ -25,13 +26,14 @@ from app.database import (
     init_postgesql_connection,
 )
 from app.datamodel import (
-    BetterUser,
     ClientMessage,
     MessageType,
-    PublicUser,
     ServerMessage,
     UserStatus,
 )
+
+BetterUser = DBUser
+PublicUser = DBPublicUser
 
 load_dotenv()
 

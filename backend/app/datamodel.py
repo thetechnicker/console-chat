@@ -1,63 +1,16 @@
-import warnings
+# import warnings
 from enum import Enum  # , auto
 from typing import Any, Optional
+from app.database import DBPublicUser as PublicUser
 
 from pydantic import BaseModel, model_validator
 from typing_extensions import Self
-
-# ------------------------------------------------------------------------
-#                                   API User
-# ------------------------------------------------------------------------
-
-
-class PublicUser(BaseModel):
-    display_name: str
-    # TODO: other public informations
-
-
-class BetterUser(BaseModel):
-    username: str
-    password_hash: Optional[str]
-    private: bool = False
-
-    public_data: PublicUser
-
-    def model_dump(self, db: bool = False, **kwargs: Any):
-        # Serialize full internal version by default (e.g., database)
-        data = super().model_dump(**kwargs)
-
-        # WARNING: this might be dangerous
-        if db:
-            warnings.warn("THIS IS DANGEROUS")
-            data.pop("public_data", None)
-        else:
-            data["password_hash"] = None
-
-        return data
-
-
-# ------------------------------------------------------------------------
-#                                    Other
-# ------------------------------------------------------------------------
 
 
 class UserStatus(BaseModel):
     token: str
     ttl: int
     is_new: bool
-
-
-class UserConfig(BaseModel):
-    display_name: str
-
-
-class User(BaseModel):
-    # login
-    username: str
-    password_hash: str
-    private: bool
-
-    config: UserConfig
 
 
 class MessageType(Enum):

@@ -1,15 +1,7 @@
 import os
-from typing import Optional
+from typing import Optional, Any
 
 from sqlmodel import Field, Relationship, SQLModel, create_engine
-
-# from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey
-# from sqlalchemy.orm import declarative_base, relationship, sessionmaker
-
-
-# ------------------------------------------------------------------------
-#                                    DB User
-# ------------------------------------------------------------------------
 
 
 def set_connection_str(host: Optional[str] = None):
@@ -24,20 +16,35 @@ def set_connection_str(host: Optional[str] = None):
 
 
 class DBPublicUser(SQLModel, table=True):
-    __tablename__ = "public_user"
+    __tablename__ = "public_user"  # type: ignore
     id: Optional[int] = Field(default=None, primary_key=True)
     display_name: str
     better_user: Optional["DBUser"] = Relationship(back_populates="public_data")
 
 
 class DBUser(SQLModel, table=True):
-    __tablename__ = "users"
+    __tablename__ = "users"  # type: ignore
     id: Optional[int] = Field(default=None, primary_key=True)
     username: str = Field(index=True)
     password_hash: Optional[str] = None
     private: bool = Field(default=False)
     public_data_id: Optional[int] = Field(default=None, foreign_key="public_user.id")
-    public_data: Optional[DBPublicUser] = Relationship(back_populates="better_user")
+    public_data: DBPublicUser = Relationship(back_populates="better_user")
+
+    def model_dump(self, db: bool = False, **kwargs: Any):
+        # Serialize full internal version by default (e.g., database)
+        data = super().model_dump(**kwargs)
+
+        # WARNING: this might be dangerous
+        if db:
+            import warnings
+
+            warnings.warn("THIS IS DANGEROUS")
+            data.pop("public_data", None)
+        else:
+            data["password_hash"] = None
+
+        return data
 
 
 engine = None
