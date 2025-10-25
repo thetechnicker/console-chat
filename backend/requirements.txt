@@ -6,4 +6,5 @@ pwdlib
 pyjwt
 python-dotenv
 psycopg2-binary
+sqlmodel
 sqlalchemy 
