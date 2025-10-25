@@ -1,10 +1,12 @@
 import asyncio
 import hashlib
 import os
-from datetime import datetime, timedelta, timezone
-from typing import Any, NamedTuple, Optional
 import warnings
+from datetime import datetime, timedelta, timezone
+from typing import Any, Optional, Annotated, NamedTuple
 from uuid import uuid4
+from contextlib import asynccontextmanager
+
 import jwt
 import valkey.asyncio as valkey
 from dotenv import load_dotenv
@@ -13,24 +15,23 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from jwt import PyJWTError
-from sqlalchemy.orm import Session
-from sqlalchemy import select
-
+from sqlmodel import Session, select
+import sqlmodel
 from pydantic import ValidationError
 
+from app.database import (
+    DBPublicUser,
+    DBUser,
+    init_postgesql_connection,
+)
 from app.datamodel import (
     BetterUser,
-    PublicUser,
     ClientMessage,
     MessageType,
+    PublicUser,
     ServerMessage,
     UserStatus,
 )
-from app.database import init_postgesql_connection, DBUser, DBPublicUser
-
-# import psycopg2
-# import psycopg2.extras
-# from psycopg2 import pool
 
 load_dotenv()
 
@@ -44,22 +45,40 @@ auth = HTTPBearer()  # Enforce auth
 bearer_scheme = HTTPBearer(auto_error=False)  # Optional auth
 api_key = APIKeyHeader(name="X-Api-Key")
 
-# v = valkey.Valkey(host="valkey", port=6379, protocol=3)
-v_pool = valkey.ConnectionPool(host="valkey", port=6379, protocol=3)
 TOKEN_PREFIX = "session_token:"
 
-postgreSQL_Session = init_postgesql_connection()
-# postgreSQL_pool = pool.SimpleConnectionPool(
-#    1,
-#    20,
-#    user=os.environ["POSTGRES_USER"],
-#    password=os.environ["POSTGRES_PASSWORD"],
-#    host="postgres",
-#    port=5432,
-#    database=os.getenv("POSTGRES_DB"),
-# )
+v_pool = None
+engine = None
 
-app = FastAPI()
+DatabaseContext = NamedTuple(
+    "Context", [("valkey", valkey.Valkey), ("psql_session", Session)]
+)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global v_pool, engine
+    v_pool = valkey.ConnectionPool(host="valkey", port=6379, protocol=3)
+    engine = init_postgesql_connection()
+    yield
+
+
+def get_db_context():
+    if v_pool is None or engine is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="The database connections whererent initialized correctly",
+        )
+    with Session(engine) as session:
+        yield DatabaseContext(
+            valkey=valkey.Valkey.from_pool(v_pool), psql_session=session
+        )
+
+
+SessionDep = Annotated[DatabaseContext, Depends(get_db_context)]
+
+
+app = FastAPI(lifespan=lifespan)
 
 origins = [
     "http://localhost",
@@ -74,20 +93,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-Context = NamedTuple("Context", [("v", valkey.Valkey), ("p", Session)])
-
-
-async def get_context():
-    context = Context(
-        valkey.Valkey.from_pool(v_pool),
-        postgreSQL_Session(),
-    )
-    try:
-        yield context
-    finally:
-        await context.v.aclose()
-        context.p.close()  # or await if async session
 
 
 def hash_password(password: str) -> str:
@@ -151,7 +156,7 @@ async def root(_: None = Depends(validate_api_key)):
 async def login(
     username: Optional[str] = Body(None),
     password: Optional[str] = Body(None),
-    context: Context = Depends(get_context),
+    context: DatabaseContext = Depends(get_db_context),
 ):
     password = hash_password(password) if password else password
     is_new = True
@@ -161,7 +166,7 @@ async def login(
             .where(DBUser.username == username)
             .where(DBUser.password_hash == password)
         )
-        db_user = context.p.execute(stmt).scalars().one_or_none()
+        db_user = context.psql_session.exec(stmt).one_or_none()
         if db_user:
             is_new = False
             user = BetterUser.model_validate(db_user)
@@ -169,9 +174,6 @@ async def login(
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Wrong Credentials"
             )
-        # raise HTTPException(
-        #    status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=f"{db_user}"
-        # )
     elif username:
         public = PublicUser(display_name=username)
         user = BetterUser(
@@ -200,12 +202,12 @@ async def login(
 @app.get("/valkey/status", response_class=JSONResponse)
 async def get_valkey_status(
     _: None = Depends(validate_api_key),
-    context: Context = Depends(get_context),
+    context: DatabaseContext = Depends(get_db_context),
 ):
     try:
         # settings = v.get_connection_kwargs()  # type:ignore
         # print(settings)
-        _ = await context.v.ping()
+        _ = await context.valkey.ping()
         # print(pong)
     except Exception:
         # Log the error e if desired
@@ -223,12 +225,12 @@ async def register(
     password: str = Body(),
     user: BetterUser = Depends(get_current_user),
     overwrite_username: Optional[str] = Body(None),
-    context: Context = Depends(get_context),
+    context: DatabaseContext = Depends(get_db_context),
 ):
     try:
         # Check if already existing user
         stmt = select(DBUser).where(DBUser.username == user.username)
-        db_user = context.p.execute(stmt).scalars().one_or_none()
+        db_user = context.psql_session.exec(stmt).one_or_none()
         if db_user:
             raise HTTPException(
                 status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
@@ -237,7 +239,7 @@ async def register(
         # Overwrite user name and check for availability
         user.username = overwrite_username or user.username
         stmt = select(DBUser).where(DBUser.username == user.username)
-        if context.p.execute(stmt).scalars().one_or_none():
+        if context.psql_session.exec(stmt).one_or_none():
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"User {user.username} already exists",
@@ -249,8 +251,8 @@ async def register(
         # Create User DB entry
         public_user = DBPublicUser(**user.public_data.model_dump())
         db_user = DBUser(**user.model_dump(db=True), public_data=public_user)
-        context.p.add(db_user)
-        context.p.commit()
+        context.psql_session.add(db_user)
+        context.psql_session.commit()
         # raise Exception()
     except:
         raise HTTPException(status_code=status.HTTP_418_IM_A_TEAPOT)
@@ -263,7 +265,7 @@ async def send(
     room: str,
     message: ClientMessage,  # Use the new Message model
     user: BetterUser = Depends(get_current_user),
-    context: Context = Depends(get_context),
+    context: DatabaseContext = Depends(get_db_context),
 ):
     msg = ServerMessage(
         user=user.public_data,
@@ -271,7 +273,7 @@ async def send(
         # timestamp=datetime.now(timezone.utc),
         type=MessageType.TEXT,
     )
-    await context.v.publish(
+    await context.valkey.publish(
         room, msg.model_dump_json()
     )  # Use model_dump_json for serialization
     return {"message": f"send successful by user {user.public_data.display_name}"}
@@ -282,9 +284,9 @@ async def get(
     room: str,
     listen_seconds: int = Query(30, description="How long to listen in seconds"),
     user: BetterUser = Depends(get_current_user),
-    context: Context = Depends(get_context),
+    context: DatabaseContext = Depends(get_db_context),
 ):
-    await context.v.publish(
+    await context.valkey.publish(
         room,
         ServerMessage(
             type=MessageType.JOIN,
@@ -302,9 +304,9 @@ async def get(
 async def get_message(
     room: str,
     timeout: int,
-    context: Context = Depends(get_context),
+    context: DatabaseContext = Depends(get_db_context),
 ):
-    async with context.v.pubsub() as pubsub:
+    async with context.valkey.pubsub() as pubsub:
         await pubsub.subscribe(room)
 
         end_time = asyncio.get_event_loop().time() + timeout
