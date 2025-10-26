@@ -17,6 +17,7 @@ from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBea
 from jwt import PyJWTError
 from sqlmodel import Session, select
 
+
 # import sqlmodel
 from pydantic import ValidationError
 
@@ -149,8 +150,11 @@ def validate_api_key(key: str = Depends(api_key)):
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
 
 
+API_KEY_AUTH = Annotated[None, Depends(validate_api_key)]
+
+
 @app.get("/")
-async def root(_: None = Depends(validate_api_key)):
+async def root(_: API_KEY_AUTH):
     return {"message": "Hello World"}
 
 
@@ -203,7 +207,7 @@ async def login(
 
 @app.get("/valkey/status", response_class=JSONResponse)
 async def get_valkey_status(
-    _: None = Depends(validate_api_key),
+    _: API_KEY_AUTH,
     context: DatabaseContext = Depends(get_db_context),
 ):
     try:
