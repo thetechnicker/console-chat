@@ -141,6 +141,14 @@ pub struct EventSender {
     sender: mpsc::UnboundedSender<Event>,
 }
 
+/// Used for testing only
+impl Default for EventSender {
+    fn default() -> Self {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        Self { sender: tx }
+    }
+}
+
 impl EventSender {
     pub fn new(sender: mpsc::UnboundedSender<Event>) -> Self {
         Self { sender }

@@ -195,3 +195,26 @@ const fn alternate_colors(i: usize) -> Color {
         ALT_ROW_BG_COLOR
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::Screen;
+    use super::ChatScreen;
+    use crate::event::EventSender;
+    use insta::assert_snapshot;
+    use ratatui::{Terminal, backend::TestBackend};
+
+    #[test]
+    fn test_render_chat() {
+        let chat_screen = ChatScreen::new(EventSender::default().into());
+        let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
+        terminal
+            .draw(|frame| {
+                let area = frame.area();
+                let buf = frame.buffer_mut();
+                chat_screen.draw(area, buf);
+            })
+            .unwrap();
+        assert_snapshot!(terminal.backend());
+    }
+}

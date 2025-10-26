@@ -189,3 +189,25 @@ impl Screen for LoginScreen {
         })
     }
 }
+#[cfg(test)]
+mod tests {
+    use super::super::Screen;
+    use super::LoginScreen;
+    use crate::event::EventSender;
+    use insta::assert_snapshot;
+    use ratatui::{Terminal, backend::TestBackend};
+
+    #[test]
+    fn test_render_home() {
+        let chat_screen = LoginScreen::new(EventSender::default().into());
+        let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
+        terminal
+            .draw(|frame| {
+                let area = frame.area();
+                let buf = frame.buffer_mut();
+                chat_screen.draw(area, buf);
+            })
+            .unwrap();
+        assert_snapshot!(terminal.backend());
+    }
+}
