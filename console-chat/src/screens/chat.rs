@@ -200,13 +200,13 @@ const fn alternate_colors(i: usize) -> Color {
 mod tests {
     use super::super::Screen;
     use super::ChatScreen;
-    use crate::event::EventSender;
+    use crate::event::dummy_event_sender;
     use insta::assert_snapshot;
     use ratatui::{Terminal, backend::TestBackend};
 
     #[test]
     fn test_render_chat() {
-        let chat_screen = ChatScreen::new(EventSender::default().into());
+        let chat_screen = ChatScreen::new(dummy_event_sender().into());
         let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
         terminal
             .draw(|frame| {
