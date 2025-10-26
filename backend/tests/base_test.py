@@ -1,3 +1,7 @@
+"""
+Basic tests to see if the most basic features work.
+"""
+
 from dotenv import load_dotenv
 import os
 import pytest
@@ -13,8 +17,28 @@ load_dotenv()
 debug_key = os.environ.get("DEV_API_KEY")
 
 
+@pytest.fixture
+def setup_test_db():
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    SQLModel.metadata.create_all(engine)
+
+    async def _override_get_db_context():
+        with Session(engine) as session:
+            yield DatabaseContext(
+                valkey=fakeredis.FakeAsyncValkey(), psql_session=session
+            )
+
+    app.dependency_overrides[get_db_context] = _override_get_db_context
+    with Session(engine) as session:
+        yield DatabaseContext(valkey=fakeredis.FakeAsyncValkey(), psql_session=session)
+
+
 @pytest.mark.asyncio
-async def test_root():
+async def test_root(setup_test_db: DatabaseContext):
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://test",
@@ -25,7 +49,7 @@ async def test_root():
 
 
 @pytest.mark.asyncio
-async def test_root_wrong_key():
+async def test_root_wrong_key(setup_test_db: DatabaseContext):
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://test",
@@ -36,7 +60,7 @@ async def test_root_wrong_key():
 
 
 @pytest.mark.asyncio
-async def test_root_no_key():
+async def test_root_no_key(setup_test_db: DatabaseContext):
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://test",
@@ -46,22 +70,7 @@ async def test_root_no_key():
 
 
 @pytest.mark.asyncio
-async def test_auth():
-    engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    SQLModel.metadata.create_all(engine)
-
-    async def overwrite_get_db_content():
-        with Session(engine) as session:
-            yield DatabaseContext(
-                valkey=fakeredis.FakeAsyncValkey(), psql_session=session
-            )
-
-    app.dependency_overrides[get_db_context] = overwrite_get_db_content
-
+async def test_auth(setup_test_db: DatabaseContext):
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://test",
