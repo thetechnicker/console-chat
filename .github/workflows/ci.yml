@@ -14,7 +14,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 jobs:
-  fmt:
+  rust-fmt:
     defaults:
       run:
         working-directory: console-chat
@@ -53,7 +53,7 @@ jobs:
       #  uses: Swatinem/rust-cache@v2
       - name: cache clippy
         run: cargo clippy --message-format=json
-  doc:
+  rust-doc:
     defaults:
       run:
         working-directory: console-chat
@@ -70,7 +70,7 @@ jobs:
         run: cargo doc --no-deps --all-features
         env:
           RUSTDOCFLAGS: --cfg docsrs
-  test:
+  rust-test:
     defaults:
       run:
         working-directory: console-chat
@@ -117,5 +117,17 @@ jobs:
         run: black --check ./backend/app
       - name: Run Pyright strict
         run: pyright -p pyrightconfig.json ./backend/app
-    #- name: Run Pylint (docstring only)
-    #  run: pylint --disable=all --enable=missing-docstring ./api
+  python-test:
+    defaults:
+      run:
+        working-directory: console-chat
+    runs-on: ${{ matrix.os }}
+    name: test ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Run tests
+        run: pytest backend/
