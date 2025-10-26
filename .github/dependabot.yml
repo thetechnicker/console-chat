@@ -6,11 +6,7 @@ version: 2
 updates:
   # Maintain dependencies for Cargo
   - package-ecosystem: "cargo"
-    directory: "/tui-chat" # Location of package manifests
-    schedule:
-      interval: "weekly"
-  - package-ecosystem: "cargo"
-    directory: "/tui-chat-event" # Location of package manifests
+    directory: "/console-chat" # Location of package manifests
     schedule:
       interval: "weekly"
   - package-ecosystem: "pip"
@@ -22,3 +18,4 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+
