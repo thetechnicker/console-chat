@@ -75,7 +75,7 @@ jobs:
       run:
         working-directory: console-chat
     runs-on: ${{ matrix.os }}
-    name: test ${{ matrix.os }}
+    name: rust test ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
@@ -122,12 +122,21 @@ jobs:
       run:
         working-directory: console-chat
     runs-on: ${{ matrix.os }}
-    name: test ${{ matrix.os }}
+    name: python test ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@v5
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+      - name: Install Dep
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r ./backend/requirements.txt
+          pip install -r ./backend/requirements-dev.txt
       - name: Run tests
         run: pytest backend/
