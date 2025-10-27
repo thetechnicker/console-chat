@@ -151,6 +151,7 @@ impl EventSender {
         let _ = self.sender.send(event);
     }
 }
+
 impl From<EventSender> for AppEventSender {
     fn from(val: EventSender) -> Self {
         AppEventSender::new(val.sender)
@@ -262,5 +263,31 @@ fn handle_key_events(key_event: KeyEvent) -> Event {
             Event::App(AppEvent::Quit)
         }
         _ => Event::App(AppEvent::KeyEvent(key_event)),
+    }
+}
+
+#[cfg(test)]
+pub mod test_utils {
+    use super::*;
+
+    ///Object
+    #[derive(Debug)]
+    pub struct EventReceiver {
+        receiver: mpsc::UnboundedReceiver<Event>,
+    }
+
+    impl EventReceiver {
+        pub async fn next(&mut self) -> color_eyre::Result<Event> {
+            self.receiver
+                .recv()
+                .await
+                .ok_or_eyre("Failed to receive event")
+        }
+    }
+
+    /// Used for testing only
+    pub fn dummy_event_sender() -> (EventSender, EventReceiver) {
+        let (tx, rx) = mpsc::unbounded_channel();
+        (EventSender { sender: tx }, EventReceiver { receiver: rx })
     }
 }

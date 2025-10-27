@@ -154,3 +154,41 @@ impl Screen for HomeScreen {
         None
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::Screen;
+    use super::HomeScreen;
+    use crate::event::test_utils::dummy_event_sender;
+    use insta::assert_snapshot;
+    use ratatui::{Terminal, backend::TestBackend};
+
+    #[test]
+    fn test_render_home() {
+        let chat_screen = HomeScreen::new(dummy_event_sender().0.into());
+        let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
+        terminal
+            .draw(|frame| {
+                let area = frame.area();
+                let buf = frame.buffer_mut();
+                chat_screen.draw(area, buf);
+            })
+            .unwrap();
+        assert_snapshot!(terminal.backend());
+    }
+    #[tokio::test]
+    async fn test_tab_switch_increments_index() {
+        use crate::event as crate_event;
+        use crossterm::event;
+
+        let (send, _) = dummy_event_sender();
+        let mut chat_screen = HomeScreen::new(send.into());
+
+        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
+            event::KeyCode::Tab,
+            event::KeyModifiers::NONE,
+        )));
+
+        assert_eq!(chat_screen.tab_index, 1);
+    }
+}
