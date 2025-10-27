@@ -107,7 +107,11 @@ impl Screen for LoginScreen {
                 }
                 KeyCode::BackTab if key_event.kind == KeyEventKind::Press => {
                     self.send_current_widget_event(AppEvent::NoFocus);
-                    self.tab_index = (self.tab_index.wrapping_sub(1)) % self.max_tab;
+                    self.tab_index = if self.tab_index == 0 {
+                        self.max_tab - 1
+                    } else {
+                        self.tab_index.wrapping_sub(1)
+                    } % self.max_tab;
                     self.send_current_widget_event(AppEvent::Focus);
                 }
                 KeyCode::Esc => {

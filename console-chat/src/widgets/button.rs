@@ -6,6 +6,7 @@ use ratatui::{
     layout::Rect,
     style::{Color, Style},
     text::Line,
+    widgets::{Block, Widget as w},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -104,27 +105,33 @@ impl Widget for Button {
         }
     }
     fn draw(&self, area: Rect, buf: &mut Buffer, _: &mut Option<u16>) {
-        let (background, text, shadow, highlight) = self.colors();
-        buf.set_style(area, Style::new().bg(background).fg(text));
-
-        // render top line if there's enough space
-        if area.height > 2 {
-            buf.set_string(
-                area.x,
-                area.y,
-                "▔".repeat(area.width as usize),
-                Style::new().fg(highlight).bg(background),
-            );
-        }
-        // render bottom line if there's enough space
-        if area.height > 1 {
-            buf.set_string(
-                area.x,
-                area.y + area.height - 1,
-                "▁".repeat(area.width as usize),
-                Style::new().fg(shadow).bg(background),
-            );
-        }
+        let (background, text, shadow, _highlight) = self.colors();
+        let block = Block::bordered()
+            .border_type(ratatui::widgets::BorderType::Rounded)
+            .style(Style::new().fg(shadow));
+        let inner = block.inner(area);
+        block.render(area, buf);
+        buf.set_style(inner, Style::new().bg(background).fg(text));
+        /*
+                // render top line if there's enough space
+                if area.height > 2 {
+                    buf.set_string(
+                        area.x,
+                        area.y,
+                        "▔".repeat(area.width as usize),
+                        Style::new().fg(highlight).bg(background),
+                    );
+                }
+                // render bottom line if there's enough space
+                if area.height > 1 {
+                    buf.set_string(
+                        area.x,
+                        area.y + area.height - 1,
+                        "▁".repeat(area.width as usize),
+                        Style::new().fg(shadow).bg(background),
+                    );
+                }
+        */
         let line: Line<'_> = String::from(&self.label).into();
         // render label centered
         buf.set_line(
