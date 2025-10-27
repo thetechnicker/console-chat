@@ -118,9 +118,6 @@ jobs:
       - name: Run Pyright strict
         run: pyright -p pyrightconfig.json ./backend/app
   python-test:
-    defaults:
-      run:
-        working-directory: console-chat
     runs-on: ${{ matrix.os }}
     name: python test ${{ matrix.os }}
     strategy:
