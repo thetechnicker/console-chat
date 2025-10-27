@@ -125,8 +125,10 @@ async def get_current_user(
     token = credentials.credentials
     try:
         payload: dict[Any, Any] = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        print(payload)
+        # print(payload)
+        pub_user = PublicUser.model_validate(payload["public_data"])
         user = BetterUser.model_validate(payload)
+        user.public_data = pub_user
         # stmt = select(DBUser).where(DBUser.username == user.username)
         # db_user = context.p.execute(stmt).scalar_one_or_none()
 
@@ -254,10 +256,7 @@ async def register(
         # Hash password
         user.password_hash = hash_password(password)
 
-        # Create User DB entry
-        public_user = DBPublicUser(**user.public_data.model_dump())
-        db_user = DBUser(**user.model_dump(db=True), public_data=public_user)
-        context.psql_session.add(db_user)
+        context.psql_session.add(user)
         context.psql_session.commit()
         # raise Exception()
     except:

@@ -126,19 +126,19 @@ impl ApiClient {
         self.current_room = Some(room.to_string());
         let timeout = 30;
         let url = self.base_url.join(&format!("room/{room}"))?;
-
-        let resp = self
-            .client
-            .get(url)
-            .query(&[("listen_seconds", &timeout.to_string())])
-            .timeout(std::time::Duration::from_secs(timeout))
-            .bearer_auth(self.bearer_token.clone().expect("No Token Given"))
-            .send()
-            .await?;
-
-        let resp = handle_errors_raw(resp).await?;
         let local_sender = self.event_sender.clone();
+        let token = self.bearer_token.clone().expect("No Token Given");
+        let client = self.client.clone();
         self.listen_task = Some(tokio::spawn(async move {
+            let resp = client
+                .get(url)
+                .query(&[("listen_seconds", &timeout.to_string())])
+                .timeout(std::time::Duration::from_secs(timeout))
+                .bearer_auth(token)
+                .send()
+                .await?;
+
+            let resp = handle_errors_raw(resp).await?;
             let mut stream = resp.bytes_stream();
             while let Some(chunk) = stream.next().await {
                 log::debug!("{chunk:?}");
