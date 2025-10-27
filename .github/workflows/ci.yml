@@ -119,11 +119,14 @@ jobs:
         run: pyright -p pyrightconfig.json ./backend/app
   python-test:
     runs-on: ${{ matrix.os }}
-    name: python test ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
+    name: python test ${{ matrix.os }}
+    env:
+      DEV_API_KEY: ${{ secrets.DEV_API_KEY }}
+      SECRET: ${{ secrets.SECRET }}
     steps:
       - uses: actions/checkout@v5
       - name: Set up Python
