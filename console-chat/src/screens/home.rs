@@ -91,7 +91,11 @@ impl Screen for HomeScreen {
                 }
                 KeyCode::BackTab if key_event.kind == KeyEventKind::Press => {
                     self.send_current_widget_event(AppEvent::NoFocus);
-                    self.tab_index = (self.tab_index.wrapping_sub(1)) % self.max_tab;
+                    self.tab_index = if self.tab_index == 0 {
+                        self.max_tab - 1
+                    } else {
+                        self.tab_index.wrapping_sub(1)
+                    } % self.max_tab;
                     self.send_current_widget_event(AppEvent::Focus);
                 }
                 KeyCode::Esc => {
@@ -188,7 +192,52 @@ mod tests {
             event::KeyCode::Tab,
             event::KeyModifiers::NONE,
         )));
-
         assert_eq!(chat_screen.tab_index, 1);
+
+        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
+            event::KeyCode::Esc,
+            event::KeyModifiers::NONE,
+        )));
+        assert_eq!(chat_screen.tab_index, 0);
+
+        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
+            event::KeyCode::BackTab,
+            event::KeyModifiers::NONE,
+        )));
+        assert_eq!(chat_screen.tab_index, chat_screen.max_tab - 1);
+
+        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
+            event::KeyCode::Esc,
+            event::KeyModifiers::NONE,
+        )));
+        assert_eq!(chat_screen.tab_index, 0);
+
+        let magic_test_amount = 10;
+        for _ in 0..magic_test_amount {
+            chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
+                event::KeyCode::Tab,
+                event::KeyModifiers::NONE,
+            )));
+        }
+        assert_eq!(
+            chat_screen.tab_index,
+            magic_test_amount % chat_screen.max_tab
+        );
+
+        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
+            event::KeyCode::Esc,
+            event::KeyModifiers::NONE,
+        )));
+        assert_eq!(chat_screen.tab_index, 0);
+
+        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
+            event::KeyCode::BackTab,
+            event::KeyModifiers::NONE,
+        )));
+        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
+            event::KeyCode::BackTab,
+            event::KeyModifiers::NONE,
+        )));
+        assert_eq!(chat_screen.tab_index, chat_screen.max_tab - 2);
     }
 }
