@@ -46,7 +46,7 @@ impl Default for App {
 impl App {
     /// Constructs a new instance of [`App`].
     pub fn new(server_url: Option<&str>, _max_api_failure_count: Option<u32>) -> Self {
-        let url = server_url.unwrap_or("http://localhost:8000");
+        let url = server_url.unwrap_or("https://localhost");
 
         let event_handler = EventHandler::new();
         let event_sender = event_handler.get_event_sender();

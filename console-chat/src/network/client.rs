@@ -26,7 +26,9 @@ pub struct ApiClient {
 
 impl ApiClient {
     pub fn new(base_url: &str, event_sender: event::NetworkEventSender) -> Result<Self, ApiError> {
-        let client = reqwest::Client::new();
+        let client = reqwest::Client::builder()
+            .danger_accept_invalid_certs(true)
+            .build()?;
         Ok(ApiClient {
             base_url: Url::parse(base_url)?,
             client,
