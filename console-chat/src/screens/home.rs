@@ -176,4 +176,19 @@ mod tests {
             .unwrap();
         assert_snapshot!(terminal.backend());
     }
+    #[tokio::test]
+    async fn test_tab_switch_increments_index() {
+        use crate::event as crate_event;
+        use crossterm::event;
+
+        let (send, _) = dummy_event_sender();
+        let mut chat_screen = HomeScreen::new(send.into());
+
+        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
+            event::KeyCode::Tab,
+            event::KeyModifiers::NONE,
+        )));
+
+        assert_eq!(chat_screen.tab_index, 1);
+    }
 }
