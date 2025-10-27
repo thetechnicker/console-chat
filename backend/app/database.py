@@ -31,18 +31,12 @@ class DBUser(SQLModel, table=True):
     public_data_id: Optional[int] = Field(default=None, foreign_key="public_user.id")
     public_data: DBPublicUser = Relationship(back_populates="better_user")
 
-    def model_dump(self, db: bool = False, **kwargs: Any):
+    def model_dump(self, **kwargs: Any):
         # Serialize full internal version by default (e.g., database)
         data = super().model_dump(**kwargs)
+        data["public_data"] = self.public_data.model_dump()
 
-        # WARNING: this might be dangerous
-        if db:
-            import warnings
-
-            warnings.warn("THIS IS DANGEROUS")
-            data.pop("public_data", None)
-        else:
-            data["password_hash"] = None
+        data["password_hash"] = None
 
         return data
 
