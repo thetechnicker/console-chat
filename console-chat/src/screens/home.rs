@@ -159,13 +159,13 @@ impl Screen for HomeScreen {
 mod tests {
     use super::super::Screen;
     use super::HomeScreen;
-    use crate::event::dummy_event_sender;
+    use crate::event::test_utils::dummy_event_sender;
     use insta::assert_snapshot;
     use ratatui::{Terminal, backend::TestBackend};
 
     #[test]
     fn test_render_home() {
-        let chat_screen = HomeScreen::new(dummy_event_sender().into());
+        let chat_screen = HomeScreen::new(dummy_event_sender().0.into());
         let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
         terminal
             .draw(|frame| {

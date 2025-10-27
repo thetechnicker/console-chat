@@ -200,13 +200,13 @@ const fn alternate_colors(i: usize) -> Color {
 mod tests {
     use super::super::Screen;
     use super::ChatScreen;
-    use crate::event::dummy_event_sender;
+    use crate::event::test_utils::dummy_event_sender;
     use insta::assert_snapshot;
     use ratatui::{Terminal, backend::TestBackend};
 
     #[test]
     fn test_render_chat() {
-        let chat_screen = ChatScreen::new(dummy_event_sender().into());
+        let chat_screen = ChatScreen::new(dummy_event_sender().0.into());
         let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
         terminal
             .draw(|frame| {
@@ -216,5 +216,79 @@ mod tests {
             })
             .unwrap();
         assert_snapshot!(terminal.backend());
+    }
+
+    #[tokio::test]
+    async fn test_tab_switch_increments_index() {
+        use crate::event as crate_event;
+        use crossterm::event;
+
+        let (send, _) = dummy_event_sender();
+        let mut chat_screen = ChatScreen::new(send.into());
+
+        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
+            event::KeyCode::Tab,
+            event::KeyModifiers::NONE,
+        )));
+
+        assert_eq!(chat_screen.tab_index, 1);
+    }
+
+    #[tokio::test]
+    async fn test_typing_characters_updates_input() {
+        use crate::event as crate_event;
+        use crossterm::event;
+
+        let (send, _) = dummy_event_sender();
+        let mut chat_screen = ChatScreen::new(send.into());
+
+        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
+            event::KeyCode::Tab,
+            event::KeyModifiers::NONE,
+        )));
+
+        for c in ['t', 'e', 's', 't'] {
+            chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
+                event::KeyCode::Char(c),
+                event::KeyModifiers::NONE,
+            )));
+        }
+
+        assert_eq!(chat_screen.input.get_content(), "test");
+    }
+
+    #[tokio::test]
+    async fn test_enter_sends_message_event() {
+        use crate::event as crate_event;
+        use crossterm::event;
+
+        let (send, mut resv) = dummy_event_sender();
+        let mut chat_screen = ChatScreen::new(send.clone().into());
+
+        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
+            event::KeyCode::Tab,
+            event::KeyModifiers::NONE,
+        )));
+
+        for c in ['t', 'e', 's', 't'] {
+            chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
+                event::KeyCode::Char(c),
+                event::KeyModifiers::NONE,
+            )));
+        }
+
+        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
+            event::KeyCode::Enter,
+            event::KeyModifiers::NONE,
+        )));
+
+        let res = resv.next().await;
+        assert!(res.is_ok());
+        let evt = res.unwrap();
+        if let crate_event::Event::App(crate_event::AppEvent::SendMessage(msg)) = evt {
+            assert_eq!(msg, "test");
+        } else {
+            panic!("expected SendMessage event");
+        }
     }
 }
