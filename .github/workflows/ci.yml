@@ -118,6 +118,7 @@ jobs:
       - name: Run Pyright strict
         run: pyright -p pyrightconfig.json ./backend/app
   python-test:
+    environment: CI
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
