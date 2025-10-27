@@ -24,7 +24,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - internalnet
-      - externalnet
+      #- externalnet
   valkey:
     image: valkey/valkey:latest
     container_name: valkey
@@ -56,9 +56,24 @@ services:
           path: .
     networks:
       - internalnet
-      - externalnet
+      #- externalnet
     ports:
       - "8000:8000"
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    restart: on-failure
+    depends_on:
+      - chat-server
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    networks:
+      - internalnet
+      - externalnet
 volumes:
   postgres_data:
     driver: local
