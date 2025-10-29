@@ -14,7 +14,8 @@ class UserStatus(BaseModel):
 
 
 class MessageType(Enum):
-    TEXT = "TEXT"
+    PLAIN_TEXT = "PLAIN-TEXT"
+    ENCRYPTED_TEXT = "ENCRYPTED-TEXT"
     JOIN = "JOIN"
     LEAVE = "LEAVE"
     SYSTEM = "SYSTEM"
@@ -23,12 +24,12 @@ class MessageType(Enum):
 
 class BaseMessage(BaseModel):
     type: MessageType
-    text: bytes
+    text: bytes | str
     data: Optional[dict[str, Any]] = None
 
 
 class ClientMessage(BaseMessage):
-    type: MessageType = MessageType.TEXT
+    type: MessageType = MessageType.PLAIN_TEXT
 
 
 class ServerMessage(BaseMessage):

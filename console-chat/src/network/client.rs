@@ -1,6 +1,6 @@
 use crate::{
     event,
-    network::{ApiError, NetworkEvent, ResponseErrorData, user},
+    network::{ApiError, NetworkEvent, ResponseErrorData, encryption, messages, user},
 };
 //use bytes::Bytes;
 use reqwest::{StatusCode, Url};
@@ -80,7 +80,8 @@ impl ApiClient {
         Ok(())
     }
 
-    pub async fn send(&mut self, args: user::ClientMessage) -> Result<(), ApiError> {
+    pub async fn send(&mut self, msg: &str) -> Result<(), ApiError> {
+        let args = messages::ClientMessage::new(msg);
         log::trace!("Sending Message...");
         let room = self.current_room.as_ref().map_or_else(
             || {
@@ -147,10 +148,22 @@ impl ApiClient {
                             if s == "END" {
                                 break;
                             }
-                            match serde_json::from_str::<user::ServerMessage>(s) {
-                                Ok(msg) => match msg.base.message_type {
-                                    user::MessageType::System => {}
-                                    user::MessageType::Key => {}
+                            match serde_json::from_str::<messages::ServerMessage>(s) {
+                                Ok(mut msg) => match msg.base.message_type {
+                                    messages::MessageType::System => {}
+                                    messages::MessageType::Key => {}
+                                    messages::MessageType::EncryptedText => {
+                                        match encryption::decrypt_bytes(
+                                            &msg.base.text,
+                                            &encryption::KEY,
+                                        ) {
+                                            Ok(encrypted) => {
+                                                msg.base.text = encrypted;
+                                                local_sender.send(NetworkEvent::Message(msg));
+                                            }
+                                            Err(e) => local_sender.send(NetworkEvent::Error(e)),
+                                        }
+                                    }
                                     _ => {
                                         local_sender.send(NetworkEvent::Message(msg));
                                     }

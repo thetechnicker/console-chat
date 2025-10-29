@@ -27,6 +27,7 @@ pub enum ApiError {
     ReqwestError(Arc<reqwest::Error>),
 
     Utf8Error(std::str::Utf8Error),
+    Base64DecodeError(base64::DecodeError),
     SerdeError(Arc<serde_json::Error>),
     CompositError(Arc<ApiError>, String),
 }
@@ -43,6 +44,7 @@ impl std::fmt::Display for ApiError {
             ApiError::NotFound(data) => write!(f, "Not Found: {}", data),
             ApiError::Utf8Error(error) => write!(f, "Utf8Error: {}", error),
             ApiError::SerdeError(error) => write!(f, "SerdeError: {}", error),
+            ApiError::Base64DecodeError(error) => write!(f, "Base64Error: {}", error),
             ApiError::CompositError(error, str) => {
                 write!(f, "CompositError: {}, \"{}\"", error, str)
             }
@@ -70,6 +72,12 @@ impl From<std::str::Utf8Error> for ApiError {
 impl From<serde_json::Error> for ApiError {
     fn from(value: serde_json::Error) -> Self {
         Self::SerdeError(Arc::new(value))
+    }
+}
+
+impl From<base64::DecodeError> for ApiError {
+    fn from(value: base64::DecodeError) -> Self {
+        Self::Base64DecodeError(value)
     }
 }
 

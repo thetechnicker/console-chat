@@ -1,6 +1,6 @@
 use crate::DEFAULT_BORDER;
 use crate::event::{AppEvent, AppEventSender};
-use crate::network::{self, user};
+use crate::network::{self, messages};
 use crate::screens::{CurrentScreen, CursorPos, Screen};
 use crate::widgets;
 use crate::widgets::Widget;
@@ -36,7 +36,7 @@ pub struct ChatScreen {
     pub max_tab: usize,
     pub event_sender: AppEventSender,
     pub input: widgets::InputWidget,
-    pub items: Vec<user::ServerMessage>,
+    pub items: Vec<messages::ServerMessage>,
     pub state: RefCell<ListState>,
 }
 
@@ -177,8 +177,8 @@ impl Screen for ChatScreen {
     }
 }
 
-impl From<&user::ServerMessage> for ListItem<'_> {
-    fn from(item: &user::ServerMessage) -> Self {
+impl From<&messages::ServerMessage> for ListItem<'_> {
+    fn from(item: &messages::ServerMessage) -> Self {
         // Example: Format message with user display name if present and message text
         let default = String::from("System");
         let user_display = item

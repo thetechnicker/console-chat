@@ -1,6 +1,6 @@
 use crate::DEFAULT_BORDER;
 use crate::event::{AppEvent, Event, EventHandler};
-use crate::network::{self, ApiError, user::ClientMessage};
+use crate::network::{self, ApiError};
 use crate::screens::{self, Screen};
 use crossterm::event::Event as CrosstermEvent;
 use log; //::{debug, error, info, trace};
@@ -124,7 +124,7 @@ impl App {
                         }
                         AppEvent::SendMessage(msg) => {
                             log::debug!("Sending: {}", msg);
-                            if let Err(e) = self.api.send(ClientMessage::new(&msg)).await {
+                            if let Err(e) = self.api.send(&msg).await {
                                 self.handle_network_error(e)
                             }
                         }

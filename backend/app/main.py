@@ -278,7 +278,7 @@ async def send(
     msg = ServerMessage(
         user=user.public_data,
         text=message.text,
-        type=MessageType.TEXT,
+        type=message.type,
     )
     # print(msg)
     # print(msg.model_dump())
