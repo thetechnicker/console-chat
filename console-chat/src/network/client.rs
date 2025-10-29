@@ -24,6 +24,9 @@ pub struct ApiClient {
     current_room: Option<String>,
 }
 
+///Magic numbers
+const LISTEN_TIMEOUT: u64 = 30;
+
 impl ApiClient {
     pub fn new(base_url: &str, event_sender: event::NetworkEventSender) -> Result<Self, ApiError> {
         let client = reqwest::Client::builder()
@@ -89,7 +92,7 @@ impl ApiClient {
         )?;
         let url = self.base_url.join(&format!("room/{room}"))?;
         let body = serde_json::json!(args);
-        log::debug!("{body}");
+        log::debug!("Sending: {body}");
         let resp = self
             .client
             .post(url)
@@ -99,11 +102,6 @@ impl ApiClient {
             .await?;
 
         let resp = handle_errors_raw(resp).await?;
-        //self.event_sender
-        //    .send(NetworkEvent::Error(ApiError::GenericError(format!(
-        //        "{}",
-        //        resp.text().await?
-        //    ))));
         log::trace!("{}", resp.text().await?);
         Ok(())
     }
@@ -124,32 +122,37 @@ impl ApiClient {
 
     async fn listen_internal(&mut self, room: &str) -> Result<(), ApiError> {
         self.current_room = Some(room.to_string());
-        let timeout = 30;
         let url = self.base_url.join(&format!("room/{room}"))?;
         let local_sender = self.event_sender.clone();
         let token = self.bearer_token.clone().expect("No Token Given");
         let client = self.client.clone();
-        self.listen_task = Some(tokio::spawn(async move {
-            let resp = client
-                .get(url)
-                .query(&[("listen_seconds", &timeout.to_string())])
-                .timeout(std::time::Duration::from_secs(timeout))
-                .bearer_auth(token)
-                .send()
-                .await?;
+        let resp = client
+            .get(url)
+            .query(&[("listen_seconds", &LISTEN_TIMEOUT.to_string())])
+            .timeout(std::time::Duration::from_secs(LISTEN_TIMEOUT))
+            .bearer_auth(token)
+            .send()
+            .await?;
 
-            let resp = handle_errors_raw(resp).await?;
+        let resp = handle_errors_raw(resp).await?;
+        self.listen_task = Some(tokio::spawn(async move {
             let mut stream = resp.bytes_stream();
             while let Some(chunk) = stream.next().await {
-                log::debug!("{chunk:?}");
+                log::debug!("Received Chunk {chunk:?}");
                 match chunk {
                     Err(e) => local_sender.send(NetworkEvent::Error(e.into())),
                     Ok(data) => match str::from_utf8(&data) {
                         Ok(s) => {
-                            if let Ok(msg) = serde_json::from_str::<user::ServerMessage>(s) {
-                                local_sender.send(NetworkEvent::Message(msg))
+                            log::debug!("chunk as string: {s}");
+                            if s == "END" {
+                                break;
+                            }
+                            match serde_json::from_str::<user::ServerMessage>(s) {
+                                Ok(msg) => local_sender.send(NetworkEvent::Message(msg)),
+                                Err(e) => local_sender.send(NetworkEvent::Error((e, s).into())),
                             }
                         }
+
                         Err(e) => local_sender.send(NetworkEvent::Error(e.into())),
                     },
                 }

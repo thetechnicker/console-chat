@@ -8,6 +8,7 @@ pub use error::*;
 pub enum NetworkEvent {
     None,
     RequestReconnect,
+    StrMessage(String),
     Message(user::ServerMessage),
     Error(ApiError),
 }

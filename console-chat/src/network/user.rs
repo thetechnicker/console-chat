@@ -63,3 +63,15 @@ pub struct ServerMessage {
     pub base: BaseMessage,
     pub user: Option<PublicUser>,
 }
+impl ServerMessage {
+    pub fn new(msg: &str) -> Self {
+        Self {
+            base: BaseMessage {
+                message_type: MessageType::Text,
+                text: msg.to_string(),
+                data: None,
+            },
+            user: None,
+        }
+    }
+}

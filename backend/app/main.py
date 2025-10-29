@@ -275,12 +275,13 @@ async def send(
     msg = ServerMessage(
         user=user.public_data,
         text=message.text,
-        # timestamp=datetime.now(timezone.utc),
         type=MessageType.TEXT,
     )
-    await context.valkey.publish(
-        room, msg.model_dump_json()
-    )  # Use model_dump_json for serialization
+    # print(msg)
+    # print(msg.model_dump())
+    # print(msg.model_dump_json())
+    await context.valkey.publish(room, msg.model_dump_json())
+
     return {"message": f"send successful by user {user.public_data.display_name}"}
 
 
@@ -309,7 +310,7 @@ async def get(
 async def get_message(
     room: str,
     timeout: int,
-    context: DatabaseContext = Depends(get_db_context),
+    context: DatabaseContext,
 ):
     async with context.valkey.pubsub() as pubsub:
         await pubsub.subscribe(room)
@@ -319,7 +320,7 @@ async def get_message(
         while True:
             remaining = end_time - asyncio.get_event_loop().time()
             if remaining <= 0:
-                yield b'{"event":"timeout"}'
+                yield b"END"
                 break
             try:
                 message = await pubsub.get_message(
@@ -329,18 +330,6 @@ async def get_message(
                 continue
             if message is not None:
                 data: str | bytes | Any = message["data"]
-                if isinstance(data, bytes):
-                    yield data
-                elif isinstance(data, str):
-                    yield data.encode()
-                yield str(data).encode()  # Yield messages as bytes
-
-
-# Uncomment for the exit functionality, if you decide to implement user exit handling
-# @app.post("/api/exit/{room}")
-# async def exit(room: str, user: DisplayUser = Depends(get_current_user)):
-#     if user.username == "anonymous":
-#         return {"message": "anonymous user exit does not affect subscriptions"}
-#     user_channel = f"user_exit:{user.username}"
-#     await v.publish(user_channel, STOPWORD)  # type:ignore
-#     return {"message": f"exit successful for user {user.username}"}
+                if not isinstance(data, str):
+                    print(type(data))
+                yield data
