@@ -18,12 +18,12 @@ class MessageType(Enum):
     JOIN = "JOIN"
     LEAVE = "LEAVE"
     SYSTEM = "SYSTEM"
-    # KEY = "KEY"
+    KEY = "KEY"
 
 
 class BaseMessage(BaseModel):
     type: MessageType
-    text: str
+    text: bytes
     data: Optional[dict[str, Any]] = None
 
 

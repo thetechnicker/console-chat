@@ -148,7 +148,13 @@ impl ApiClient {
                                 break;
                             }
                             match serde_json::from_str::<user::ServerMessage>(s) {
-                                Ok(msg) => local_sender.send(NetworkEvent::Message(msg)),
+                                Ok(msg) => match msg.base.message_type {
+                                    user::MessageType::System => {}
+                                    user::MessageType::Key => {}
+                                    _ => {
+                                        local_sender.send(NetworkEvent::Message(msg));
+                                    }
+                                },
                                 Err(e) => local_sender.send(NetworkEvent::Error((e, s).into())),
                             }
                         }

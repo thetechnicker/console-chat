@@ -6,6 +6,7 @@ version = 4
 name = "Console-Chat"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "bytes",
  "chrono",
  "color-eyre",

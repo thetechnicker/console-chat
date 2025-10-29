@@ -38,7 +38,11 @@ PublicUser = DBPublicUser
 
 load_dotenv()
 
-TTL = 60 * 60 * 24  # seconds
+LEAVE_DELAY = 10  # How long between requests to `/room/{room_name}` before being marked as offline
+
+TOKEN_TTL = 60 * 60 * 24  # seconds
+TOKEN_PREFIX = "session_token:"
+
 ALGORITHM = "HS256"
 SECRET_KEY = os.getenv("SECRET", "secret")  # Secure random key recommended
 if SECRET_KEY == "secret":
@@ -48,7 +52,6 @@ auth = HTTPBearer()  # Enforce auth
 bearer_scheme = HTTPBearer(auto_error=False)  # Optional auth
 api_key = APIKeyHeader(name="X-Api-Key")
 
-TOKEN_PREFIX = "session_token:"
 
 v_pool = None
 engine = None
@@ -108,7 +111,7 @@ def create_access_token(
     data: dict[Any, Any], expires_delta: Optional[int] = None
 ) -> str:
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(seconds=expires_delta or TTL)
+    expire = datetime.now(timezone.utc) + timedelta(seconds=expires_delta or TOKEN_TTL)
     to_encode.update({"exp": expire, "iss": "http://localhost:8000/auth"})
     token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)  # type:ignore
     return token
@@ -204,7 +207,7 @@ async def login(
             public_data=public,
         )
     token = create_access_token(user.model_dump())
-    return UserStatus(token=token, ttl=TTL, is_new=is_new)
+    return UserStatus(token=token, ttl=TOKEN_TTL, is_new=is_new)
 
 
 @app.get("/valkey/status", response_class=JSONResponse)
@@ -292,15 +295,24 @@ async def get(
     user: BetterUser = Depends(get_current_user),
     context: DatabaseContext = Depends(get_db_context),
 ):
-    await context.valkey.publish(
-        room,
-        ServerMessage(
-            type=MessageType.JOIN,
-            text=f"User: {user.public_data.display_name} Joined",
-            # timestamp=datetime.now(timezone.utc),
-            user=user.public_data,  # Assign new user model
-        ).model_dump_json(),
-    )
+    has_already_joined = await context.valkey.exists(f"{room}:{user.username}")
+    if has_already_joined == 0:
+        await context.valkey.publish(
+            room,
+            ServerMessage(
+                type=MessageType.JOIN,
+                text=f"User: {user.public_data.display_name} Joined",
+                user=user.public_data,  # Assign new user model
+            ).model_dump_json(),
+        )
+        await context.valkey.set(
+            f"{room}:{user.username}", "1", ex=listen_seconds + LEAVE_DELAY
+        )
+    else:
+        await context.valkey.expire(
+            f"{room}:{user.username}", listen_seconds + LEAVE_DELAY
+        )
+
     return StreamingResponse(
         get_message(room, timeout=listen_seconds, context=context),
         media_type="application/json",
