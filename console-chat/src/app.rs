@@ -105,6 +105,7 @@ impl App {
                     }
                 }
                 Event::App(app_event) => {
+                    log::debug!("AppEvent: {app_event:?}");
                     match app_event {
                         AppEvent::Quit => self.quit(),
                         AppEvent::SwitchScreen(new_screen) => {
@@ -122,9 +123,20 @@ impl App {
                                 self.handle_network_error(e)
                             }
                         }
+                        AppEvent::NetworkEvent(network_event) => {
+                            if let network::NetworkEvent::Message(msg) = network_event {
+                                self.send_to_current_screen(AppEvent::NetworkEvent(
+                                    network::NetworkEvent::Message(msg),
+                                ));
+                            } else {
+                                if let Err(e) = self.api.handle_event(network_event).await {
+                                    self.handle_network_error(e);
+                                }
+                            }
+                        }
                         AppEvent::SendMessage(msg) => {
                             log::debug!("Sending: {}", msg);
-                            if let Err(e) = self.api.send(&msg).await {
+                            if let Err(e) = self.api.send_txt(&msg).await {
                                 self.handle_network_error(e)
                             }
                         }

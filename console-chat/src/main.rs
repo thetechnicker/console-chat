@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 use crate::app::App;
 
 pub mod app;
@@ -14,7 +15,6 @@ pub const DEFAULT_BORDER: BorderType = BorderType::Double;
 //    execute,
 //};
 //use std::io::stdout;
-
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {
     log::init_logging_file("terminal-chat.log");

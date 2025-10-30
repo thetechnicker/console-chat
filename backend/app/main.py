@@ -279,13 +279,18 @@ async def send(
         user=user.public_data,
         text=message.text,
         type=message.type,
+        data=message.data,
     )
     # print(msg)
     # print(msg.model_dump())
     # print(msg.model_dump_json())
     await context.valkey.publish(room, msg.model_dump_json())
 
-    return {"message": f"send successful by user {user.public_data.display_name}"}
+    return ServerMessage(
+        type=MessageType.SYSTEM,
+        text=f"send successful by user {user.public_data.display_name}",
+        user=None,
+    )
 
 
 @app.get("/room/{room}", response_model=ServerMessage)
@@ -295,14 +300,16 @@ async def get(
     user: BetterUser = Depends(get_current_user),
     context: DatabaseContext = Depends(get_db_context),
 ):
-    has_already_joined = await context.valkey.exists(f"{room}:{user.username}")
-    if has_already_joined == 0:
+    first_join = await context.valkey.exists(f"{room}:{user.username}") == 0
+    if first_join:
+        _, num_users = (await context.valkey.pubsub_numsub(room))[0]
         await context.valkey.publish(
             room,
             ServerMessage(
                 type=MessageType.JOIN,
                 text=f"User: {user.public_data.display_name} Joined",
-                user=user.public_data,  # Assign new user model
+                user=user.public_data,
+                data={"online": num_users},
             ).model_dump_json(),
         )
         await context.valkey.set(
@@ -314,7 +321,12 @@ async def get(
         )
 
     return StreamingResponse(
-        get_message(room, timeout=listen_seconds, context=context),
+        get_message(
+            room,
+            timeout=listen_seconds,
+            context=context,
+            first_join=first_join,
+        ),
         media_type="application/json",
     )
 
@@ -323,9 +335,18 @@ async def get_message(
     room: str,
     timeout: int,
     context: DatabaseContext,
+    first_join: bool = False,
 ):
     async with context.valkey.pubsub() as pubsub:
         await pubsub.subscribe(room)
+        if first_join:
+            _, num_users = (await context.valkey.pubsub_numsub(room))[0]
+            yield ServerMessage(
+                type=MessageType.SYSTEM,
+                text="online user",
+                data={"online": num_users},
+                user=None,
+            ).model_dump_json().encode()
 
         end_time = asyncio.get_event_loop().time() + timeout
 

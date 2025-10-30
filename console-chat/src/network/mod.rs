@@ -12,6 +12,11 @@ pub mod encryption;
 pub enum NetworkEvent {
     None,
     RequestReconnect,
+
+    RequestKeyExchange,
+    CreateKey,
+    SendKey,
+
     StrMessage(String),
     Message(messages::ServerMessage),
     Error(ApiError),

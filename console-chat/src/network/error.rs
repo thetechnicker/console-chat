@@ -1,3 +1,4 @@
+use alkali::AlkaliError;
 use std::error::Error;
 use std::sync::Arc;
 
@@ -29,6 +30,7 @@ pub enum ApiError {
     Utf8Error(std::str::Utf8Error),
     Base64DecodeError(base64::DecodeError),
     SerdeError(Arc<serde_json::Error>),
+    AlkaliError(AlkaliError),
     CompositError(Arc<ApiError>, String),
 }
 
@@ -44,6 +46,7 @@ impl std::fmt::Display for ApiError {
             ApiError::NotFound(data) => write!(f, "Not Found: {}", data),
             ApiError::Utf8Error(error) => write!(f, "Utf8Error: {}", error),
             ApiError::SerdeError(error) => write!(f, "SerdeError: {}", error),
+            ApiError::AlkaliError(error) => write!(f, "AlkaliError: {}", error),
             ApiError::Base64DecodeError(error) => write!(f, "Base64Error: {}", error),
             ApiError::CompositError(error, str) => {
                 write!(f, "CompositError: {}, \"{}\"", error, str)
@@ -78,6 +81,12 @@ impl From<serde_json::Error> for ApiError {
 impl From<base64::DecodeError> for ApiError {
     fn from(value: base64::DecodeError) -> Self {
         Self::Base64DecodeError(value)
+    }
+}
+
+impl From<AlkaliError> for ApiError {
+    fn from(value: AlkaliError) -> Self {
+        Self::AlkaliError(value)
     }
 }
 
