@@ -2,7 +2,6 @@ use crate::{
     event,
     network::{ApiError, NetworkEvent, ResponseErrorData, encryption, messages, user},
 };
-use base64::{Engine as _, engine::general_purpose};
 use reqwest::{StatusCode, Url};
 use std::str;
 use std::sync::Arc;
@@ -32,7 +31,7 @@ pub struct ApiClient {
     msg_queue_receiver: Option<tokio::sync::mpsc::UnboundedReceiver<messages::ServerMessage>>,
 
     symetric_key: Arc<Mutex<Option<encryption::SymetricKey>>>,
-    //asymetric_key: Arc<Mutex<Option<encryption::KeyType>>>,
+    asymetric_key: Arc<Mutex<encryption::KeyPair>>,
 }
 
 ///Magic numbers
@@ -45,6 +44,7 @@ impl ApiClient {
             .build()?;
 
         let (msg_queue_sender, msg_queue_receiver) = tokio::sync::mpsc::unbounded_channel();
+        let asym_key = encryption::get_asym_key_pair()?;
         Ok(ApiClient {
             base_url: Url::parse(base_url)?,
             client,
@@ -63,7 +63,7 @@ impl ApiClient {
             msg_queue_receiver: Some(msg_queue_receiver),
 
             symetric_key: Arc::new(Mutex::new(None)),
-            //asymetric_key: Arc::new(Mutex::new(None)),
+            asymetric_key: Arc::new(Mutex::new(asym_key)),
         })
     }
 
@@ -110,9 +110,67 @@ impl ApiClient {
                 let mut key_guard = self.symetric_key.lock().unwrap();
                 *key_guard = Some(encryption::get_new_symetric_key()?);
             }
+            NetworkEvent::RequestKeyExchange => {
+                let room = self.get_room()?;
+                let url = self.base_url.join(&format!("room/{room}"))?;
+
+                let key_guard = self.asymetric_key.lock().unwrap();
+                let msg = messages::ClientMessage::key_request(key_guard.public_key());
+                let body = serde_json::json!(msg);
+
+                let resp = self
+                    .client
+                    .post(url)
+                    .json(&body)
+                    .bearer_auth(self.bearer_token.clone().expect("No Token Given"))
+                    .send()
+                    .await?;
+                //log::debug!("{}", resp.text().await?);
+                let message: messages::ServerMessage = handle_errors_json(resp).await?;
+                log::debug!("{:?}", message);
+            }
+            NetworkEvent::SendKey(pub_key) => {
+                let room = self.get_room()?;
+                let url = self.base_url.join(&format!("room/{room}"))?;
+
+                let asym_key_guard = self.asymetric_key.lock().unwrap();
+                let sym_key_guard = self.symetric_key.lock().unwrap();
+                match *sym_key_guard {
+                    None => return Err(ApiError::from("No Symetic key")),
+                    Some(ref key) => {
+                        let msg = messages::ClientMessage::send_key(key, &asym_key_guard, pub_key)?;
+
+                        let body = serde_json::json!(msg);
+                        let resp = self
+                            .client
+                            .post(url)
+                            .json(&body)
+                            .bearer_auth(self.bearer_token.clone().expect("No Token Given"))
+                            .send()
+                            .await?;
+                        //log::debug!("{}", resp.text().await?);
+                        let message: messages::ServerMessage = handle_errors_json(resp).await?;
+                        log::debug!("{:?}", message);
+                    }
+                }
+            }
             _ => {}
         }
         Ok(())
+    }
+
+    fn get_room(&self) -> Result<String, ApiError> {
+        self.current_room
+            .as_ref()
+            .map_or_else(
+                || {
+                    Err(ApiError::GenericError(
+                        "You haven't joined a room yet".to_owned(),
+                    ))
+                },
+                Ok,
+            )
+            .cloned()
     }
 
     pub async fn send_txt(&mut self, msg: &str) -> Result<(), ApiError> {
@@ -126,14 +184,7 @@ impl ApiClient {
             None => messages::ClientMessage::new(msg),
         };
         log::trace!("Sending Message...");
-        let room = self.current_room.as_ref().map_or_else(
-            || {
-                Err(ApiError::GenericError(
-                    "You haven't joined a room yet".to_owned(),
-                ))
-            },
-            Ok,
-        )?;
+        let room = self.get_room()?;
         let url = self.base_url.join(&format!("room/{room}"))?;
         let body = serde_json::json!(args);
         log::debug!("Sending: {body}");
@@ -183,23 +234,25 @@ impl ApiClient {
             task.abort()
         }
 
-        self.listen_task = Some(tokio::spawn(async move {
-            let resp = client
-                .get(url)
-                .query(&[("listen_seconds", &LISTEN_TIMEOUT.to_string())])
-                .timeout(std::time::Duration::from_secs(LISTEN_TIMEOUT))
-                .bearer_auth(token)
-                .send()
-                .await?;
+        let resp = client
+            .get(url)
+            .query(&[("listen_seconds", &LISTEN_TIMEOUT.to_string())])
+            .timeout(std::time::Duration::from_secs(LISTEN_TIMEOUT))
+            .bearer_auth(token)
+            .send()
+            .await?;
 
-            let resp = handle_errors_raw(resp).await?;
+        let resp = handle_errors_raw(resp).await?;
+        self.listen_task = Some(tokio::spawn(async move {
             let mut stream = resp.bytes_stream();
+            let mut is_end = false;
 
             while let Some(chunk) = stream.next().await {
                 log::debug!("Received Chunk {chunk:?}");
                 let chunk = match chunk {
                     Err(e) => {
-                        local_sender.send(NetworkEvent::Error(e.into()));
+                        log::debug!("Error Receiving chunk: {e:#?}");
+                        //local_sender.send(NetworkEvent::Error(e.into()));
                         continue;
                     }
                     Ok(data) => data,
@@ -216,7 +269,10 @@ impl ApiClient {
                 log::debug!("chunk as string: {s}");
 
                 if s == "END" {
-                    break;
+                    is_end = true;
+                }
+                if is_end {
+                    continue;
                 }
 
                 let msg = match serde_json::from_str::<messages::ServerMessage>(s) {
@@ -236,7 +292,8 @@ impl ApiClient {
     async fn manage_msgs(&mut self) -> Result<(), ApiError> {
         let local_sender = self.event_sender.clone();
         let msg_sender = self.msg_queue_sender.clone();
-        let sym_key = self.symetric_key.clone();
+        let main_sym_key = self.symetric_key.clone();
+        let asym_key = self.asymetric_key.clone();
         if let Some(task) = self.handle_server_messages.as_mut() {
             task.abort()
         }
@@ -248,7 +305,7 @@ impl ApiClient {
                     match msg.base.message_type {
                         messages::MessageType::System => {
                             if let Some(data) = msg.base.data {
-                                log::debug!("Received Message: {data:#?}");
+                                //log::debug!("Received Message: {data:#?}");
                                 if data.contains_key("online") {
                                     if let Some(online) = data.get("online").unwrap().as_number() {
                                         if let Some(num_online) = online.as_u64() {
@@ -263,13 +320,91 @@ impl ApiClient {
                                 }
                             }
                         }
-                        messages::MessageType::Key => {}
+                        messages::MessageType::KeyRequest => {
+                            if let Some(data) = msg.base.data {
+                                //log::debug!("Received Message: {data:#?}");
+                                if data.contains_key("key") {
+                                    if let Some(key) = data.get("key").unwrap().as_str() {
+                                        let received_key = encryption::from_base64(key)?;
+                                        let mut key = encryption::PublicKey::default();
+                                        for i in 0..key.len() {
+                                            key[i] = received_key[i];
+                                        }
+                                        local_sender.send(NetworkEvent::SendKey(key));
+                                    }
+                                }
+                            }
+                        }
+                        messages::MessageType::Key => {
+                            if main_sym_key.lock().as_ref().is_ok_and(|x| x.is_some()) {
+                                continue;
+                            }
+                            match msg.get_key_exchange_data() {
+                                Err(e) => local_sender.send(e.into()),
+                                Ok((public_key, nonce, sym_key, key_nonce)) => {
+                                    let ref asym_key_guard = asym_key.lock().unwrap();
+                                    if public_key == asym_key_guard.public_key() {
+                                        continue;
+                                    }
+                                    let text = match encryption::decrypt_asym(
+                                        (msg.base.text, nonce),
+                                        asym_key_guard,
+                                        public_key,
+                                    ) {
+                                        Err(e) => {
+                                            local_sender.send(NetworkEvent::Error(e));
+                                            continue;
+                                        }
+                                        Ok(text) => text,
+                                    };
+
+                                    if text == messages::ASYM_KEY_CHECK {
+                                        match encryption::decrypt_asym(
+                                            (sym_key, key_nonce),
+                                            asym_key_guard,
+                                            public_key,
+                                        ) {
+                                            Err(e) => {
+                                                local_sender.send(NetworkEvent::Error(e));
+                                                continue;
+                                            }
+                                            Ok(decoded_key) => {
+                                                let decrypted_key =
+                                                    match encryption::from_base64(&decoded_key) {
+                                                        Err(e) => {
+                                                            local_sender
+                                                                .send(ApiError::from(e).into());
+                                                            continue;
+                                                        }
+                                                        Ok(key) => key,
+                                                    };
+                                                let mut new_sym_key: encryption::SymetricKey =
+                                                    match encryption::SymetricKey::new_empty() {
+                                                        Ok(key) => key,
+                                                        Err(e) => {
+                                                            local_sender
+                                                                .send(ApiError::from(e).into());
+                                                            continue;
+                                                        }
+                                                    };
+                                                for i in 0..new_sym_key.len() {
+                                                    new_sym_key[i] = decrypted_key[i];
+                                                }
+                                                if let Ok(mut sym_key_guard) = main_sym_key.lock() {
+                                                    *sym_key_guard = Some(new_sym_key);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         messages::MessageType::Join => {
                             // TODO: Send Key Sync
                             local_sender.send(NetworkEvent::Message(msg));
                         }
                         messages::MessageType::EncryptedText => {
-                            match sym_key.lock().unwrap().as_ref() {
+                            match main_sym_key.lock().unwrap().as_ref() {
                                 None => {
                                     local_sender
                                         .send(NetworkEvent::Error(ApiError::from("No Key")));
@@ -284,8 +419,8 @@ impl ApiClient {
                                     {
                                         let mut nonce: encryption::Nonce =
                                             encryption::Nonce::default();
-                                        let nonce_ref_v = general_purpose::STANDARD
-                                            .decode(nonce_json.as_str().unwrap())?;
+                                        let nonce_ref_v =
+                                            encryption::from_base64(nonce_json.as_str().unwrap())?;
                                         for i in 0..nonce.len() {
                                             nonce[i] = nonce_ref_v[i];
                                         }

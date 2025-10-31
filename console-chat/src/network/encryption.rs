@@ -5,36 +5,52 @@ use alkali::mem;
 use alkali::symmetric::cipher as symetric_cipher;
 use base64::{Engine as _, engine::general_purpose};
 
-pub const KEY_LENGTH: usize = 64;
-
-pub type KeyType = [u8; KEY_LENGTH];
-
-const fn create_key() -> [u8; KEY_LENGTH] {
-    let mut arr = [0u8; KEY_LENGTH];
-    let mut i = 0;
-    while i < KEY_LENGTH {
-        arr[i] = (i * 37 % 256) as u8; // example pseudo-random formula
-        i += 1;
-    }
-    arr
-}
-pub const DUMMY_KEY: [u8; KEY_LENGTH] = create_key();
-
 pub type SymetricKey = symetric_cipher::Key<mem::FullAccess>;
 pub type EncryptedMessage = (String, cipher::Nonce);
 pub type Nonce = cipher::Nonce;
-pub type KeyPair = cipher::Keypair;
 pub type PrivateKey = cipher::PrivateKey<mem::FullAccess>;
 pub type PublicKey = cipher::PublicKey;
 
+pub struct KeyPair(cipher::Keypair);
+
+impl KeyPair {
+    pub fn encrypt(
+        &self,
+        message: &[u8],
+        receiver: &PublicKey,
+        nonce: Option<&Nonce>,
+        output: &mut [u8],
+    ) -> Result<(usize, Nonce), alkali::AlkaliError> {
+        self.0.encrypt(message, receiver, nonce, output)
+    }
+    pub fn decrypt(
+        &self,
+        ciphertext: &[u8],
+        sender: &PublicKey,
+        nonce: &Nonce,
+        output: &mut [u8],
+    ) -> Result<usize, alkali::AlkaliError> {
+        self.0.decrypt(ciphertext, sender, nonce, output)
+    }
+    pub fn public_key(&self) -> PublicKey {
+        self.0.public_key
+    }
+}
+
+impl std::fmt::Debug for KeyPair {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "KeyPair(*****************)")
+    }
+}
+
 pub fn get_asym_key_pair() -> Result<KeyPair, ApiError> {
-    Ok(cipher::Keypair::generate()?)
+    Ok(KeyPair(cipher::Keypair::generate()?))
 }
 
 pub fn get_new_keys() -> Result<(SymetricKey, KeyPair), ApiError> {
     Ok((
         symetric_cipher::Key::generate()?,
-        cipher::Keypair::generate()?,
+        KeyPair(cipher::Keypair::generate()?),
     ))
 }
 
@@ -44,7 +60,7 @@ pub fn get_new_symetric_key() -> Result<SymetricKey, ApiError> {
 
 pub fn encrypt_asym(
     text: &str,
-    sender_keypair: KeyPair,
+    sender_keypair: &KeyPair,
     receiver_key: PublicKey,
 ) -> Result<EncryptedMessage, ApiError> {
     let mut ciphertext = vec![0u8; text.as_bytes().len() + cipher::MAC_LENGTH];
@@ -55,7 +71,7 @@ pub fn encrypt_asym(
 
 pub fn decrypt_asym(
     msg: EncryptedMessage,
-    receiver_keypair: KeyPair,
+    receiver_keypair: &KeyPair,
     sender_key: PublicKey,
 ) -> Result<String, ApiError> {
     let text = msg.0;
@@ -85,24 +101,50 @@ pub fn decrypt(msg: EncryptedMessage, key: &SymetricKey) -> Result<String, ApiEr
     Ok(String::from(string))
 }
 
-pub fn dummy_encrypt_text(text: &str, key: &[u8]) -> String {
-    let bytes: &[u8] = text.as_bytes();
-    let mut bytes: Vec<u8> = Vec::from(bytes);
-    let key_len = key.len();
-    // TODO: Replace with actual encryption
-    for (i, b) in bytes.iter_mut().enumerate() {
-        *b = *b ^ key.get(i % key_len).unwrap_or(&(0xff as u8));
-    }
-    general_purpose::STANDARD.encode(bytes)
+pub fn to_base64(arg: &[u8]) -> String {
+    general_purpose::STANDARD.encode(arg)
 }
 
-pub fn dummy_decrypt_bytes(s: &str, key: &[u8]) -> Result<String, ApiError> {
-    let mut bytes = general_purpose::STANDARD.decode(s)?;
-    let key_len = key.len();
-    // TODO: Replace with actual decryption
-    for (i, b) in bytes.iter_mut().enumerate() {
-        *b = *b ^ key.get(i % key_len).unwrap_or(&(0xff as u8));
+pub fn from_base64(arg: &str) -> Result<Vec<u8>, ApiError> {
+    Ok(general_purpose::STANDARD.decode(arg)?)
+}
+
+mod dummy_crypto {
+    use super::*;
+    pub const KEY_LENGTH: usize = 64;
+
+    pub type KeyType = [u8; KEY_LENGTH];
+
+    const fn create_key() -> [u8; KEY_LENGTH] {
+        let mut arr = [0u8; KEY_LENGTH];
+        let mut i = 0;
+        while i < KEY_LENGTH {
+            arr[i] = (i * 37 % 256) as u8; // example pseudo-random formula
+            i += 1;
+        }
+        arr
     }
-    let string = str::from_utf8(&bytes)?;
-    Ok(String::from(string))
+    pub const DUMMY_KEY: [u8; KEY_LENGTH] = create_key();
+
+    pub fn dummy_encrypt_text(text: &str, key: &[u8]) -> String {
+        let bytes: &[u8] = text.as_bytes();
+        let mut bytes: Vec<u8> = Vec::from(bytes);
+        let key_len = key.len();
+        // TODO: Replace with actual encryption
+        for (i, b) in bytes.iter_mut().enumerate() {
+            *b = *b ^ key.get(i % key_len).unwrap_or(&(0xff as u8));
+        }
+        general_purpose::STANDARD.encode(bytes)
+    }
+
+    pub fn dummy_decrypt_bytes(s: &str, key: &[u8]) -> Result<String, ApiError> {
+        let mut bytes = general_purpose::STANDARD.decode(s)?;
+        let key_len = key.len();
+        // TODO: Replace with actual decryption
+        for (i, b) in bytes.iter_mut().enumerate() {
+            *b = *b ^ key.get(i % key_len).unwrap_or(&(0xff as u8));
+        }
+        let string = str::from_utf8(&bytes)?;
+        Ok(String::from(string))
+    }
 }

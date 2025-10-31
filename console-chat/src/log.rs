@@ -9,7 +9,11 @@ pub fn init_logging_file(file_name: &str) {
     let log_file = OpenOptions::new()
         .create(true)
         .append(true)
-        .open(file_name)
+        .open(format!(
+            "{}_{}",
+            chrono::Local::now().format("[%Y-%m-%d-%H%M%S]"),
+            file_name,
+        ))
         .unwrap();
 
     Dispatch::new()

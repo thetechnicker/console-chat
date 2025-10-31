@@ -19,6 +19,7 @@ class MessageType(Enum):
     JOIN = "JOIN"
     LEAVE = "LEAVE"
     SYSTEM = "SYSTEM"
+    KEY_REQUEST = "KEY-REQUEST"
     KEY = "KEY"
 
 

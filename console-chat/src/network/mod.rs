@@ -15,7 +15,7 @@ pub enum NetworkEvent {
 
     RequestKeyExchange,
     CreateKey,
-    SendKey,
+    SendKey(encryption::PublicKey),
 
     StrMessage(String),
     Message(messages::ServerMessage),

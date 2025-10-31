@@ -1,3 +1,4 @@
+use crate::network::NetworkEvent;
 use alkali::AlkaliError;
 use std::error::Error;
 use std::sync::Arc;
@@ -116,3 +117,9 @@ where
 }
 
 impl Error for ApiError {}
+
+impl Into<NetworkEvent> for ApiError {
+    fn into(self) -> NetworkEvent {
+        NetworkEvent::Error(self)
+    }
+}
