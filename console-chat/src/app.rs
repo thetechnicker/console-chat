@@ -79,12 +79,6 @@ impl App {
         Self::new(None, Some(max_api_failure_count))
     }
 
-    /*
-    fn get_api(&mut self) -> Option<&network::client::ApiClientType> {
-        self.api.as_ref()
-    }
-    */
-
     /// Run the application's main loop.
     pub async fn run(
         mut self,
@@ -115,13 +109,6 @@ impl App {
                         AppEvent::SimpleMSG(str) => log::info!("{}", str),
                         AppEvent::NetworkEvent(network::NetworkEvent::Error(e)) => {
                             self.handle_network_error(e);
-                        }
-                        AppEvent::NetworkEvent(network::NetworkEvent::RequestReconnect) => {
-                            if self.current_screen == screens::CurrentScreen::Chat
-                                && let Err(e) = self.api.listen_reconnect().await
-                            {
-                                self.handle_network_error(e)
-                            }
                         }
                         AppEvent::NetworkEvent(network_event) => {
                             if let network::NetworkEvent::Message(msg) = network_event {
@@ -161,7 +148,7 @@ impl App {
                                 }
                             }
                             "LOGOUT" => {
-                                self.api.reset();
+                                self.api.reset().await;
                                 self.events
                                     .send(AppEvent::SwitchScreen(screens::CurrentScreen::Login));
                             }
@@ -184,7 +171,7 @@ impl App {
                             }
                         },
                         AppEvent::KeyEvent(k) if self.error_box.is_none() => {
-                            self.send_to_current_screen(AppEvent::KeyEvent(k))
+                            self.send_to_current_screen(AppEvent::KeyEvent(k));
                         }
                         AppEvent::KeyEvent(k) if self.error_box.is_some() => {
                             if k.is_press() {
@@ -305,10 +292,11 @@ impl App {
         }
     }
 
-    fn send_to_current_screen(&mut self, event: AppEvent) {
+    fn send_to_current_screen(&mut self, event: AppEvent) -> bool {
         if let Some(screen) = self.get_current_screen_mut() {
-            screen.handle_event(event);
+            return screen.handle_event(event);
         }
+        false
     }
     pub fn get_current_screen(&self) -> Option<&dyn screens::Screen> {
         match self.current_screen {

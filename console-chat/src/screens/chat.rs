@@ -79,7 +79,7 @@ impl ChatScreen {
 }
 
 impl Screen for ChatScreen {
-    fn handle_event(&mut self, event: AppEvent) {
+    fn handle_event(&mut self, event: AppEvent) -> bool {
         match event {
             AppEvent::Clear(hard) => {
                 self.tab_index = 0;
@@ -123,14 +123,18 @@ impl Screen for ChatScreen {
                     KeyCode::Char('q' | 'Q') if self.tab_index == 0 => {
                         self.event_sender
                             .send(AppEvent::SwitchScreen(CurrentScreen::Home));
+                        self.event_sender
+                            .send(AppEvent::NetworkEvent(network::NetworkEvent::Leaf));
                     }
-
                     _ => {}
                 }
                 self.send_current_widget_event(AppEvent::KeyEvent(key_event));
             }
-            _ => {}
+            _ => {
+                return false;
+            }
         };
+        true
     }
     /*
     }
