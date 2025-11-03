@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 use crate::app::App;
 
 pub mod app;
@@ -14,7 +15,6 @@ pub const DEFAULT_BORDER: BorderType = BorderType::Double;
 //    execute,
 //};
 //use std::io::stdout;
-
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {
     log::init_logging_file("terminal-chat.log");
@@ -22,7 +22,7 @@ async fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
     let terminal = ratatui::init();
     //execute!(stdout(), EnableMouseCapture)?;
-    let result = App::new(None, None).run(terminal).await;
+    let result = App::default().run(terminal).await;
     ratatui::restore();
     //if let Err(err) = execute!(stdout(), DisableMouseCapture) {
     //    eprintln!("Error disabling mouse capture: {err}");

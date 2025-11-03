@@ -1,6 +1,6 @@
 use crate::DEFAULT_BORDER;
 use crate::event::{AppEvent, Event, EventHandler};
-use crate::network::{self, ApiError, user::ClientMessage};
+use crate::network::{self, ApiError};
 use crate::screens::{self, Screen};
 use crossterm::event::Event as CrosstermEvent;
 use log; //::{debug, error, info, trace};
@@ -46,7 +46,7 @@ impl Default for App {
 impl App {
     /// Constructs a new instance of [`App`].
     pub fn new(server_url: Option<&str>, _max_api_failure_count: Option<u32>) -> Self {
-        let url = server_url.unwrap_or("http://localhost:8000");
+        let url = server_url.unwrap_or("https://localhost");
 
         let event_handler = EventHandler::new();
         let event_sender = event_handler.get_event_sender();
@@ -105,6 +105,7 @@ impl App {
                     }
                 }
                 Event::App(app_event) => {
+                    log::debug!("AppEvent: {app_event:?}");
                     match app_event {
                         AppEvent::Quit => self.quit(),
                         AppEvent::SwitchScreen(new_screen) => {
@@ -122,9 +123,20 @@ impl App {
                                 self.handle_network_error(e)
                             }
                         }
+                        AppEvent::NetworkEvent(network_event) => {
+                            if let network::NetworkEvent::Message(msg) = network_event {
+                                self.send_to_current_screen(AppEvent::NetworkEvent(
+                                    network::NetworkEvent::Message(msg),
+                                ));
+                            } else {
+                                if let Err(e) = self.api.handle_event(network_event).await {
+                                    self.handle_network_error(e);
+                                }
+                            }
+                        }
                         AppEvent::SendMessage(msg) => {
                             log::debug!("Sending: {}", msg);
-                            if let Err(e) = self.api.send(ClientMessage::new(&msg)).await {
+                            if let Err(e) = self.api.send_txt(&msg).await {
                                 self.handle_network_error(e)
                             }
                         }

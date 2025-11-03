@@ -1,3 +1,5 @@
+use crate::network::NetworkEvent;
+use alkali::AlkaliError;
 use std::error::Error;
 use std::sync::Arc;
 
@@ -14,7 +16,7 @@ impl std::fmt::Display for ResponseErrorData {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ApiError {
     GenericError(String),
     UrlParseError(url::ParseError),
@@ -25,31 +27,12 @@ pub enum ApiError {
     ServerError(ResponseErrorData),
 
     ReqwestError(Arc<reqwest::Error>),
-    /// Used when ApiError::ReqwestError needs to be cloned.
-    /// Since reqwest::Error does not implement Clone.
-    //ReqwestErrorClone(String),
+
     Utf8Error(std::str::Utf8Error),
+    Base64DecodeError(base64::DecodeError),
     SerdeError(Arc<serde_json::Error>),
-}
-
-impl Clone for ApiError {
-    fn clone(&self) -> Self {
-        match self {
-            Self::GenericError(e) => Self::GenericError(e.clone()),
-            Self::UrlParseError(e) => Self::UrlParseError(*e),
-
-            Self::ReqwestError(e) => Self::ReqwestError(Arc::clone(e)),
-            //Self::ReqwestErrorClone(e) => Self::ReqwestErrorClone(e.clone()),
-            //
-            Self::Unauthorized(e) => Self::Unauthorized(e.clone()),
-            Self::NotFound(e) => Self::NotFound(e.clone()),
-            Self::ServerError(e) => Self::ServerError(e.clone()),
-            Self::ClientError(e) => Self::ClientError(e.clone()),
-
-            Self::Utf8Error(e) => Self::Utf8Error(*e),
-            Self::SerdeError(e) => Self::SerdeError(Arc::clone(e)),
-        }
-    }
+    AlkaliError(AlkaliError),
+    CompositError(Arc<ApiError>, String),
 }
 
 impl std::fmt::Display for ApiError {
@@ -57,15 +40,18 @@ impl std::fmt::Display for ApiError {
         match self {
             ApiError::GenericError(msg) => write!(f, "Error: {}", msg),
             ApiError::UrlParseError(e) => write!(f, "URL Parse Error: {}", e),
-
             ApiError::ReqwestError(e) => write!(f, "Request Error: {}", e),
-            //ApiError::ReqwestErrorClone(e) => write!(f, "Request Error: {}", e),
             ApiError::ClientError(data) => write!(f, "Client Error: HTTP {}", data),
             ApiError::ServerError(data) => write!(f, "Server Error: HTTP {}", data),
             ApiError::Unauthorized(data) => write!(f, "Unauthorized: {}", data),
             ApiError::NotFound(data) => write!(f, "Not Found: {}", data),
             ApiError::Utf8Error(error) => write!(f, "Utf8Error: {}", error),
             ApiError::SerdeError(error) => write!(f, "SerdeError: {}", error),
+            ApiError::AlkaliError(error) => write!(f, "AlkaliError: {}", error),
+            ApiError::Base64DecodeError(error) => write!(f, "Base64Error: {}", error),
+            ApiError::CompositError(error, str) => {
+                write!(f, "CompositError: {}, \"{}\"", error, str)
+            }
         }
     }
 }
@@ -93,7 +79,19 @@ impl From<serde_json::Error> for ApiError {
     }
 }
 
-/// Emtry trait to specify which objects get the default
+impl From<base64::DecodeError> for ApiError {
+    fn from(value: base64::DecodeError) -> Self {
+        Self::Base64DecodeError(value)
+    }
+}
+
+impl From<AlkaliError> for ApiError {
+    fn from(value: AlkaliError) -> Self {
+        Self::AlkaliError(value)
+    }
+}
+
+/// Emty trait to specify which objects get parsed to ApiError::GenericError
 trait StringError: Into<String> {}
 
 impl StringError for String {}
@@ -108,4 +106,20 @@ where
     }
 }
 
+impl<E, S> From<(E, S)> for ApiError
+where
+    E: Into<ApiError>,
+    S: Into<String>,
+{
+    fn from(value: (E, S)) -> Self {
+        Self::CompositError(Arc::new(value.0.into()), value.1.into())
+    }
+}
+
 impl Error for ApiError {}
+
+impl Into<NetworkEvent> for ApiError {
+    fn into(self) -> NetworkEvent {
+        NetworkEvent::Error(self)
+    }
+}

@@ -38,7 +38,11 @@ PublicUser = DBPublicUser
 
 load_dotenv()
 
-TTL = 60 * 60 * 24  # seconds
+LEAVE_DELAY = 10  # How long between requests to `/room/{room_name}` before being marked as offline
+
+TOKEN_TTL = 60 * 60 * 24  # seconds
+TOKEN_PREFIX = "session_token:"
+
 ALGORITHM = "HS256"
 SECRET_KEY = os.getenv("SECRET", "secret")  # Secure random key recommended
 if SECRET_KEY == "secret":
@@ -48,7 +52,6 @@ auth = HTTPBearer()  # Enforce auth
 bearer_scheme = HTTPBearer(auto_error=False)  # Optional auth
 api_key = APIKeyHeader(name="X-Api-Key")
 
-TOKEN_PREFIX = "session_token:"
 
 v_pool = None
 engine = None
@@ -108,7 +111,7 @@ def create_access_token(
     data: dict[Any, Any], expires_delta: Optional[int] = None
 ) -> str:
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(seconds=expires_delta or TTL)
+    expire = datetime.now(timezone.utc) + timedelta(seconds=expires_delta or TOKEN_TTL)
     to_encode.update({"exp": expire, "iss": "http://localhost:8000/auth"})
     token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)  # type:ignore
     return token
@@ -204,7 +207,7 @@ async def login(
             public_data=public,
         )
     token = create_access_token(user.model_dump())
-    return UserStatus(token=token, ttl=TTL, is_new=is_new)
+    return UserStatus(token=token, ttl=TOKEN_TTL, is_new=is_new)
 
 
 @app.get("/valkey/status", response_class=JSONResponse)
@@ -275,13 +278,19 @@ async def send(
     msg = ServerMessage(
         user=user.public_data,
         text=message.text,
-        # timestamp=datetime.now(timezone.utc),
-        type=MessageType.TEXT,
+        type=message.type,
+        data=message.data,
     )
-    await context.valkey.publish(
-        room, msg.model_dump_json()
-    )  # Use model_dump_json for serialization
-    return {"message": f"send successful by user {user.public_data.display_name}"}
+    # print(msg)
+    # print(msg.model_dump())
+    # print(msg.model_dump_json())
+    await context.valkey.publish(room, msg.model_dump_json())
+
+    return ServerMessage(
+        type=MessageType.SYSTEM,
+        text=f"send successful by user {user.public_data.display_name}",
+        user=None,
+    )
 
 
 @app.get("/room/{room}", response_model=ServerMessage)
@@ -291,17 +300,33 @@ async def get(
     user: BetterUser = Depends(get_current_user),
     context: DatabaseContext = Depends(get_db_context),
 ):
-    await context.valkey.publish(
-        room,
-        ServerMessage(
-            type=MessageType.JOIN,
-            text=f"User: {user.public_data.display_name} Joined",
-            # timestamp=datetime.now(timezone.utc),
-            user=user.public_data,  # Assign new user model
-        ).model_dump_json(),
-    )
+    first_join = await context.valkey.exists(f"{room}:{user.username}") == 0
+    if first_join:
+        _, num_users = (await context.valkey.pubsub_numsub(room))[0]
+        await context.valkey.publish(
+            room,
+            ServerMessage(
+                type=MessageType.JOIN,
+                text=f"User: {user.public_data.display_name} Joined",
+                user=user.public_data,
+                data={"online": num_users},
+            ).model_dump_json(),
+        )
+        await context.valkey.set(
+            f"{room}:{user.username}", "1", ex=listen_seconds + LEAVE_DELAY
+        )
+    else:
+        await context.valkey.expire(
+            f"{room}:{user.username}", listen_seconds + LEAVE_DELAY
+        )
+
     return StreamingResponse(
-        get_message(room, timeout=listen_seconds, context=context),
+        get_message(
+            room,
+            timeout=listen_seconds,
+            context=context,
+            first_join=first_join,
+        ),
         media_type="application/json",
     )
 
@@ -309,17 +334,26 @@ async def get(
 async def get_message(
     room: str,
     timeout: int,
-    context: DatabaseContext = Depends(get_db_context),
+    context: DatabaseContext,
+    first_join: bool = False,
 ):
     async with context.valkey.pubsub() as pubsub:
         await pubsub.subscribe(room)
+        if first_join:
+            _, num_users = (await context.valkey.pubsub_numsub(room))[0]
+            yield ServerMessage(
+                type=MessageType.SYSTEM,
+                text="online user",
+                data={"online": num_users},
+                user=None,
+            ).model_dump_json().encode()
 
         end_time = asyncio.get_event_loop().time() + timeout
 
         while True:
             remaining = end_time - asyncio.get_event_loop().time()
             if remaining <= 0:
-                yield b'{"event":"timeout"}'
+                yield b"END"
                 break
             try:
                 message = await pubsub.get_message(
@@ -329,18 +363,6 @@ async def get_message(
                 continue
             if message is not None:
                 data: str | bytes | Any = message["data"]
-                if isinstance(data, bytes):
-                    yield data
-                elif isinstance(data, str):
-                    yield data.encode()
-                yield str(data).encode()  # Yield messages as bytes
-
-
-# Uncomment for the exit functionality, if you decide to implement user exit handling
-# @app.post("/api/exit/{room}")
-# async def exit(room: str, user: DisplayUser = Depends(get_current_user)):
-#     if user.username == "anonymous":
-#         return {"message": "anonymous user exit does not affect subscriptions"}
-#     user_channel = f"user_exit:{user.username}"
-#     await v.publish(user_channel, STOPWORD)  # type:ignore
-#     return {"message": f"exit successful for user {user.username}"}
+                if not isinstance(data, str):
+                    print(type(data))
+                yield data
