@@ -89,7 +89,7 @@ impl LoginScreen {
 }
 
 impl Screen for LoginScreen {
-    fn handle_event(&mut self, event: AppEvent) {
+    fn handle_event(&mut self, event: AppEvent) -> bool {
         match event {
             AppEvent::Clear(hard) => {
                 self.tab_index = 0;
@@ -122,8 +122,11 @@ impl Screen for LoginScreen {
                     self.send_current_widget_event(AppEvent::KeyEvent(key_event));
                 }
             },
-            _ => {}
+            _ => {
+                return false;
+            }
         };
+        true
     }
 
     /*

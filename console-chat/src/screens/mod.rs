@@ -19,7 +19,7 @@ pub struct CursorPos {
 pub trait Screen: Debug //where
 //    for<'a> &'a Self: Widget,
 {
-    fn handle_event(&mut self, event: AppEvent);
+    fn handle_event(&mut self, event: AppEvent) -> bool;
     fn draw(&self, area: Rect, buf: &mut Buffer) -> Option<CursorPos>;
     fn get_data(&self) -> serde_json::Value {
         serde_json::Value::Null

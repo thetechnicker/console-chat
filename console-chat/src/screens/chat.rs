@@ -79,9 +79,10 @@ impl ChatScreen {
 }
 
 impl Screen for ChatScreen {
-    fn handle_event(&mut self, event: AppEvent) {
+    fn handle_event(&mut self, event: AppEvent) -> bool {
         match event {
             AppEvent::Clear(hard) => {
+                self.items.clear();
                 self.tab_index = 0;
                 for i in 0..self.max_tab {
                     if let Some(w) = self.widget_at(i) {
@@ -121,16 +122,21 @@ impl Screen for ChatScreen {
                         }
                     }
                     KeyCode::Char('q' | 'Q') if self.tab_index == 0 => {
+                        self.items.clear();
                         self.event_sender
                             .send(AppEvent::SwitchScreen(CurrentScreen::Home));
+                        self.event_sender
+                            .send(AppEvent::NetworkEvent(network::NetworkEvent::Leaf));
                     }
-
                     _ => {}
                 }
                 self.send_current_widget_event(AppEvent::KeyEvent(key_event));
             }
-            _ => {}
+            _ => {
+                return false;
+            }
         };
+        true
     }
     /*
     }
@@ -148,7 +154,7 @@ impl Screen for ChatScreen {
             Layout::vertical([Constraint::Min(10), Constraint::Max(3)]).areas(chat_inner);
 
         let block = Block::new()
-            .title(Line::raw("TODO List").centered())
+            .title(Line::raw("Chat").centered())
             .borders(Borders::TOP)
             .border_set(symbols::border::EMPTY)
             .border_style(HEADER_STYLE)
