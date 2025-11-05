@@ -19,6 +19,7 @@ class DBPublicUser(SQLModel, table=True):
     __tablename__ = "public_user"  # type: ignore
     id: Optional[int] = Field(default=None, primary_key=True)
     display_name: str
+    color: Optional[str]
     better_user: Optional["DBUser"] = Relationship(back_populates="public_data")
 
 

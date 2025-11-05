@@ -13,3 +13,5 @@ pub mod input;
 pub use input::*;
 pub mod button;
 pub use button::*;
+pub mod message_widget;
+pub use message_widget::*;

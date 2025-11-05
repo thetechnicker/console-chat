@@ -53,6 +53,15 @@ bearer_scheme = HTTPBearer(auto_error=False)  # Optional auth
 api_key = APIKeyHeader(name="X-Api-Key")
 
 
+
+def deterministic_color_from_string(input_string: str) -> str:
+    # Hash the input string using SHA-256 to get a consistent fixed-length hash
+    hash_bytes = hashlib.sha256(input_string.encode("utf-8")).hexdigest()
+    # Convert first three bytes of hash to integers for RGB
+    color = hash_bytes[0:6]
+    return f"#{color}"
+
+
 v_pool = None
 engine = None
 
@@ -186,7 +195,9 @@ async def login(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Wrong Credentials"
             )
     elif username:
-        public = PublicUser(display_name=username)
+        public = PublicUser(
+            display_name=username, color=deterministic_color_from_string(username)
+        )
         user = BetterUser(
             username=str(uuid4()),
             password_hash=None,
@@ -199,9 +210,12 @@ async def login(
             detail="Incomplete login parameters",
         )
     else:
-        public = PublicUser(display_name="anonymos")
+        username = str(uuid4())
+        public = PublicUser(
+            display_name="anonymos", color=deterministic_color_from_string(username)
+        )
         user = BetterUser(
-            username=str(uuid4()),
+            username=username,
             password_hash=None,
             private=True,
             public_data=public,

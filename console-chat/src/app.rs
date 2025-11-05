@@ -155,6 +155,11 @@ impl App {
                             "JOIN" => {
                                 let room_val = self.home_screen.get_data();
                                 if let Some(room) = room_val.as_str() {
+                                    if room == "" {
+                                        self.events.send(AppEvent::NetworkEvent(
+                                            ApiError::from("Room cant be empty").into(),
+                                        ));
+                                    }
                                     if let Err(e) = self.api.listen(room).await {
                                         self.handle_network_error(e);
                                     } else {
@@ -204,6 +209,9 @@ impl App {
 
     fn handle_network_error(&mut self, e: ApiError) {
         log::error!("Network Error: {e}");
+        if let ApiError::CriticalFailure = e {
+            self.events.send(AppEvent::Quit);
+        }
         if self.error_box.is_some() {
             self.error_qeue.push(e);
             return;

@@ -73,6 +73,7 @@ impl ListenData {
                     }
                 }
             }
+
             Ok(self)
         })
     }
@@ -98,48 +99,41 @@ impl ListenData {
             let chunk = stream.next();
             tokio::select! {
                 Some(chunk)=chunk=>{
-            log::debug!("Received Chunk {chunk:?}");
-            let chunk = match chunk {
-                Err(e) => {
-                    log::debug!("Error Receiving chunk: {e:#?}");
-                    break;
-                }
-                Ok(data) => data,
-            };
+                    log::debug!("Received Chunk {chunk:?}");
+                    let chunk = match chunk {
+                        Err(e) => {
+                            log::debug!("Error Receiving chunk: {e:#?}");
+                            break;
+                        }
+                        Ok(data) => data,
+                    };
 
-            let s = str::from_utf8(&chunk)?;
+                    let s = str::from_utf8(&chunk)?;
 
-            log::debug!("chunk as string: {s}");
+                    log::debug!("chunk as string: {s}");
 
-            if s == "END" {
-                is_end = true;
-            }
-            if is_end {
-                continue;
-            }
+                    if s == "END" {
+                        is_end = true;
+                    }
+                    if is_end {
+                        continue;
+                    }
 
-            let msg = match serde_json::from_str::<messages::ServerMessage>(s) {
-                Ok(msg) => Ok(msg),
-                //Making composite Error to include the responce string
-                Err(e) => Err(ApiError::from((e, s))),
-            }?;
-            let res = self.msg_queue_sender.send(msg);
-            if res.is_err() {
-                break;
-            }
+                    let msg = match serde_json::from_str::<messages::ServerMessage>(s) {
+                        Ok(msg) => Ok(msg),
+                        //Making composite Error to include the responce string
+                        Err(e) => Err(ApiError::from((e, s))),
+                    }?;
+                    let res = self.msg_queue_sender.send(msg);
+                    if res.is_err() {
+                        break;
+                    }
                 }
                 _ = self.stop_flag.changed()=>{
                         break;
                 }
             }
         }
-        /*
-                while let Some(chunk) = stream.next().await {
-                    if *self.stop_flag.borrow() {
-                        break;
-                    }
-                }
-        */
         Ok(())
     }
 }

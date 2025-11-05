@@ -105,6 +105,7 @@ impl ApiClient {
                 }
             }
         }
+        let _ = self.listen_stop_flag.send(false);
     }
 
     pub async fn reset(&mut self) {
@@ -238,7 +239,20 @@ impl ApiClient {
         Ok(())
     }
 
+    fn restart_handle_message(&mut self) {
+        match self.handle_messages_task.take() {
+            None => self.event_sender.send(ApiError::CriticalFailure.into()),
+            Some(task) => self.handle_messages_task = Some(task),
+        }
+    }
+
     pub async fn listen(&mut self, room: &str) -> Result<(), ApiError> {
+        self.restart_handle_message();
+        {
+            let mut lock = self.symetric_key.lock().unwrap_or_else(|e| e.into_inner());
+            *lock = None;
+        }
+
         self.current_room = Some(room.to_string());
         let url = self.base_url.join(&format!("room/{room}"))?;
         let token = self.bearer_token.clone().expect("No Token Given");
@@ -247,6 +261,7 @@ impl ApiClient {
             //return Err("Already Joined a room".into());
             self.handled_listen_task_results().await;
         }
+        let _ = self.listen_stop_flag.send(false);
 
         match self.listen_data.take() {
             None => return Err("This is very BAD".into()),
