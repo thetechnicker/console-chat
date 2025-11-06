@@ -247,7 +247,7 @@ mod tests {
     use ratatui::{Terminal, backend::TestBackend};
 
     #[test]
-    fn test_render_home() {
+    fn test_render_login() {
         let chat_screen = LoginScreen::new(dummy_event_sender().0.into());
         let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
         terminal
