@@ -108,12 +108,7 @@ impl Screen for ChatScreen {
         };
         true
     }
-    /*
-    }
 
-    impl UiWidget for &ChatScreen {
-        fn render(self, area: Rect, buf: &mut Buffer) {
-        */
     fn draw(&self, area: Rect, buf: &mut Buffer) -> Option<CursorPos> {
         // MAIN
         let chat_block = Block::bordered().border_type(DEFAULT_BORDER);

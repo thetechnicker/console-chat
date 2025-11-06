@@ -1,4 +1,3 @@
-use crate::event::AppEvent;
 use crate::network::messages;
 use crate::widgets::Widget;
 use ratatui::{
@@ -6,28 +5,9 @@ use ratatui::{
     layout::Rect,
     layout::{Constraint, Layout},
     style::{Color, Style},
-    //   symbols,
-    //  text::{Line, Span},
-    widgets::{
-        Block,
-        BorderType,
-        //Borders,
-        //HighlightSpacing,
-        //List,
-        //ListItem,
-        //ListState,
-        Paragraph,
-        Widget as ratatuiWidget,
-        //StatefulWidget,
-    },
+    widgets::{Block, BorderType, Paragraph, Widget as ratatuiWidget},
 };
 use std::str::FromStr;
-//use std::cell::RefCell;
-
-//const HEADER_STYLE: Style = Style::new().fg(SLATE.c100).bg(BLUE.c800);
-//const NORMAL_ROW_BG: Color = SLATE.c950;
-//const ALT_ROW_BG_COLOR: Color = SLATE.c900;
-//const SELECTED_STYLE: Style = Style::new().bg(SLATE.c800).add_modifier(Modifier::BOLD);
 
 const DEFAULT_USER: (&str, Color) = ("System", Color::Gray);
 const BROKEN_COLOR: Color = Color::Red;
@@ -35,14 +15,12 @@ const BROKEN_COLOR: Color = Color::Red;
 #[derive(Debug)]
 pub struct MessageList {
     messages: Vec<messages::ServerMessage>,
-    //state: RefCell<ListState>,
 }
 
 impl MessageList {
     pub fn new() -> Self {
         Self {
             messages: Vec::new(),
-            //state: RefCell::new(ListState::default()),
         }
     }
 
@@ -52,14 +30,9 @@ impl MessageList {
 }
 
 impl Widget for MessageList {
-    fn handle_event(&mut self, app_event: AppEvent) {
-        match app_event {
-            AppEvent::Clear(hard) => {
-                if hard {
-                    self.messages.clear();
-                }
-            }
-            _ => {}
+    fn clear(&mut self, hard: bool) {
+        if hard {
+            self.messages.clear();
         }
     }
 

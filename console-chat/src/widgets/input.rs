@@ -1,7 +1,7 @@
 use crate::event::AppEvent;
 use crate::event::AppEventSender;
 use crate::widgets::Widget;
-use crossterm::event::{Event, KeyCode};
+use crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -11,6 +11,7 @@ use ratatui::{
 
 use tui_input::Input;
 use tui_input::backend::crossterm::EventHandler;
+
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum InputMode {
     #[default]
@@ -32,24 +33,7 @@ pub struct InputWidget {
     input: Input,
     event_sender: AppEventSender,
     on_enter_id: Option<String>,
-    //placeholder: Option<String>,
 }
-
-/*
-impl Default for InputWidget {
-    fn default() -> Self {
-        Self {
-            titel: String::from("Input"),
-            input_type: InputType::Text,
-            input_mode: InputMode::default(),
-            input: Input::default(),
-            event_sender: None,
-            on_enter_id: None,
-            //       placeholder: None,
-        }
-    }
-}
-*/
 
 impl InputWidget {
     pub fn new(titel: &str, on_enter: &str, event_sender: AppEventSender) -> Self {
@@ -60,7 +44,6 @@ impl InputWidget {
             input: Input::default(),
             on_enter_id: Some(on_enter.to_uppercase().to_owned()),
             event_sender: event_sender,
-            //placeholder: None,
         }
     }
 
@@ -83,31 +66,35 @@ impl InputWidget {
 }
 
 impl Widget for InputWidget {
-    fn handle_event(&mut self, event: AppEvent) {
-        match event {
-            AppEvent::Clear(hard) => {
-                self.stop_editing();
-                if hard {
-                    self.input.reset();
-                }
-            }
-            AppEvent::NoFocus => self.stop_editing(),
-            AppEvent::Focus => self.start_editing(),
-            AppEvent::KeyEvent(key) => match self.input_mode {
-                InputMode::Normal => {}
-                InputMode::Editing => {
-                    if let KeyCode::Enter = key.code {
-                        if let Some(event_id) = self.on_enter_id.as_ref() {
-                            self.event_sender.send(AppEvent::OnWidgetEnter(
-                                event_id.to_string(),
-                                Some(self.get_content()),
-                            ));
-                        }
+    fn clear(&mut self, hard: bool) {
+        self.stop_editing();
+        if hard {
+            self.input.reset();
+        }
+    }
+
+    fn focus(&mut self) {
+        self.start_editing();
+    }
+    fn unfocus(&mut self) {
+        self.stop_editing();
+    }
+
+    fn handle_key_event(&mut self, key_event: KeyEvent) -> bool {
+        match self.input_mode {
+            InputMode::Normal => false,
+            InputMode::Editing => {
+                if KeyCode::Enter == key_event.code && key_event.is_press() {
+                    if let Some(event_id) = self.on_enter_id.as_ref() {
+                        self.event_sender.send(AppEvent::OnWidgetEnter(
+                            event_id.to_string(),
+                            Some(self.get_content()),
+                        ));
                     }
-                    self.input.handle_event(&Event::Key(key));
                 }
-            },
-            _ => {}
+                self.input.handle_event(&Event::Key(key_event));
+                true
+            }
         }
     }
 

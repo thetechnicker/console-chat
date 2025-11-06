@@ -29,11 +29,11 @@ impl HomeScreen {
             max_tab: 5,
             event_sender: event_sender.clone(),
             room_input: widgets::InputWidget::new("Room", "JOIN", event_sender.clone()),
-            join_button: widgets::Button::new("Join Room", event_sender.clone(), "JOIN")
+            join_button: widgets::Button::new("Join Room", event_sender.clone(), 'j', "JOIN")
                 .theme(widgets::GREEN),
-            logout_button: widgets::Button::new("Logout", event_sender.clone(), "LOGOUT")
+            logout_button: widgets::Button::new("Logout", event_sender.clone(), 'l', "LOGOUT")
                 .theme(widgets::BLUE),
-            exit_button: widgets::Button::new("Exit", event_sender.clone(), "QUIT")
+            exit_button: widgets::Button::new("Exit", event_sender.clone(), 'q', "QUIT")
                 .theme(widgets::RED),
         }
     }
@@ -114,12 +114,6 @@ impl Screen for HomeScreen {
         serde_json::json!(self.room_input.get_content())
     }
 
-    /*
-    }
-
-    impl UiWidget for &HomeScreen {
-        fn render(self, area: Rect, buf: &mut Buffer) {
-        */
     fn draw(&self, area: Rect, buf: &mut Buffer) -> Option<CursorPos> {
         // MAIN
         let login_block = Block::bordered().border_type(DEFAULT_BORDER);

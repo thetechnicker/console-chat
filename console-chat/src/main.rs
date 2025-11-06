@@ -7,6 +7,7 @@ pub mod event;
 pub mod log;
 pub mod network;
 pub mod screens;
+pub mod utils;
 pub mod widgets;
 
 use ratatui::widgets::BorderType;

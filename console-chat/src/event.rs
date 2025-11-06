@@ -40,16 +40,6 @@ impl From<CrosstermEvent> for Event {
     }
 }
 
-/*
-#[derive(Clone, Debug)]
-pub enum AppEvent {
-    Focus,
-    NoFocus,
-    Clear,
-    KeyEvent(KeyEvent),
-}
-*/
-
 /// Application events.
 ///
 /// You can extend this enum with your own custom events.
@@ -60,16 +50,17 @@ pub enum AppEvent {
 
     Focus,
     NoFocus,
-    Clear(bool),
     FocusItem(usize),
+    Clear(bool),
 
-    //TriggerApiReconnect,
     NetworkEvent(NetworkEvent),
 
     KeyEvent(KeyEvent),
-    //ButtonPress(String),
+
     OnWidgetEnter(String, Option<String>),
+
     SwitchScreen(CurrentScreen),
+
     SendMessage(String),
     SimpleMSG(String),
 }
@@ -264,9 +255,9 @@ fn handle_key_events(key_event: KeyEvent) -> Event {
         KeyCode::Char('c' | 'C') if key_event.modifiers == KeyModifiers::CONTROL => {
             Event::App(AppEvent::Quit)
         }
-        _ if key_event.is_press() => Event::App(AppEvent::KeyEvent(key_event)),
-        _ if key_event.is_repeat() => Event::App(AppEvent::KeyEvent(key_event)),
-        _ => Event::Crossterm(CrosstermEvent::Key(key_event)),
+        _ => Event::App(AppEvent::KeyEvent(key_event)),
+        //_ if key_event.is_repeat() => Event::App(AppEvent::KeyEvent(key_event)),
+        //_ => Event::Crossterm(CrosstermEvent::Key(key_event)),
     }
 }
 

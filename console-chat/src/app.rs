@@ -2,7 +2,7 @@ use crate::DEFAULT_BORDER;
 use crate::event::{AppEvent, Event, EventHandler};
 use crate::network::{self, ApiError};
 use crate::screens::{self, Screen};
-use crossterm::event::{Event as CrosstermEvent, KeyCode};
+use crossterm::event::{Event as CrosstermEvent, KeyCode, KeyEvent};
 use ratatui::DefaultTerminal;
 use ratatui::{
     Frame,
@@ -19,17 +19,16 @@ struct Popup {
     pub creation: std::time::Instant,
 }
 
-/// Application.
 #[derive(Debug)]
 pub struct App {
     running: bool,
     events: EventHandler,
 
     current_screen: screens::CurrentScreen,
-    chat_screen: screens::ChatScreen,
-    login_screen: screens::LoginScreen,
-    home_screen: screens::HomeScreen,
 
+    //chat_screen: screens::ChatScreen,
+    login_screen: screens::LoginScreen,
+    //home_screen: screens::HomeScreen,
     exit_time: Option<std::time::Instant>,
     api: network::client::ApiClient,
 
@@ -60,10 +59,9 @@ impl App {
             running: true,
             events: event_handler,
             current_screen: screens::CurrentScreen::default(),
-            chat_screen: screens::ChatScreen::new(event_sender.clone().into()),
+            //  chat_screen: screens::ChatScreen::new(event_sender.clone().into()),
             login_screen: screens::LoginScreen::new(event_sender.clone().into()),
-            home_screen: screens::HomeScreen::new(event_sender.clone().into()),
-
+            // home_screen: screens::HomeScreen::new(event_sender.clone().into()),
             exit_time: None,
             api,
             error_box: None,
@@ -154,23 +152,25 @@ impl App {
                                         screens::CurrentScreen::Login,
                                     ));
                                 }
-                                "JOIN" => {
-                                    let room_val = self.home_screen.get_data();
-                                    if let Some(room) = room_val.as_str() {
-                                        if room == "" {
-                                            self.events.send(AppEvent::NetworkEvent(
-                                                ApiError::from("Room cant be empty").into(),
-                                            ));
-                                        }
-                                        if let Err(e) = self.api.listen(room).await {
-                                            self.handle_network_error(e);
-                                        } else {
-                                            self.events.send(AppEvent::SwitchScreen(
-                                                screens::CurrentScreen::Chat,
-                                            ));
-                                        }
-                                    }
-                                }
+                                /*
+                                                                "JOIN" => {
+                                                                    let room_val = self.home_screen.get_data();
+                                                                    if let Some(room) = room_val.as_str() {
+                                                                        if room == "" {
+                                                                            self.events.send(AppEvent::NetworkEvent(
+                                                                                ApiError::from("Room cant be empty").into(),
+                                                                            ));
+                                                                        }
+                                                                        if let Err(e) = self.api.listen(room).await {
+                                                                            self.handle_network_error(e);
+                                                                        } else {
+                                                                            self.events.send(AppEvent::SwitchScreen(
+                                                                                screens::CurrentScreen::Chat,
+                                                                            ));
+                                                                        }
+                                                                    }
+                                                                }
+                                */
                                 "QUIT" => {
                                     self.events.send(AppEvent::Quit);
                                 }
@@ -214,8 +214,6 @@ impl App {
                     };
                 }
             }
-            //let duration = start.elapsed();
-            //self.help = format!("{:?}", duration);
         }
         if let Some(exit) = self.exit_time {
             return Ok(Some(exit.elapsed()));
@@ -324,18 +322,20 @@ impl App {
     }
     pub fn get_current_screen(&self) -> Option<&dyn screens::Screen> {
         match self.current_screen {
-            screens::CurrentScreen::Chat => Some(&self.chat_screen as &dyn screens::Screen),
+            //   screens::CurrentScreen::Chat => Some(&self.chat_screen as &dyn screens::Screen),
             screens::CurrentScreen::Login => Some(&self.login_screen as &dyn screens::Screen),
-            screens::CurrentScreen::Home => Some(&self.home_screen as &dyn screens::Screen),
+            //  screens::CurrentScreen::Home => Some(&self.home_screen as &dyn screens::Screen),
+            _ => None,
         }
     }
     pub fn get_current_screen_mut(&mut self) -> Option<&mut dyn screens::Screen> {
         match self.current_screen {
-            screens::CurrentScreen::Chat => Some(&mut self.chat_screen as &mut dyn screens::Screen),
+            //screens::CurrentScreen::Chat => Some(&mut self.chat_screen as &mut dyn screens::Screen),
             screens::CurrentScreen::Login => {
                 Some(&mut self.login_screen as &mut dyn screens::Screen)
             }
-            screens::CurrentScreen::Home => Some(&mut self.home_screen as &mut dyn screens::Screen),
+            //screens::CurrentScreen::Home => Some(&mut self.home_screen as &mut dyn screens::Screen),
+            _ => None,
         }
     }
 

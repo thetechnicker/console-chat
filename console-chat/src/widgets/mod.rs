@@ -1,4 +1,6 @@
 use crate::event::AppEvent;
+use crate::network::NetworkEvent;
+use crossterm::event::KeyEvent;
 use ratatui::style::Color;
 use ratatui::{buffer::Buffer, layout::Rect};
 use std::fmt::Debug;
@@ -9,10 +11,50 @@ pub mod button;
 pub use button::*;
 pub mod message_widget;
 pub use message_widget::*;
+pub mod widget_hirarchie;
 
 pub trait Widget: Debug {
-    fn handle_event(&mut self, event: AppEvent);
+    fn focus(&mut self) {}
+    fn unfocus(&mut self) {}
+
+    fn handle_event(&mut self, event: AppEvent) -> bool {
+        match event {
+            AppEvent::Focus => {
+                self.focus();
+                true
+            }
+            AppEvent::NoFocus => {
+                self.unfocus();
+                true
+            }
+            AppEvent::KeyEvent(key_event) => self.handle_key_event(key_event),
+            AppEvent::NetworkEvent(network_event) => self.handle_network_event(network_event),
+            AppEvent::Clear(hard) => {
+                self.clear(hard);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    fn handle_key_event(&mut self, _: KeyEvent) -> bool {
+        false
+    }
+
+    fn handle_network_event(&mut self, _: NetworkEvent) -> bool {
+        false
+    }
+
+    fn clear(&mut self, hard: bool);
+
     fn draw(&self, area: Rect, buf: &mut Buffer, ret: &mut Option<u16>);
+
+    fn into_widget(&self) -> &dyn Widget
+    where
+        Self: Sized,
+    {
+        self as &dyn Widget
+    }
 }
 
 pub fn get_inverse(color: Color) -> Color {
