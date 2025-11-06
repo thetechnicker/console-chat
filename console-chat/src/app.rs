@@ -3,7 +3,6 @@ use crate::event::{AppEvent, Event, EventHandler};
 use crate::network::{self, ApiError};
 use crate::screens::{self, Screen};
 use crossterm::event::Event as CrosstermEvent;
-use log; //::{debug, error, info, trace};
 use ratatui::DefaultTerminal;
 use ratatui::{
     Frame,
@@ -11,6 +10,7 @@ use ratatui::{
     style::{Color, Modifier, Style},
     widgets::{Block, BorderType, Clear, Padding, Paragraph, Wrap},
 };
+use tracing::{debug, error, info, instrument, trace};
 
 #[derive(Debug)]
 struct Popup {
@@ -52,7 +52,7 @@ impl App {
         let event_sender = event_handler.get_event_sender();
         let api =
             network::client::ApiClient::new(url, event_sender.clone().into()).unwrap_or_else(|e| {
-                log::error!("ApiClient initialization failed: {e}");
+                error!("ApiClient initialization failed: {e}");
                 panic!("ApiClient initialization failed: {e}");
             });
 
@@ -80,6 +80,7 @@ impl App {
     }
 
     /// Run the application's main loop.
+    #[instrument]
     pub async fn run(
         mut self,
         mut terminal: DefaultTerminal,
@@ -90,7 +91,7 @@ impl App {
             terminal.draw(|frame| self.render(frame))?;
 
             let event = self.events.next().await?;
-            log::trace!("Handling Event: {event:?}");
+            //trace!("Handling Event: {event:?}");
             match event {
                 Event::Tick => self.tick(),
                 Event::Crossterm(event) => {
@@ -99,14 +100,14 @@ impl App {
                     }
                 }
                 Event::App(app_event) => {
-                    log::debug!("AppEvent: {app_event:?}");
+                    debug!("AppEvent: {app_event:?}");
                     match app_event {
                         AppEvent::Quit => self.quit(),
                         AppEvent::SwitchScreen(new_screen) => {
                             self.current_screen = new_screen;
                             self.events.send(AppEvent::Clear(true));
                         }
-                        AppEvent::SimpleMSG(str) => log::info!("{}", str),
+                        AppEvent::SimpleMSG(str) => info!("{}", str),
                         AppEvent::NetworkEvent(network::NetworkEvent::Error(e)) => {
                             self.handle_network_error(e);
                         }
@@ -122,7 +123,7 @@ impl App {
                             }
                         }
                         AppEvent::SendMessage(msg) => {
-                            log::debug!("Sending: {}", msg);
+                            debug!("Sending: {}", msg);
                             if let Err(e) = self.api.send_txt(&msg).await {
                                 self.handle_network_error(e)
                             }
@@ -140,7 +141,7 @@ impl App {
                                         .send(AppEvent::SwitchScreen(screens::CurrentScreen::Home)),
 
                                     Err(e) => {
-                                        log::error!("Error when logging in: {e}");
+                                        error!("Error when logging in: {e}");
                                         self.events.send(AppEvent::NetworkEvent(
                                             network::NetworkEvent::Error(e),
                                         ));
@@ -172,7 +173,7 @@ impl App {
                             /*
                              */
                             str => {
-                                log::info!("Unhandled Button: {str}")
+                                info!("Unhandled Button: {str}")
                             }
                         },
                         AppEvent::KeyEvent(k) if self.error_box.is_none() => {
@@ -192,7 +193,7 @@ impl App {
                             }
                         }
                         _ => {
-                            log::debug!("Unhandled Event: {app_event:#?}");
+                            debug!("Unhandled Event: {app_event:#?}");
                             self.send_to_current_screen(app_event);
                         }
                     };
@@ -207,8 +208,9 @@ impl App {
         Ok(None)
     }
 
+    #[instrument]
     fn handle_network_error(&mut self, e: ApiError) {
-        log::error!("Network Error: {e}");
+        error!("Network Error: {e}");
         if let ApiError::CriticalFailure = e {
             self.events.send(AppEvent::Quit);
         }
@@ -224,6 +226,7 @@ impl App {
         self.events.send(AppEvent::Clear(false));
     }
 
+    #[instrument]
     fn render(&self, frame: &mut Frame) {
         let area = frame.area();
         let outer_block = Block::bordered()
@@ -259,7 +262,7 @@ impl App {
             let buf = frame.buffer_mut();
             cursor = screen.draw(main, buf);
         }
-        log::trace!("{cursor:?}");
+        trace!("{cursor:?}");
         if let Some(cursor) = cursor {
             frame.set_cursor_position((cursor.x, cursor.y));
         }

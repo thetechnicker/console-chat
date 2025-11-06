@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
+use tracing::{debug, instrument, trace};
 
 pub type NoResTokioHandles = JoinHandle<Result<(), ApiError>>;
 
@@ -138,6 +139,7 @@ impl ApiClient {
         Ok(())
     }
 
+    #[instrument]
     pub async fn handle_event(&mut self, event: NetworkEvent) -> Result<(), ApiError> {
         match event {
             NetworkEvent::CreateKey => {
@@ -161,7 +163,7 @@ impl ApiClient {
                     .await?;
 
                 let message: messages::ServerMessage = handle_errors_json(resp).await?;
-                log::debug!("{:?}", message);
+                debug!("{:?}", message);
             }
             NetworkEvent::SendKey(pub_key) => {
                 let room = self.get_room()?;
@@ -184,7 +186,7 @@ impl ApiClient {
                             .await?;
 
                         let message: messages::ServerMessage = handle_errors_json(resp).await?;
-                        log::debug!("{:?}", message);
+                        debug!("{:?}", message);
                     }
                 }
             }
@@ -211,6 +213,7 @@ impl ApiClient {
             .cloned()
     }
 
+    #[instrument]
     pub async fn send_txt(&mut self, msg: &str) -> Result<(), ApiError> {
         if self.symetric_key.is_poisoned() {
             let mut lock = self.symetric_key.lock().unwrap_or_else(|e| e.into_inner());
@@ -221,11 +224,11 @@ impl ApiClient {
             Some(ref key) => messages::ClientMessage::encrypted(encryption::encrypt(msg, key)?),
             None => messages::ClientMessage::new(msg),
         };
-        log::trace!("Sending Message...");
+        trace!("Sending Message...");
         let room = self.get_room()?;
         let url = self.base_url.join(&format!("room/{room}"))?;
         let body = serde_json::json!(args);
-        log::debug!("Sending: {body}");
+        debug!("Sending: {body}");
         let resp = self
             .client
             .post(url)
@@ -233,9 +236,8 @@ impl ApiClient {
             .bearer_auth(self.bearer_token.clone().expect("No Token Given"))
             .send()
             .await?;
-        //log::debug!("{}", resp.text().await?);
         let message: messages::ServerMessage = handle_errors_json(resp).await?;
-        log::debug!("{:?}", message);
+        debug!("{:?}", message);
         Ok(())
     }
 
@@ -246,6 +248,7 @@ impl ApiClient {
         }
     }
 
+    #[instrument(level = "trace")]
     pub async fn listen(&mut self, room: &str) -> Result<(), ApiError> {
         self.restart_handle_message();
         {

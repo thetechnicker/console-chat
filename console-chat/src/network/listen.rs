@@ -10,6 +10,7 @@ use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::watch;
 use tokio_stream::{self, StreamExt};
+use tracing::{debug, instrument};
 
 pub type ListenTask = tokio::task::JoinHandle<Result<ListenData, ApiError>>;
 pub type HandleMessagesTask = tokio::task::JoinHandle<Result<HandleMessagesData, ApiError>>;
@@ -91,6 +92,7 @@ impl ListenData {
         Ok(handle_errors_raw(resp).await?)
     }
 
+    #[instrument(level = "debug")]
     async fn handle_stream(&mut self, resp: reqwest::Response) -> Result<(), ApiError> {
         let mut stream = resp.bytes_stream();
         let mut is_end = false;
@@ -99,10 +101,10 @@ impl ListenData {
             let chunk = stream.next();
             tokio::select! {
                 Some(chunk)=chunk=>{
-                    log::debug!("Received Chunk {chunk:?}");
+                    debug!("Received Chunk {chunk:?}");
                     let chunk = match chunk {
                         Err(e) => {
-                            log::debug!("Error Receiving chunk: {e:#?}");
+                            debug!("Error Receiving chunk: {e:#?}");
                             break;
                         }
                         Ok(data) => data,
@@ -110,7 +112,7 @@ impl ListenData {
 
                     let s = str::from_utf8(&chunk)?;
 
-                    log::debug!("chunk as string: {s}");
+                    debug!("chunk as string: {s}");
 
                     if s == "END" {
                         is_end = true;
@@ -240,7 +242,7 @@ impl HandleMessagesData {
     }
 
     fn handle_message(&mut self, mut msg: messages::ServerMessage) -> Result<(), ApiError> {
-        log::debug!("Received Message: {msg:#?}");
+        debug!("Received Message: {msg:#?}");
         match msg.base.message_type {
             messages::MessageType::System => {
                 let event = self.handle_system_msg(msg)?;

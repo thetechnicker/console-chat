@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 use crate::app::App;
+use tracing::info;
 
 pub mod app;
 pub mod event;
@@ -17,7 +18,10 @@ pub const DEFAULT_BORDER: BorderType = BorderType::Double;
 //use std::io::stdout;
 #[tokio::main]
 async fn main() -> color_eyre::Result<()> {
-    log::init_logging_file("terminal-chat.log");
+    #[allow(unused_variables)]
+    let guard = log::init_tracing_file("terminal-chat.log");
+
+    info!("App Starting");
 
     color_eyre::install()?;
     let terminal = ratatui::init();
