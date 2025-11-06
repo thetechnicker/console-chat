@@ -1,5 +1,5 @@
 use crate::DEFAULT_BORDER;
-use crate::event::{AppEvent, EventSender};
+use crate::event::{AppEvent, AppEventSender};
 use crate::screens::{CursorPos, Screen};
 use crate::widgets;
 use crate::widgets::Widget;
@@ -15,7 +15,7 @@ use serde_json;
 pub struct HomeScreen {
     pub tab_index: usize,
     pub max_tab: usize,
-    pub event_sender: EventSender,
+    pub event_sender: AppEventSender,
     pub room_input: widgets::InputWidget,
     pub join_button: widgets::Button,
     pub logout_button: widgets::Button,
@@ -23,25 +23,17 @@ pub struct HomeScreen {
 }
 
 impl HomeScreen {
-    pub fn new(event_sender: EventSender) -> Self {
+    pub fn new(event_sender: AppEventSender) -> Self {
         Self {
             tab_index: 0,
             max_tab: 5,
             event_sender: event_sender.clone(),
-            room_input: widgets::InputWidget::new("Room"),
-            join_button: widgets::Button::new(
-                "Join Room",
-                event_sender.clone(),
-                AppEvent::ButtonPress("JOIN".to_string()),
-            )
-            .theme(widgets::GREEN),
-            logout_button: widgets::Button::new(
-                "Logout",
-                event_sender.clone(),
-                AppEvent::ButtonPress("LOGOUT".to_string()),
-            )
-            .theme(widgets::BLUE),
-            exit_button: widgets::Button::new("Exit", event_sender.clone(), AppEvent::Quit)
+            room_input: widgets::InputWidget::new("Room", "JOIN", event_sender.clone()),
+            join_button: widgets::Button::new("Join Room", event_sender.clone(), "JOIN")
+                .theme(widgets::GREEN),
+            logout_button: widgets::Button::new("Logout", event_sender.clone(), "LOGOUT")
+                .theme(widgets::BLUE),
+            exit_button: widgets::Button::new("Exit", event_sender.clone(), "QUIT")
                 .theme(widgets::RED),
         }
     }
@@ -75,6 +67,11 @@ impl HomeScreen {
 impl Screen for HomeScreen {
     fn handle_event(&mut self, event: AppEvent) -> bool {
         match event {
+            AppEvent::FocusItem(i) => {
+                if 0 < i && i < self.max_tab {
+                    self.tab_index = i;
+                }
+            }
             AppEvent::Clear(hard) => {
                 self.tab_index = 0;
                 for i in 0..self.max_tab {

@@ -61,12 +61,14 @@ pub enum AppEvent {
     Focus,
     NoFocus,
     Clear(bool),
+    FocusItem(usize),
 
     //TriggerApiReconnect,
     NetworkEvent(NetworkEvent),
 
     KeyEvent(KeyEvent),
-    ButtonPress(String),
+    //ButtonPress(String),
+    OnWidgetEnter(String, Option<String>),
     SwitchScreen(CurrentScreen),
     SendMessage(String),
     SimpleMSG(String),
@@ -262,7 +264,9 @@ fn handle_key_events(key_event: KeyEvent) -> Event {
         KeyCode::Char('c' | 'C') if key_event.modifiers == KeyModifiers::CONTROL => {
             Event::App(AppEvent::Quit)
         }
-        _ => Event::App(AppEvent::KeyEvent(key_event)),
+        _ if key_event.is_press() => Event::App(AppEvent::KeyEvent(key_event)),
+        _ if key_event.is_repeat() => Event::App(AppEvent::KeyEvent(key_event)),
+        _ => Event::Crossterm(CrosstermEvent::Key(key_event)),
     }
 }
 

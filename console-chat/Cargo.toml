@@ -28,6 +28,7 @@ rand = "0.9.2"
 tracing = "0.1.41"
 tracing-subscriber = {version="0.3.20", features=["json","local-time"]}
 tracing-appender = "0.2.3"
+palette = "0.7.6"
 
 [dev-dependencies]
 insta = "1.43.2"

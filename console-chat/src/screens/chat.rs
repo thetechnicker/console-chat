@@ -25,11 +25,14 @@ impl ChatScreen {
         Self {
             tab_index: 0,
             max_tab: 2,
-            event_sender,
-            input: widgets::InputWidget::default(),
+            event_sender: event_sender.clone(),
+            input: widgets::InputWidget::new("Input", "SEND_MSG", event_sender),
             msg_list: widgets::MessageList::new(),
         }
     }
+
+    pub fn idk(&self, _: ()) {}
+
     pub fn send_current_widget_event(&mut self, event: AppEvent) {
         if let Some(elem) = self.current_widget() {
             elem.handle_event(event)
@@ -69,47 +72,36 @@ impl Screen for ChatScreen {
                 }
             }
             AppEvent::NetworkEvent(network::NetworkEvent::Message(msg)) => self.msg_list.push(msg),
-            AppEvent::KeyEvent(key_event) => {
-                match key_event.code {
-                    KeyCode::Tab if key_event.kind == KeyEventKind::Press => {
-                        self.send_current_widget_event(AppEvent::NoFocus);
-                        self.tab_index = (self.tab_index + 1) % self.max_tab;
-                        self.send_current_widget_event(AppEvent::Focus);
-                    }
-                    KeyCode::BackTab if key_event.kind == KeyEventKind::Press => {
-                        self.send_current_widget_event(AppEvent::NoFocus);
-                        self.tab_index = if self.tab_index == 0 {
-                            self.max_tab - 1
-                        } else {
-                            self.tab_index.wrapping_sub(1)
-                        } % self.max_tab;
-                        self.send_current_widget_event(AppEvent::Focus);
-                    }
-                    KeyCode::Esc => {
-                        self.send_all_widgets_event(AppEvent::NoFocus);
-                        self.tab_index = 0;
-                    }
-                    KeyCode::Enter if self.tab_index == 1 => {
-                        let input = self.input.get_content();
-                        if !input.is_empty() {
-                            let msg = input.clone();
-                            self.event_sender
-                                .send(AppEvent::SendMessage(msg.trim().to_owned()));
-                            self.send_current_widget_event(AppEvent::Clear(true));
-                            self.send_current_widget_event(AppEvent::Focus);
-                        }
-                    }
-                    KeyCode::Char('q' | 'Q') if self.tab_index == 0 => {
-                        self.msg_list.handle_event(AppEvent::Clear(true));
-                        self.event_sender
-                            .send(AppEvent::SwitchScreen(CurrentScreen::Home));
-                        self.event_sender
-                            .send(AppEvent::NetworkEvent(network::NetworkEvent::Leaf));
-                    }
-                    _ => {}
+            AppEvent::KeyEvent(key_event) => match key_event.code {
+                KeyCode::Tab if key_event.kind == KeyEventKind::Press => {
+                    self.send_current_widget_event(AppEvent::NoFocus);
+                    self.tab_index = (self.tab_index + 1) % self.max_tab;
+                    self.send_current_widget_event(AppEvent::Focus);
                 }
-                self.send_current_widget_event(AppEvent::KeyEvent(key_event));
-            }
+                KeyCode::BackTab if key_event.kind == KeyEventKind::Press => {
+                    self.send_current_widget_event(AppEvent::NoFocus);
+                    self.tab_index = if self.tab_index == 0 {
+                        self.max_tab - 1
+                    } else {
+                        self.tab_index.wrapping_sub(1)
+                    } % self.max_tab;
+                    self.send_current_widget_event(AppEvent::Focus);
+                }
+                KeyCode::Esc => {
+                    self.send_all_widgets_event(AppEvent::NoFocus);
+                    self.tab_index = 0;
+                }
+                KeyCode::Char('q' | 'Q') if self.tab_index == 0 => {
+                    self.msg_list.handle_event(AppEvent::Clear(true));
+                    self.event_sender
+                        .send(AppEvent::SwitchScreen(CurrentScreen::Home));
+                    self.event_sender
+                        .send(AppEvent::NetworkEvent(network::NetworkEvent::Leaf));
+                }
+                _ => {
+                    self.send_current_widget_event(AppEvent::KeyEvent(key_event));
+                }
+            },
             _ => {
                 return false;
             }

@@ -1,5 +1,5 @@
 use crate::DEFAULT_BORDER;
-use crate::event::{AppEvent, EventSender};
+use crate::event::{AppEvent, AppEventSender};
 use crate::screens::{CursorPos, Screen};
 use crate::widgets;
 use crate::widgets::Widget;
@@ -15,7 +15,7 @@ use serde_json;
 pub struct LoginScreen {
     pub tab_index: usize,
     pub max_tab: usize,
-    pub event_sender: EventSender,
+    pub event_sender: AppEventSender,
     pub user_input: widgets::InputWidget,
     pub pwd_input: widgets::InputWidget,
     pub skip_button: widgets::Button,
@@ -24,26 +24,23 @@ pub struct LoginScreen {
 }
 
 impl LoginScreen {
-    pub fn new(event_sender: EventSender) -> Self {
+    pub fn new(event_sender: AppEventSender) -> Self {
         Self {
             tab_index: 0,
             max_tab: 6,
             event_sender: event_sender.clone(),
-            user_input: widgets::InputWidget::new("Username"),
-            pwd_input: widgets::InputWidget::new("Password").password(),
-            skip_button: widgets::Button::new(
-                "Anonym",
-                event_sender.clone(),
-                AppEvent::ButtonPress("LOGIN_ANONYM".to_string()),
-            )
-            .theme(widgets::GREEN),
-            ok_button: widgets::Button::new(
-                "Login",
-                event_sender.clone(),
-                AppEvent::ButtonPress("LOGIN".to_string()),
-            )
-            .theme(widgets::BLUE),
-            cancel_button: widgets::Button::new("Exit", event_sender.clone(), AppEvent::Quit)
+            user_input: widgets::InputWidget::new(
+                "Username",
+                "USERNAME",
+                event_sender.clone().into(),
+            ),
+            pwd_input: widgets::InputWidget::new("Password", "LOGIN", event_sender.clone().into())
+                .password(),
+            skip_button: widgets::Button::new("Anonym", event_sender.clone(), "LOGIN_ANONYM")
+                .theme(widgets::GREEN),
+            ok_button: widgets::Button::new("Login", event_sender.clone(), "LOGIN")
+                .theme(widgets::BLUE),
+            cancel_button: widgets::Button::new("Exit", event_sender.clone(), "QUIT")
                 .theme(widgets::RED),
         }
     }
@@ -86,6 +83,20 @@ impl LoginScreen {
     pub fn current_widget_mut(&mut self) -> Option<&mut dyn Widget> {
         self.widget_at_mut(self.tab_index)
     }
+    fn incr_tab(&mut self) {
+        self.send_current_widget_event(AppEvent::NoFocus);
+        self.tab_index = (self.tab_index.wrapping_add(1)) % self.max_tab;
+        self.send_current_widget_event(AppEvent::Focus);
+    }
+    fn decr_tab(&mut self) {
+        self.send_current_widget_event(AppEvent::NoFocus);
+        self.tab_index = if self.tab_index == 0 {
+            self.max_tab - 1
+        } else {
+            self.tab_index.wrapping_sub(1)
+        } % self.max_tab;
+        self.send_current_widget_event(AppEvent::Focus);
+    }
 }
 
 impl Screen for LoginScreen {
@@ -99,20 +110,16 @@ impl Screen for LoginScreen {
                     }
                 }
             }
+            AppEvent::OnWidgetEnter(str, _) if str == "USERNAME" => {
+                self.incr_tab();
+                return true;
+            }
             AppEvent::KeyEvent(key_event) => match key_event.code {
                 KeyCode::Tab if key_event.kind == KeyEventKind::Press => {
-                    self.send_current_widget_event(AppEvent::NoFocus);
-                    self.tab_index = (self.tab_index.wrapping_add(1)) % self.max_tab;
-                    self.send_current_widget_event(AppEvent::Focus);
+                    self.incr_tab();
                 }
                 KeyCode::BackTab if key_event.kind == KeyEventKind::Press => {
-                    self.send_current_widget_event(AppEvent::NoFocus);
-                    self.tab_index = if self.tab_index == 0 {
-                        self.max_tab - 1
-                    } else {
-                        self.tab_index.wrapping_sub(1)
-                    } % self.max_tab;
-                    self.send_current_widget_event(AppEvent::Focus);
+                    self.decr_tab();
                 }
                 KeyCode::Esc => {
                     self.send_all_widgets_event(AppEvent::NoFocus);

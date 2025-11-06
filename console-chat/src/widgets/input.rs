@@ -1,6 +1,7 @@
 use crate::event::AppEvent;
+use crate::event::AppEventSender;
 use crate::widgets::Widget;
-use crossterm::event::Event;
+use crossterm::event::{Event, KeyCode};
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -29,9 +30,12 @@ pub struct InputWidget {
     input_type: InputType,
     input_mode: InputMode,
     input: Input,
+    event_sender: AppEventSender,
+    on_enter_id: Option<String>,
     //placeholder: Option<String>,
 }
 
+/*
 impl Default for InputWidget {
     fn default() -> Self {
         Self {
@@ -39,18 +43,23 @@ impl Default for InputWidget {
             input_type: InputType::Text,
             input_mode: InputMode::default(),
             input: Input::default(),
+            event_sender: None,
+            on_enter_id: None,
             //       placeholder: None,
         }
     }
 }
+*/
 
 impl InputWidget {
-    pub fn new(titel: &str) -> Self {
+    pub fn new(titel: &str, on_enter: &str, event_sender: AppEventSender) -> Self {
         Self {
             titel: String::from(titel),
             input_type: InputType::Text,
             input_mode: InputMode::default(),
             input: Input::default(),
+            on_enter_id: Some(on_enter.to_uppercase().to_owned()),
+            event_sender: event_sender,
             //placeholder: None,
         }
     }
@@ -87,6 +96,14 @@ impl Widget for InputWidget {
             AppEvent::KeyEvent(key) => match self.input_mode {
                 InputMode::Normal => {}
                 InputMode::Editing => {
+                    if let KeyCode::Enter = key.code {
+                        if let Some(event_id) = self.on_enter_id.as_ref() {
+                            self.event_sender.send(AppEvent::OnWidgetEnter(
+                                event_id.to_string(),
+                                Some(self.get_content()),
+                            ));
+                        }
+                    }
                     self.input.handle_event(&Event::Key(key));
                 }
             },

@@ -2,7 +2,7 @@ use crate::DEFAULT_BORDER;
 use crate::event::{AppEvent, Event, EventHandler};
 use crate::network::{self, ApiError};
 use crate::screens::{self, Screen};
-use crossterm::event::Event as CrosstermEvent;
+use crossterm::event::{Event as CrosstermEvent, KeyCode};
 use ratatui::DefaultTerminal;
 use ratatui::{
     Frame,
@@ -10,7 +10,7 @@ use ratatui::{
     style::{Color, Modifier, Style},
     widgets::{Block, BorderType, Clear, Padding, Paragraph, Wrap},
 };
-use tracing::{debug, error, info, instrument, trace};
+use tracing::{debug, error, info, trace};
 
 #[derive(Debug)]
 struct Popup {
@@ -61,8 +61,8 @@ impl App {
             events: event_handler,
             current_screen: screens::CurrentScreen::default(),
             chat_screen: screens::ChatScreen::new(event_sender.clone().into()),
-            login_screen: screens::LoginScreen::new(event_sender.clone()),
-            home_screen: screens::HomeScreen::new(event_sender.clone()),
+            login_screen: screens::LoginScreen::new(event_sender.clone().into()),
+            home_screen: screens::HomeScreen::new(event_sender.clone().into()),
 
             exit_time: None,
             api,
@@ -80,7 +80,6 @@ impl App {
     }
 
     /// Run the application's main loop.
-    #[instrument]
     pub async fn run(
         mut self,
         mut terminal: DefaultTerminal,
@@ -128,56 +127,72 @@ impl App {
                                 self.handle_network_error(e)
                             }
                         }
-                        AppEvent::ButtonPress(str) => match str.as_str() {
-                            _ if str.starts_with("LOGIN") => {
-                                let login = if str == "LOGIN_ANONYM" {
-                                    None
-                                } else {
-                                    Some(self.login_screen.get_data())
-                                };
-                                match self.api.auth(login).await {
-                                    Ok(()) => self
-                                        .events
-                                        .send(AppEvent::SwitchScreen(screens::CurrentScreen::Home)),
-
-                                    Err(e) => {
-                                        error!("Error when logging in: {e}");
-                                        self.events.send(AppEvent::NetworkEvent(
-                                            network::NetworkEvent::Error(e),
-                                        ));
-                                    }
-                                }
-                            }
-                            "LOGOUT" => {
-                                self.api.reset().await;
-                                self.events
-                                    .send(AppEvent::SwitchScreen(screens::CurrentScreen::Login));
-                            }
-                            "JOIN" => {
-                                let room_val = self.home_screen.get_data();
-                                if let Some(room) = room_val.as_str() {
-                                    if room == "" {
-                                        self.events.send(AppEvent::NetworkEvent(
-                                            ApiError::from("Room cant be empty").into(),
-                                        ));
-                                    }
-                                    if let Err(e) = self.api.listen(room).await {
-                                        self.handle_network_error(e);
+                        AppEvent::OnWidgetEnter(id_str, content) => {
+                            match id_str.to_uppercase().as_str() {
+                                _ if id_str.starts_with("LOGIN") => {
+                                    let login = if id_str == "LOGIN_ANONYM" {
+                                        None
                                     } else {
-                                        self.events.send(AppEvent::SwitchScreen(
-                                            screens::CurrentScreen::Chat,
+                                        Some(self.login_screen.get_data())
+                                    };
+                                    match self.api.auth(login).await {
+                                        Ok(()) => self.events.send(AppEvent::SwitchScreen(
+                                            screens::CurrentScreen::Home,
+                                        )),
+
+                                        Err(e) => {
+                                            error!("Error when logging in: {e}");
+                                            self.events.send(AppEvent::NetworkEvent(
+                                                network::NetworkEvent::Error(e),
+                                            ));
+                                        }
+                                    }
+                                }
+                                "LOGOUT" => {
+                                    self.api.reset().await;
+                                    self.events.send(AppEvent::SwitchScreen(
+                                        screens::CurrentScreen::Login,
+                                    ));
+                                }
+                                "JOIN" => {
+                                    let room_val = self.home_screen.get_data();
+                                    if let Some(room) = room_val.as_str() {
+                                        if room == "" {
+                                            self.events.send(AppEvent::NetworkEvent(
+                                                ApiError::from("Room cant be empty").into(),
+                                            ));
+                                        }
+                                        if let Err(e) = self.api.listen(room).await {
+                                            self.handle_network_error(e);
+                                        } else {
+                                            self.events.send(AppEvent::SwitchScreen(
+                                                screens::CurrentScreen::Chat,
+                                            ));
+                                        }
+                                    }
+                                }
+                                "QUIT" => {
+                                    self.events.send(AppEvent::Quit);
+                                }
+                                str => {
+                                    self.send_to_current_screen(AppEvent::OnWidgetEnter(
+                                        str.to_string(),
+                                        content,
+                                    ));
+                                }
+                            }
+                        }
+                        AppEvent::KeyEvent(k) if self.error_box.is_none() => {
+                            if !self.send_to_current_screen(AppEvent::KeyEvent(k)) {
+                                if let KeyCode::Char(c) = k.code {
+                                    if c.is_numeric() {
+                                        let id = (c as u8) - ('0' as u8);
+                                        self.send_to_current_screen(AppEvent::FocusItem(
+                                            id as usize,
                                         ));
                                     }
                                 }
                             }
-                            /*
-                             */
-                            str => {
-                                info!("Unhandled Button: {str}")
-                            }
-                        },
-                        AppEvent::KeyEvent(k) if self.error_box.is_none() => {
-                            self.send_to_current_screen(AppEvent::KeyEvent(k));
                         }
                         AppEvent::KeyEvent(k) if self.error_box.is_some() => {
                             if k.is_press() {
@@ -208,7 +223,6 @@ impl App {
         Ok(None)
     }
 
-    #[instrument]
     fn handle_network_error(&mut self, e: ApiError) {
         error!("Network Error: {e}");
         if let ApiError::CriticalFailure = e {
@@ -226,7 +240,6 @@ impl App {
         self.events.send(AppEvent::Clear(false));
     }
 
-    #[instrument]
     fn render(&self, frame: &mut Frame) {
         let area = frame.area();
         let outer_block = Block::bordered()

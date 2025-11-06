@@ -250,6 +250,9 @@ impl ApiClient {
 
     #[instrument(level = "trace")]
     pub async fn listen(&mut self, room: &str) -> Result<(), ApiError> {
+        if room.trim() == "" {
+            return Err("Room Cant be emtpy".into());
+        }
         self.restart_handle_message();
         {
             let mut lock = self.symetric_key.lock().unwrap_or_else(|e| e.into_inner());

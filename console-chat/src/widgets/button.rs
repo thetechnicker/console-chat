@@ -1,4 +1,4 @@
-use crate::event::{AppEvent, EventSender};
+use crate::event::{AppEvent, AppEventSender};
 use crate::widgets::Widget;
 use crossterm::event::KeyEventKind;
 use ratatui::{
@@ -50,18 +50,18 @@ pub struct Button {
     state: ButtonState,
     label: String,
     theme: Theme,
-    event_sender: EventSender,
-    on_press: AppEvent,
+    event_sender: AppEventSender,
+    on_press_id: String,
 }
 
 impl Button {
-    pub fn new(label: &str, event_sender: EventSender, on_press: AppEvent) -> Self {
+    pub fn new(label: &str, event_sender: AppEventSender, on_press: &str) -> Self {
         Self {
             state: ButtonState::Normal,
             label: String::from(label),
             theme: BLUE,
             event_sender,
-            on_press,
+            on_press_id: on_press.to_uppercase().to_string(),
         }
     }
     pub fn is_pressed(&self) -> bool {
@@ -91,7 +91,8 @@ impl Widget for Button {
                 KeyEventKind::Press => {
                     if self.state == ButtonState::Selected {
                         self.state = ButtonState::Active;
-                        self.event_sender.send(self.on_press.clone().into());
+                        self.event_sender
+                            .send(AppEvent::OnWidgetEnter(self.on_press_id.clone(), None));
                     }
                 }
                 KeyEventKind::Release => {
