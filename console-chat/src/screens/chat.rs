@@ -17,6 +17,7 @@ use tracing::debug;
 #[derive(Debug)]
 pub struct ChatScreen {
     mode: screens::InputMode,
+    event_sender: AppEventSender,
     input: Rc<RefCell<widgets::InputWidget>>,
     msg_list: Rc<RefCell<widgets::MessageList>>,
     widget_hirarchie: screens::WidgetElement,
@@ -29,7 +30,7 @@ impl ChatScreen {
         let input = Rc::new(RefCell::new(widgets::InputWidget::new(
             "Input",
             "SEND_MSG",
-            event_sender,
+            event_sender.clone(),
         )));
         let msg_list = Rc::new(RefCell::new(widgets::MessageList::new()));
         let widget_hirarchie = screens::WidgetElement::Collection(Rc::new([
@@ -40,6 +41,7 @@ impl ChatScreen {
             x: 0,
             y: 0,
             mode: screens::InputMode::default(),
+            event_sender,
             input,
             msg_list,
             widget_hirarchie,
@@ -127,6 +129,12 @@ impl Screen for ChatScreen {
             }
             KeyCode::Char('i') if event.is_press() || event.is_repeat() => {
                 self.mode = screens::InputMode::Editing;
+                return true;
+            }
+            KeyCode::Char('i') => {
+                self.event_sender.send(crate::event::AppEvent::SwitchScreen(
+                    screens::CurrentScreen::Home,
+                ));
                 return true;
             }
             _ => {}
