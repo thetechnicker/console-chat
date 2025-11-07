@@ -27,11 +27,9 @@ pub struct ChatScreen {
 
 impl ChatScreen {
     pub fn new(event_sender: AppEventSender) -> Self {
-        let input = Rc::new(RefCell::new(widgets::InputWidget::new(
-            "Input",
-            "SEND_MSG",
-            event_sender.clone(),
-        )));
+        let input = Rc::new(RefCell::new(
+            widgets::InputWidget::new("Input", "SEND_MSG", event_sender.clone()).clear_on_enter(),
+        ));
         let msg_list = Rc::new(RefCell::new(widgets::MessageList::new()));
         let widget_hirarchie = screens::WidgetElement::Collection(Rc::new([
             screens::WidgetElement::Item(input.clone()),
@@ -162,8 +160,20 @@ impl Screen for ChatScreen {
         self.msg_list.borrow().draw(chat, buf, &mut None);
 
         // Input
-        self.input.borrow().draw(input, buf, &mut None);
-        None
+        let mut x: Option<u16> = None;
+        self.input.borrow().draw(input, buf, &mut x);
+        return if self.mode == screens::InputMode::Editing {
+            if let Some(x) = x {
+                Some(CursorPos {
+                    x: x + input.x,
+                    y: input.y + 1_u16,
+                })
+            } else {
+                None
+            }
+        } else {
+            None
+        };
     }
 }
 

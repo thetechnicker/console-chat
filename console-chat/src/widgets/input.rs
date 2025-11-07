@@ -33,6 +33,7 @@ pub struct InputWidget {
     input: Input,
     event_sender: AppEventSender,
     on_enter_id: Option<String>,
+    clear_on_enter: bool,
 }
 
 impl InputWidget {
@@ -44,7 +45,13 @@ impl InputWidget {
             input: Input::default(),
             on_enter_id: Some(on_enter.to_uppercase().to_owned()),
             event_sender: event_sender,
+            clear_on_enter: false,
         }
+    }
+
+    pub fn clear_on_enter(mut self) -> Self {
+        self.clear_on_enter = true;
+        self
     }
 
     pub fn password(mut self) -> Self {
@@ -90,6 +97,9 @@ impl Widget for InputWidget {
                             event_id.to_string(),
                             Some(self.get_content()),
                         ));
+                        if self.clear_on_enter {
+                            self.input.reset();
+                        }
                     }
                 }
                 self.input.handle_event(&Event::Key(key_event));
