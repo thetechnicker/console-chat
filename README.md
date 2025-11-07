@@ -1,6 +1,6 @@
 # ConsoleChat
 
-This is a simple chat service for the terminal where.
+This is a simple chat service for the terminal.
 
 ## Overview
 
