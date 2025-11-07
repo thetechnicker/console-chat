@@ -169,6 +169,14 @@ impl App {
                                 "QUIT" => {
                                     self.events.send(AppEvent::Quit);
                                 }
+                                "SEND_MSG" => {
+                                    if let Some(msg) = content {
+                                        debug!("Sending: {}", msg);
+                                        if let Err(e) = self.api.send_txt(&msg).await {
+                                            self.handle_network_error(e)
+                                        }
+                                    }
+                                }
                                 str => {
                                     self.send_to_current_screen(AppEvent::OnWidgetEnter(
                                         str.to_string(),
