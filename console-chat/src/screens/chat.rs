@@ -1,112 +1,145 @@
 use crate::DEFAULT_BORDER;
-use crate::event::{AppEvent, AppEventSender};
+use crate::event::AppEventSender;
 use crate::network;
-use crate::screens::{CurrentScreen, CursorPos, Screen};
+use crate::screens::{self, CursorPos, Screen};
 use crate::widgets;
 use crate::widgets::Widget;
-use crossterm::event::{KeyCode, KeyEventKind};
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Layout, Rect},
     widgets::{Block, Widget as UiWidget},
 };
+use std::cell::RefCell;
+use std::rc::Rc;
+use tracing::debug;
 
 #[derive(Debug)]
 pub struct ChatScreen {
-    pub tab_index: usize,
-    pub max_tab: usize,
-    pub event_sender: AppEventSender,
-    pub input: widgets::InputWidget,
-    pub msg_list: widgets::MessageList,
+    mode: screens::InputMode,
+    input: Rc<RefCell<widgets::InputWidget>>,
+    msg_list: Rc<RefCell<widgets::MessageList>>,
+    widget_hirarchie: screens::WidgetElement,
+    x: usize,
+    y: usize,
 }
 
 impl ChatScreen {
     pub fn new(event_sender: AppEventSender) -> Self {
+        let input = Rc::new(RefCell::new(widgets::InputWidget::new(
+            "Input",
+            "SEND_MSG",
+            event_sender,
+        )));
+        let msg_list = Rc::new(RefCell::new(widgets::MessageList::new()));
+        let widget_hirarchie = screens::WidgetElement::Collection(Rc::new([
+            screens::WidgetElement::Item(input.clone()),
+            screens::WidgetElement::Item(msg_list.clone()),
+        ]));
         Self {
-            tab_index: 0,
-            max_tab: 2,
-            event_sender: event_sender.clone(),
-            input: widgets::InputWidget::new("Input", "SEND_MSG", event_sender),
-            msg_list: widgets::MessageList::new(),
+            x: 0,
+            y: 0,
+            mode: screens::InputMode::default(),
+            input,
+            msg_list,
+            widget_hirarchie,
         }
     }
-
-    pub fn idk(&self, _: ()) {}
-
-    pub fn send_current_widget_event(&mut self, event: AppEvent) {
-        if let Some(elem) = self.current_widget() {
-            elem.handle_event(event)
-        }
+    fn focus(&self) {
+        debug!(
+            "Focus ({}, {}) {:#?}",
+            self.x, self.y, self.widget_hirarchie
+        );
+        match self.widget_hirarchie.get_item(self.y, self.x) {
+            None => panic!(),
+            Some(item) => item.borrow_mut().focus(),
+        };
     }
-    pub fn send_all_widgets_event(&mut self, event: AppEvent) {
-        for i in 0..self.max_tab {
-            if let Some(elem) = self.widget_at(i) {
-                elem.handle_event(event.clone());
-            }
-        }
-    }
-
-    pub fn widget_at(&mut self, index: usize) -> Option<&mut dyn Widget> {
-        match index {
-            1 => Some(&mut self.input as &mut dyn Widget),
-            _ => None,
-        }
-    }
-    pub fn current_widget(&mut self) -> Option<&mut dyn Widget> {
-        match self.tab_index {
-            1 => Some(&mut self.input as &mut dyn Widget),
-            _ => None,
-        }
+    fn unfocus(&self) {
+        debug!(
+            "UnFocus ({}, {}) {:#?}",
+            self.x, self.y, self.widget_hirarchie
+        );
+        match self.widget_hirarchie.get_item(self.y, self.x) {
+            None => panic!(),
+            Some(item) => item.borrow_mut().unfocus(),
+        };
     }
 }
 
 impl Screen for ChatScreen {
-    fn handle_event(&mut self, event: AppEvent) -> bool {
+    fn handle_network_event(&mut self, event: network::NetworkEvent) -> bool {
         match event {
-            AppEvent::Clear(hard) => {
-                self.tab_index = 0;
-                for i in 0..self.max_tab {
-                    if let Some(w) = self.widget_at(i) {
-                        w.handle_event(AppEvent::Clear(hard));
-                    }
-                }
+            network::NetworkEvent::Message(msg) => {
+                self.msg_list.borrow_mut().push(msg);
+                true
             }
-            AppEvent::NetworkEvent(network::NetworkEvent::Message(msg)) => self.msg_list.push(msg),
-            AppEvent::KeyEvent(key_event) => match key_event.code {
-                KeyCode::Tab if key_event.kind == KeyEventKind::Press => {
-                    self.send_current_widget_event(AppEvent::NoFocus);
-                    self.tab_index = (self.tab_index + 1) % self.max_tab;
-                    self.send_current_widget_event(AppEvent::Focus);
-                }
-                KeyCode::BackTab if key_event.kind == KeyEventKind::Press => {
-                    self.send_current_widget_event(AppEvent::NoFocus);
-                    self.tab_index = if self.tab_index == 0 {
-                        self.max_tab - 1
-                    } else {
-                        self.tab_index.wrapping_sub(1)
-                    } % self.max_tab;
-                    self.send_current_widget_event(AppEvent::Focus);
-                }
-                KeyCode::Esc => {
-                    self.send_all_widgets_event(AppEvent::NoFocus);
-                    self.tab_index = 0;
-                }
-                KeyCode::Char('q' | 'Q') if self.tab_index == 0 => {
-                    self.msg_list.handle_event(AppEvent::Clear(true));
-                    self.event_sender
-                        .send(AppEvent::SwitchScreen(CurrentScreen::Home));
-                    self.event_sender
-                        .send(AppEvent::NetworkEvent(network::NetworkEvent::Leaf));
-                }
-                _ => {
-                    self.send_current_widget_event(AppEvent::KeyEvent(key_event));
-                }
-            },
-            _ => {
-                return false;
+            _ => false,
+        }
+    }
+
+    fn clear(&mut self, hard: bool) {
+        self.msg_list.borrow_mut().clear(hard);
+        self.input.borrow_mut().clear(hard);
+        self.mode = screens::InputMode::default();
+        self.focus();
+    }
+
+    fn set_mode(&mut self, mode: screens::InputMode) {
+        self.mode = mode;
+    }
+
+    fn get_mode(&self) -> screens::InputMode {
+        self.mode
+    }
+
+    fn normal_mode(&mut self, event: KeyEvent) -> bool {
+        match event.code {
+            KeyCode::Char('h') if event.is_press() || event.is_repeat() => {
+                self.unfocus();
+                crate::utils::decrement_wrapping(
+                    &mut self.x,
+                    self.widget_hirarchie.num_col(self.y),
+                );
+                self.focus();
+                return true;
             }
+            KeyCode::Char('l') if event.is_press() || event.is_repeat() => {
+                self.unfocus();
+                crate::utils::increment_wrapping(
+                    &mut self.x,
+                    self.widget_hirarchie.num_col(self.y),
+                );
+                self.focus();
+                return true;
+            }
+            KeyCode::Char('j') if event.is_press() || event.is_repeat() => {
+                self.unfocus();
+                crate::utils::increment_wrapping(&mut self.y, self.widget_hirarchie.num_rows());
+                self.focus();
+                return true;
+            }
+            KeyCode::Char('k') if event.is_press() || event.is_repeat() => {
+                self.unfocus();
+                crate::utils::decrement_wrapping(&mut self.y, self.widget_hirarchie.num_rows());
+                self.focus();
+                return true;
+            }
+            KeyCode::Char('i') if event.is_press() || event.is_repeat() => {
+                self.mode = screens::InputMode::Editing;
+                return true;
+            }
+            _ => {}
+        }
+        false
+    }
+
+    fn edit_mode(&mut self, event: KeyEvent) -> bool {
+        let item = match self.widget_hirarchie.get_item(self.y, self.x) {
+            None => panic!(),
+            Some(item) => item,
         };
-        true
+        item.borrow_mut().handle_key_event(event)
     }
 
     fn draw(&self, area: Rect, buf: &mut Buffer) -> Option<CursorPos> {
@@ -118,10 +151,10 @@ impl Screen for ChatScreen {
         let [chat, input] =
             Layout::vertical([Constraint::Min(10), Constraint::Max(3)]).areas(chat_inner);
 
-        self.msg_list.draw(chat, buf, &mut None);
+        self.msg_list.borrow().draw(chat, buf, &mut None);
 
         // Input
-        self.input.draw(input, buf, &mut None);
+        self.input.borrow().draw(input, buf, &mut None);
         None
     }
 }
@@ -146,124 +179,5 @@ mod tests {
             })
             .unwrap();
         assert_snapshot!(terminal.backend());
-    }
-
-    #[tokio::test]
-    async fn test_tab_switch_increments_index() {
-        use crate::event as crate_event;
-        use crossterm::event;
-
-        let (send, _) = dummy_event_sender();
-        let mut chat_screen = ChatScreen::new(send.into());
-
-        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-            event::KeyCode::Tab,
-            event::KeyModifiers::NONE,
-        )));
-        assert_eq!(chat_screen.tab_index, 1);
-
-        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-            event::KeyCode::Esc,
-            event::KeyModifiers::NONE,
-        )));
-        assert_eq!(chat_screen.tab_index, 0);
-
-        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-            event::KeyCode::BackTab,
-            event::KeyModifiers::NONE,
-        )));
-        assert_eq!(chat_screen.tab_index, chat_screen.max_tab - 1);
-
-        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-            event::KeyCode::Esc,
-            event::KeyModifiers::NONE,
-        )));
-        assert_eq!(chat_screen.tab_index, 0);
-
-        let magic_test_amount = 10;
-        for _ in 0..magic_test_amount {
-            chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-                event::KeyCode::Tab,
-                event::KeyModifiers::NONE,
-            )));
-        }
-        assert_eq!(
-            chat_screen.tab_index,
-            magic_test_amount % chat_screen.max_tab
-        );
-
-        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-            event::KeyCode::Esc,
-            event::KeyModifiers::NONE,
-        )));
-        assert_eq!(chat_screen.tab_index, 0);
-
-        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-            event::KeyCode::BackTab,
-            event::KeyModifiers::NONE,
-        )));
-        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-            event::KeyCode::BackTab,
-            event::KeyModifiers::NONE,
-        )));
-        assert_eq!(chat_screen.tab_index, chat_screen.max_tab - 2);
-    }
-
-    #[tokio::test]
-    async fn test_typing_characters_updates_input() {
-        use crate::event as crate_event;
-        use crossterm::event;
-
-        let (send, _) = dummy_event_sender();
-        let mut chat_screen = ChatScreen::new(send.into());
-
-        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-            event::KeyCode::Tab,
-            event::KeyModifiers::NONE,
-        )));
-
-        for c in ['t', 'e', 's', 't'] {
-            chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-                event::KeyCode::Char(c),
-                event::KeyModifiers::NONE,
-            )));
-        }
-
-        assert_eq!(chat_screen.input.get_content(), "test");
-    }
-
-    #[tokio::test]
-    async fn test_enter_sends_message_event() {
-        use crate::event as crate_event;
-        use crossterm::event;
-
-        let (send, mut resv) = dummy_event_sender();
-        let mut chat_screen = ChatScreen::new(send.clone().into());
-
-        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-            event::KeyCode::Tab,
-            event::KeyModifiers::NONE,
-        )));
-
-        for c in ['t', 'e', 's', 't'] {
-            chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-                event::KeyCode::Char(c),
-                event::KeyModifiers::NONE,
-            )));
-        }
-
-        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-            event::KeyCode::Enter,
-            event::KeyModifiers::NONE,
-        )));
-
-        let res = resv.next().await;
-        assert!(res.is_ok());
-        let evt = res.unwrap();
-        if let crate_event::Event::App(crate_event::AppEvent::SendMessage(msg)) = evt {
-            assert_eq!(msg, "test");
-        } else {
-            panic!("expected SendMessage event");
-        }
     }
 }

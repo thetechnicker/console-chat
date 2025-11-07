@@ -1,117 +1,176 @@
 use crate::DEFAULT_BORDER;
-use crate::event::{AppEvent, AppEventSender};
-use crate::screens::{CursorPos, Screen};
+use crate::event::AppEventSender;
+use crate::screens::{self, CursorPos, Screen};
 use crate::widgets;
 use crate::widgets::Widget;
-use crossterm::event::{KeyCode, KeyEventKind};
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Layout, Rect},
     widgets::{Block, Widget as UiWidget},
 };
 use serde_json;
+use std::cell::RefCell;
+use std::rc::Rc;
+use tracing::debug;
 
 #[derive(Debug)]
 pub struct HomeScreen {
-    pub tab_index: usize,
-    pub max_tab: usize,
-    pub event_sender: AppEventSender,
-    pub room_input: widgets::InputWidget,
-    pub join_button: widgets::Button,
-    pub logout_button: widgets::Button,
-    pub exit_button: widgets::Button,
+    mode: screens::InputMode,
+    room_input: Rc<RefCell<widgets::InputWidget>>,
+    join_button: Rc<RefCell<widgets::Button>>,
+    logout_button: Rc<RefCell<widgets::Button>>,
+    exit_button: Rc<RefCell<widgets::Button>>,
+
+    widget_hirarchie: screens::WidgetElement,
+    buttons: screens::WidgetElement,
+
+    x: usize,
+    y: usize,
 }
 
 impl HomeScreen {
     pub fn new(event_sender: AppEventSender) -> Self {
-        Self {
-            tab_index: 0,
-            max_tab: 5,
-            event_sender: event_sender.clone(),
-            room_input: widgets::InputWidget::new("Room", "JOIN", event_sender.clone()),
-            join_button: widgets::Button::new("Join Room", event_sender.clone(), 'j', "JOIN")
+        let room_input = Rc::new(RefCell::new(widgets::InputWidget::new(
+            "Room",
+            "JOIN",
+            event_sender.clone(),
+        )));
+        let join_button = Rc::new(RefCell::new(
+            widgets::Button::new("Join Room", event_sender.clone(), 'o', "JOIN")
                 .theme(widgets::GREEN),
-            logout_button: widgets::Button::new("Logout", event_sender.clone(), 'l', "LOGOUT")
+        ));
+        let logout_button = Rc::new(RefCell::new(
+            widgets::Button::new("Logout", event_sender.clone(), 'u', "LOGOUT")
                 .theme(widgets::BLUE),
-            exit_button: widgets::Button::new("Exit", event_sender.clone(), 'q', "QUIT")
-                .theme(widgets::RED),
-        }
-    }
-    pub fn send_current_widget_event(&mut self, event: AppEvent) {
-        if let Some(elem) = self.current_widget() {
-            elem.handle_event(event)
-        }
-    }
-    pub fn send_all_widgets_event(&mut self, event: AppEvent) {
-        for i in 0..self.max_tab {
-            if let Some(elem) = self.widget_at(i) {
-                elem.handle_event(event.clone());
-            }
-        }
-    }
+        ));
+        let exit_button = Rc::new(RefCell::new(
+            widgets::Button::new("Exit", event_sender.clone(), 'q', "QUIT").theme(widgets::RED),
+        ));
 
-    pub fn widget_at(&mut self, index: usize) -> Option<&mut dyn Widget> {
-        match index {
-            1 => Some(&mut self.room_input as &mut dyn Widget),
-            2 => Some(&mut self.join_button as &mut dyn Widget),
-            3 => Some(&mut self.logout_button as &mut dyn Widget),
-            4 => Some(&mut self.exit_button as &mut dyn Widget),
-            _ => None,
+        let buttons = screens::WidgetElement::Collection(Rc::new([
+            screens::WidgetElement::Item(join_button.clone()),
+            screens::WidgetElement::Item(logout_button.clone()),
+            screens::WidgetElement::Item(exit_button.clone()),
+        ]));
+
+        let widget_hirarchie = screens::WidgetElement::Collection(Rc::new([
+            screens::WidgetElement::Item(room_input.clone()),
+            screens::WidgetElement::Collection(Rc::new([
+                screens::WidgetElement::Item(join_button.clone()),
+                screens::WidgetElement::Item(logout_button.clone()),
+            ])),
+            screens::WidgetElement::Item(exit_button.clone()),
+        ]));
+
+        Self {
+            mode: screens::InputMode::default(),
+            x: 0,
+            y: 0,
+            room_input,
+            logout_button,
+            join_button,
+            exit_button,
+            widget_hirarchie,
+            buttons,
         }
     }
-    pub fn current_widget(&mut self) -> Option<&mut dyn Widget> {
-        self.widget_at(self.tab_index)
+    fn focus(&self) {
+        debug!(
+            "Focus ({}, {}) {:#?}",
+            self.x, self.y, self.widget_hirarchie
+        );
+        match self.widget_hirarchie.get_item(self.y, self.x) {
+            None => panic!(),
+            Some(item) => item.borrow_mut().focus(),
+        };
+    }
+    fn unfocus(&self) {
+        debug!(
+            "UnFocus ({}, {}) {:#?}",
+            self.x, self.y, self.widget_hirarchie
+        );
+        match self.widget_hirarchie.get_item(self.y, self.x) {
+            None => panic!(),
+            Some(item) => item.borrow_mut().unfocus(),
+        };
     }
 }
 
 impl Screen for HomeScreen {
-    fn handle_event(&mut self, event: AppEvent) -> bool {
-        match event {
-            AppEvent::FocusItem(i) => {
-                if 0 < i && i < self.max_tab {
-                    self.tab_index = i;
-                }
+    fn get_data(&self) -> serde_json::Value {
+        serde_json::json!(self.room_input.borrow().get_content())
+    }
+
+    fn clear(&mut self, hard: bool) {
+        for w in self.widget_hirarchie.iter() {
+            w.borrow_mut().clear(hard);
+        }
+        self.mode = screens::InputMode::default();
+        self.focus();
+    }
+
+    fn set_mode(&mut self, mode: screens::InputMode) {
+        self.mode = mode;
+    }
+
+    fn get_mode(&self) -> screens::InputMode {
+        self.mode
+    }
+
+    fn normal_mode(&mut self, event: KeyEvent) -> bool {
+        match event.code {
+            KeyCode::Char('h') if event.is_press() || event.is_repeat() => {
+                self.unfocus();
+                crate::utils::decrement_wrapping(
+                    &mut self.x,
+                    self.widget_hirarchie.num_col(self.y),
+                );
+                self.focus();
+                return true;
             }
-            AppEvent::Clear(hard) => {
-                self.tab_index = 0;
-                for i in 0..self.max_tab {
-                    if let Some(w) = self.widget_at(i) {
-                        w.handle_event(AppEvent::Clear(hard));
+            KeyCode::Char('l') if event.is_press() || event.is_repeat() => {
+                self.unfocus();
+                crate::utils::increment_wrapping(
+                    &mut self.x,
+                    self.widget_hirarchie.num_col(self.y),
+                );
+                self.focus();
+                return true;
+            }
+            KeyCode::Char('j') if event.is_press() || event.is_repeat() => {
+                self.unfocus();
+                crate::utils::increment_wrapping(&mut self.y, self.widget_hirarchie.num_rows());
+                self.focus();
+                return true;
+            }
+            KeyCode::Char('k') if event.is_press() || event.is_repeat() => {
+                self.unfocus();
+                crate::utils::decrement_wrapping(&mut self.y, self.widget_hirarchie.num_rows());
+                self.focus();
+                return true;
+            }
+            KeyCode::Char('i') if event.is_press() || event.is_repeat() => {
+                self.mode = screens::InputMode::Editing;
+                return true;
+            }
+            _ => {
+                for button in self.buttons.iter() {
+                    if button.borrow_mut().handle_key_event(event.clone()) {
+                        return true;
                     }
                 }
             }
-            AppEvent::KeyEvent(key_event) => match key_event.code {
-                KeyCode::Tab if key_event.kind == KeyEventKind::Press => {
-                    self.send_current_widget_event(AppEvent::NoFocus);
-                    self.tab_index = (self.tab_index.wrapping_add(1)) % self.max_tab;
-                    self.send_current_widget_event(AppEvent::Focus);
-                }
-                KeyCode::BackTab if key_event.kind == KeyEventKind::Press => {
-                    self.send_current_widget_event(AppEvent::NoFocus);
-                    self.tab_index = if self.tab_index == 0 {
-                        self.max_tab - 1
-                    } else {
-                        self.tab_index.wrapping_sub(1)
-                    } % self.max_tab;
-                    self.send_current_widget_event(AppEvent::Focus);
-                }
-                KeyCode::Esc => {
-                    self.send_all_widgets_event(AppEvent::NoFocus);
-                    self.tab_index = 0;
-                }
-                _ => {
-                    self.send_current_widget_event(AppEvent::KeyEvent(key_event));
-                }
-            },
-            _ => {
-                return false;
-            }
-        };
-        true
+        }
+        false
     }
 
-    fn get_data(&self) -> serde_json::Value {
-        serde_json::json!(self.room_input.get_content())
+    fn edit_mode(&mut self, event: KeyEvent) -> bool {
+        let item = match self.widget_hirarchie.get_item(self.y, self.x) {
+            None => panic!(),
+            Some(item) => item,
+        };
+        item.borrow_mut().handle_key_event(event)
     }
 
     fn draw(&self, area: Rect, buf: &mut Buffer) -> Option<CursorPos> {
@@ -139,17 +198,32 @@ impl Screen for HomeScreen {
         .areas(input_area);
 
         // User Input
-        self.room_input.draw(user_input, buf, &mut None);
+        let mut u_x: Option<u16> = None;
+        self.room_input.borrow().draw(user_input, buf, &mut u_x);
 
         // Buttons
         let x = 50;
         let [join_area, logout_area] =
             Layout::horizontal([Constraint::Percentage(x), Constraint::Percentage(x)])
                 .areas(buttons1);
-        self.join_button.draw(join_area, buf, &mut None);
-        self.logout_button.draw(logout_area, buf, &mut None);
-        self.exit_button.draw(buttons2, buf, &mut None);
-        None
+        self.join_button.borrow().draw(join_area, buf, &mut None);
+        self.logout_button
+            .borrow()
+            .draw(logout_area, buf, &mut None);
+        self.exit_button.borrow().draw(buttons2, buf, &mut None);
+
+        return if self.mode == screens::InputMode::Editing {
+            if let Some(x) = u_x {
+                Some(CursorPos {
+                    x: x + user_input.x,
+                    y: user_input.y + 1_u16,
+                })
+            } else {
+                None
+            }
+        } else {
+            None
+        };
     }
 }
 
@@ -173,65 +247,5 @@ mod tests {
             })
             .unwrap();
         assert_snapshot!(terminal.backend());
-    }
-    #[tokio::test]
-    async fn test_tab_switch_increments_index() {
-        use crate::event as crate_event;
-        use crossterm::event;
-
-        let (send, _) = dummy_event_sender();
-        let mut chat_screen = HomeScreen::new(send.into());
-
-        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-            event::KeyCode::Tab,
-            event::KeyModifiers::NONE,
-        )));
-        assert_eq!(chat_screen.tab_index, 1);
-
-        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-            event::KeyCode::Esc,
-            event::KeyModifiers::NONE,
-        )));
-        assert_eq!(chat_screen.tab_index, 0);
-
-        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-            event::KeyCode::BackTab,
-            event::KeyModifiers::NONE,
-        )));
-        assert_eq!(chat_screen.tab_index, chat_screen.max_tab - 1);
-
-        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-            event::KeyCode::Esc,
-            event::KeyModifiers::NONE,
-        )));
-        assert_eq!(chat_screen.tab_index, 0);
-
-        let magic_test_amount = 10;
-        for _ in 0..magic_test_amount {
-            chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-                event::KeyCode::Tab,
-                event::KeyModifiers::NONE,
-            )));
-        }
-        assert_eq!(
-            chat_screen.tab_index,
-            magic_test_amount % chat_screen.max_tab
-        );
-
-        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-            event::KeyCode::Esc,
-            event::KeyModifiers::NONE,
-        )));
-        assert_eq!(chat_screen.tab_index, 0);
-
-        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-            event::KeyCode::BackTab,
-            event::KeyModifiers::NONE,
-        )));
-        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-            event::KeyCode::BackTab,
-            event::KeyModifiers::NONE,
-        )));
-        assert_eq!(chat_screen.tab_index, chat_screen.max_tab - 2);
     }
 }

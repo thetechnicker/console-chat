@@ -16,8 +16,7 @@ use tracing::debug;
 
 #[derive(Debug)]
 pub struct LoginScreen {
-    event_sender: AppEventSender,
-
+    //event_sender: AppEventSender,
     mode: screens::InputMode,
 
     user_input: Rc<RefCell<widgets::InputWidget>>,
@@ -78,7 +77,7 @@ impl LoginScreen {
         Self {
             x: 0,
             y: 0,
-            event_sender: event_sender.clone(),
+            // event_sender: event_sender.clone(),
             mode: screens::InputMode::default(),
             user_input,
             pwd_input,
@@ -113,10 +112,20 @@ impl LoginScreen {
 }
 
 impl Screen for LoginScreen {
-    fn clear(&mut self, _: bool) {}
+    fn clear(&mut self, hard: bool) {
+        for w in self.widget_hirarchie.iter() {
+            w.borrow_mut().clear(hard);
+        }
+        self.mode = screens::InputMode::default();
+        self.focus();
+    }
 
     fn get_mode(&self) -> screens::InputMode {
         self.mode
+    }
+
+    fn set_mode(&mut self, mode: screens::InputMode) {
+        self.mode = mode;
     }
 
     fn get_data(&self) -> serde_json::Value {
@@ -225,17 +234,21 @@ impl Screen for LoginScreen {
             .draw(anonym_area, buf, &mut None);
         self.exit_button.borrow().draw(idk, buf, &mut None);
 
-        if let Some(x) = u_x {
-            Some(CursorPos {
-                x: x + user_input.x,
-                y: user_input.y + 1_u16,
-            })
+        return if self.mode == screens::InputMode::Editing {
+            if let Some(x) = u_x {
+                Some(CursorPos {
+                    x: x + user_input.x,
+                    y: user_input.y + 1_u16,
+                })
+            } else {
+                p_x.map(|x| CursorPos {
+                    x: x + pwd_input.x,
+                    y: pwd_input.y + 1_u16,
+                })
+            }
         } else {
-            p_x.map(|x| CursorPos {
-                x: x + pwd_input.x,
-                y: pwd_input.y + 1_u16,
-            })
-        }
+            None
+        };
     }
 }
 #[cfg(test)]
@@ -259,66 +272,4 @@ mod tests {
             .unwrap();
         assert_snapshot!(terminal.backend());
     }
-    /*
-    #[tokio::test]
-    async fn test_tab_switch_increments_index() {
-        use crate::event as crate_event;
-        use crossterm::event;
-
-        let (send, _) = dummy_event_sender();
-        let mut chat_screen = LoginScreen::new(send.into());
-
-        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-            event::KeyCode::Tab,
-            event::KeyModifiers::NONE,
-        )));
-        assert_eq!(chat_screen.tab_index, 1);
-
-        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-            event::KeyCode::Esc,
-            event::KeyModifiers::NONE,
-        )));
-        assert_eq!(chat_screen.tab_index, 0);
-
-        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-            event::KeyCode::BackTab,
-            event::KeyModifiers::NONE,
-        )));
-        assert_eq!(chat_screen.tab_index, chat_screen.max_tab - 1);
-
-        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-            event::KeyCode::Esc,
-            event::KeyModifiers::NONE,
-        )));
-        assert_eq!(chat_screen.tab_index, 0);
-
-        let magic_test_amount = 10;
-        for _ in 0..magic_test_amount {
-            chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-                event::KeyCode::Tab,
-                event::KeyModifiers::NONE,
-            )));
-        }
-        assert_eq!(
-            chat_screen.tab_index,
-            magic_test_amount % chat_screen.max_tab
-        );
-
-        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-            event::KeyCode::Esc,
-            event::KeyModifiers::NONE,
-        )));
-        assert_eq!(chat_screen.tab_index, 0);
-
-        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-            event::KeyCode::BackTab,
-            event::KeyModifiers::NONE,
-        )));
-        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-            event::KeyCode::BackTab,
-            event::KeyModifiers::NONE,
-        )));
-        assert_eq!(chat_screen.tab_index, chat_screen.max_tab - 2);
-    }
-    */
 }

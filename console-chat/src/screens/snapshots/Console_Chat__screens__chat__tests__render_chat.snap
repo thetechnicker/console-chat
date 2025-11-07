@@ -3,7 +3,7 @@ source: src/screens/chat.rs
 expression: terminal.backend()
 ---
 "╔══════════════════════════════════════════════════════════════════════════════╗"
-"║                                  TODO List                                   ║"
+"║                                                                              ║"
 "║                                                                              ║"
 "║                                                                              ║"
 "║                                                                              ║"

@@ -1,6 +1,7 @@
 use crate::event::AppEvent;
 use crate::network::NetworkEvent;
 pub use crate::widgets::widget_hirarchie::*;
+use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
 use ratatui::{buffer::Buffer, layout::Rect};
 use std::fmt::Debug;
@@ -30,11 +31,17 @@ pub struct CursorPos {
 pub trait Screen: Debug {
     fn handle_event(&mut self, event: AppEvent) -> bool {
         match event {
-            AppEvent::KeyEvent(key_event) => match self.get_mode() {
-                InputMode::Normal => self.normal_mode(key_event),
-                InputMode::Editing => self.edit_mode(key_event),
-                InputMode::Select => self.select_mode(key_event),
-            },
+            AppEvent::KeyEvent(key_event) => {
+                if let KeyCode::Esc = key_event.code {
+                    self.set_mode(InputMode::Normal);
+                    return true;
+                }
+                match self.get_mode() {
+                    InputMode::Normal => self.normal_mode(key_event),
+                    InputMode::Editing => self.edit_mode(key_event),
+                    InputMode::Select => self.select_mode(key_event),
+                }
+            }
             AppEvent::NetworkEvent(network_event) => self.handle_network_event(network_event),
             AppEvent::Clear(hard) => {
                 self.clear(hard);
@@ -59,6 +66,7 @@ pub trait Screen: Debug {
     }
 
     fn get_mode(&self) -> InputMode;
+    fn set_mode(&mut self, mode: InputMode);
 
     fn get_data(&self) -> serde_json::Value {
         serde_json::Value::Null
@@ -69,9 +77,7 @@ pub trait Screen: Debug {
 
 pub mod login;
 pub use login::*;
-/*
-pub mod chat;
-pub use chat::*;
 pub mod home;
 pub use home::*;
-*/
+pub mod chat;
+pub use chat::*;
