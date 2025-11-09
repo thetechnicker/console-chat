@@ -3,6 +3,7 @@ use crate::screens::CurrentScreen;
 use color_eyre::eyre::OptionExt;
 use crossterm::event::{Event as CrosstermEvent, KeyCode, KeyEvent, KeyModifiers};
 use futures::{FutureExt, StreamExt};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
 
@@ -57,7 +58,7 @@ pub enum AppEvent {
 
     KeyEvent(KeyEvent),
 
-    OnWidgetEnter(String, Option<String>),
+    OnWidgetEnter(String, Option<Arc<[String]>>),
 
     SwitchScreen(CurrentScreen),
 

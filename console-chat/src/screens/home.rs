@@ -37,15 +37,13 @@ impl HomeScreen {
             event_sender.clone(),
         )));
         let join_button = Rc::new(RefCell::new(
-            widgets::Button::new("Join Room", event_sender.clone(), 'o', "JOIN")
-                .theme(widgets::GREEN),
+            widgets::Button::new("Join Room", 'o', "JOIN").theme(widgets::GREEN),
         ));
         let logout_button = Rc::new(RefCell::new(
-            widgets::Button::new("Logout", event_sender.clone(), 'u', "LOGOUT")
-                .theme(widgets::BLUE),
+            widgets::Button::new("Logout", 'u', "LOGOUT").theme(widgets::BLUE),
         ));
         let exit_button = Rc::new(RefCell::new(
-            widgets::Button::new("Exit", event_sender.clone(), 'q', "QUIT").theme(widgets::RED),
+            widgets::Button::new("Exit", 'q', "QUIT").theme(widgets::RED),
         ));
 
         let buttons = screens::WidgetElement::Collection(Rc::new([

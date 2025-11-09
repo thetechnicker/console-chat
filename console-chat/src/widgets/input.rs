@@ -1,6 +1,4 @@
-use crate::event::AppEvent;
-use crate::event::AppEventSender;
-use crate::widgets::Widget;
+use crate::widgets::{self, Widget};
 use crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::{
     buffer::Buffer,
@@ -31,20 +29,18 @@ pub struct InputWidget {
     input_type: InputType,
     input_mode: InputMode,
     input: Input,
-    event_sender: AppEventSender,
     on_enter_id: Option<String>,
     clear_on_enter: bool,
 }
 
 impl InputWidget {
-    pub fn new(titel: &str, on_enter: &str, event_sender: AppEventSender) -> Self {
+    pub fn new(titel: &str, on_enter: &str) -> Self {
         Self {
             titel: String::from(titel),
             input_type: InputType::Text,
             input_mode: InputMode::default(),
             input: Input::default(),
             on_enter_id: Some(on_enter.to_uppercase().to_owned()),
-            event_sender: event_sender,
             clear_on_enter: false,
         }
     }
@@ -87,25 +83,21 @@ impl Widget for InputWidget {
         self.stop_editing();
     }
 
-    fn handle_key_event(&mut self, key_event: KeyEvent) -> bool {
-        match self.input_mode {
-            InputMode::Normal => false,
-            InputMode::Editing => {
-                if KeyCode::Enter == key_event.code && key_event.is_press() {
-                    if let Some(event_id) = self.on_enter_id.as_ref() {
-                        self.event_sender.send(AppEvent::OnWidgetEnter(
-                            event_id.to_string(),
-                            Some(self.get_content()),
-                        ));
-                        if self.clear_on_enter {
-                            self.input.reset();
-                        }
-                    }
+    fn handle_key_event(&mut self, key_event: KeyEvent) -> Option<widgets::WidgetEvent> {
+        if KeyCode::Enter == key_event.code && key_event.is_press() {
+            if let Some(event_id) = self.on_enter_id.as_ref() {
+                let content = self.get_content().clone();
+                if self.clear_on_enter {
+                    self.input.reset();
                 }
-                self.input.handle_event(&Event::Key(key_event));
-                true
+                return Some(widgets::WidgetEvent::Input((
+                    event_id.to_string(),
+                    Some(content),
+                )));
             }
         }
+        self.input.handle_event(&Event::Key(key_event));
+        None
     }
 
     fn draw(&self, area: Rect, buf: &mut Buffer, ret: &mut Option<u16>) {

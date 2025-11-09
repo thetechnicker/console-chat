@@ -27,8 +27,8 @@ pub struct App {
     current_screen: screens::CurrentScreen,
 
     login_screen: screens::LoginScreen,
-    home_screen: screens::HomeScreen,
-    chat_screen: screens::ChatScreen,
+    //home_screen: screens::HomeScreen,
+    //chat_screen: screens::ChatScreen,
     exit_time: Option<std::time::Instant>,
     api: network::client::ApiClient,
 
@@ -60,8 +60,8 @@ impl App {
             events: event_handler,
             current_screen: screens::CurrentScreen::default(),
             login_screen: screens::LoginScreen::new(event_sender.clone().into()),
-            home_screen: screens::HomeScreen::new(event_sender.clone().into()),
-            chat_screen: screens::ChatScreen::new(event_sender.clone().into()),
+            //home_screen: screens::HomeScreen::new(event_sender.clone().into()),
+            //chat_screen: screens::ChatScreen::new(event_sender.clone().into()),
             exit_time: None,
             api,
             error_box: None,
@@ -149,6 +149,7 @@ impl App {
                                         screens::CurrentScreen::Login,
                                     ));
                                 }
+                                /*
                                 "JOIN" => {
                                     let room_val = self.home_screen.get_data();
                                     if let Some(room) = room_val.as_str() {
@@ -166,13 +167,14 @@ impl App {
                                         }
                                     }
                                 }
+                                */
                                 "QUIT" => {
                                     self.events.send(AppEvent::Quit);
                                 }
                                 "SEND_MSG" => {
                                     if let Some(msg) = content {
-                                        debug!("Sending: {}", msg);
-                                        if let Err(e) = self.api.send_txt(&msg).await {
+                                        debug!("Sending: {:?}", msg);
+                                        if let Err(e) = self.api.send_txt(&msg[0]).await {
                                             self.handle_network_error(e)
                                         }
                                     }
@@ -326,9 +328,9 @@ impl App {
     pub fn get_current_screen(&self) -> Option<&dyn screens::Screen> {
         match self.current_screen {
             screens::CurrentScreen::Login => Some(&self.login_screen as &dyn screens::Screen),
-            screens::CurrentScreen::Home => Some(&self.home_screen as &dyn screens::Screen),
-            screens::CurrentScreen::Chat => Some(&self.chat_screen as &dyn screens::Screen),
-            //_ => None,
+            //screens::CurrentScreen::Home => Some(&self.home_screen as &dyn screens::Screen),
+            //screens::CurrentScreen::Chat => Some(&self.chat_screen as &dyn screens::Screen),
+            _ => None,
         }
     }
     pub fn get_current_screen_mut(&mut self) -> Option<&mut dyn screens::Screen> {
@@ -336,9 +338,9 @@ impl App {
             screens::CurrentScreen::Login => {
                 Some(&mut self.login_screen as &mut dyn screens::Screen)
             }
-            screens::CurrentScreen::Home => Some(&mut self.home_screen as &mut dyn screens::Screen),
-            screens::CurrentScreen::Chat => Some(&mut self.chat_screen as &mut dyn screens::Screen),
-            //_ => None,
+            //screens::CurrentScreen::Home => Some(&mut self.home_screen as &mut dyn screens::Screen),
+            //screens::CurrentScreen::Chat => Some(&mut self.chat_screen as &mut dyn screens::Screen),
+            _ => None,
         }
     }
 

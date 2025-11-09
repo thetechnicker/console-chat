@@ -1,4 +1,5 @@
 use crate::DEFAULT_BORDER;
+use crate::event::AppEvent;
 use crate::event::AppEventSender;
 use crate::screens::{self, CursorPos, Screen};
 use crate::widgets;
@@ -16,7 +17,7 @@ use tracing::debug;
 
 #[derive(Debug)]
 pub struct LoginScreen {
-    //event_sender: AppEventSender,
+    event_sender: AppEventSender,
     mode: screens::InputMode,
 
     user_input: Rc<RefCell<widgets::InputWidget>>,
@@ -35,9 +36,7 @@ pub struct LoginScreen {
 impl LoginScreen {
     pub fn new(event_sender: AppEventSender) -> Self {
         let user_input = Rc::new(RefCell::new(widgets::InputWidget::new(
-            "Username",
-            "USERNAME",
-            event_sender.clone().into(),
+            "Username", "USERNAME",
         )));
 
         {
@@ -45,17 +44,16 @@ impl LoginScreen {
         }
 
         let pwd_input = Rc::new(RefCell::new(
-            widgets::InputWidget::new("Password", "LOGIN", event_sender.clone().into()).password(),
+            widgets::InputWidget::new("Password", "LOGIN").password(),
         ));
         let join_button = Rc::new(RefCell::new(
-            widgets::Button::new("Login", event_sender.clone(), 'i', "LOGIN").theme(widgets::BLUE),
+            widgets::Button::new("Login", 'i', "LOGIN").theme(widgets::BLUE),
         ));
         let join_anonym_button = Rc::new(RefCell::new(
-            widgets::Button::new("Anonym", event_sender.clone(), 'a', "LOGIN_ANONYM")
-                .theme(widgets::GREEN),
+            widgets::Button::new("Anonym", 'a', "LOGIN_ANONYM").theme(widgets::GREEN),
         ));
         let exit_button = Rc::new(RefCell::new(
-            widgets::Button::new("Exit", event_sender.clone(), 'q', "QUIT").theme(widgets::RED),
+            widgets::Button::new("Exit", 'q', "QUIT").theme(widgets::RED),
         ));
 
         let buttons = screens::WidgetElement::Collection(Rc::new([
@@ -77,7 +75,7 @@ impl LoginScreen {
         Self {
             x: 0,
             y: 0,
-            // event_sender: event_sender.clone(),
+            event_sender: event_sender,
             mode: screens::InputMode::default(),
             user_input,
             pwd_input,
@@ -108,6 +106,21 @@ impl LoginScreen {
             None => panic!(),
             Some(item) => item.borrow_mut().unfocus(),
         };
+    }
+
+    fn handle_widget_event(&mut self, command: String, _: Option<String>) {
+        match command.to_uppercase().as_str() {
+            "QUIT" => self.event_sender.send(AppEvent::Quit),
+            "LOGIN_ANONYM" | "LOGIN" => self
+                .event_sender
+                .send(AppEvent::OnWidgetEnter(command.clone(), None)),
+            "USERNAME" => {
+                self.unfocus();
+                crate::utils::increment_wrapping(&mut self.y, self.widget_hirarchie.num_rows());
+                self.focus();
+            }
+            _ => {}
+        }
     }
 }
 
@@ -173,7 +186,14 @@ impl Screen for LoginScreen {
             }
             _ => {
                 for button in self.buttons.iter() {
-                    if button.borrow_mut().handle_key_event(event.clone()) {
+                    let mut command: Option<String> = None;
+                    if let Some(widgets::WidgetEvent::Button(event)) =
+                        button.borrow_mut().handle_key_event(event.clone())
+                    {
+                        command = Some(event.clone());
+                    }
+                    if let Some(event) = command {
+                        self.handle_widget_event(event, None);
                         return true;
                     }
                 }
@@ -187,7 +207,16 @@ impl Screen for LoginScreen {
             None => panic!(),
             Some(item) => item,
         };
-        item.borrow_mut().handle_key_event(event)
+        let w_event = item.borrow_mut().handle_key_event(event);
+        if let Some(w_event) = w_event {
+            match w_event {
+                widgets::WidgetEvent::Button(command) => self.handle_widget_event(command, None),
+                widgets::WidgetEvent::Input((command, data)) => {
+                    self.handle_widget_event(command, data)
+                }
+            }
+        }
+        true
     }
 
     fn draw(&self, area: Rect, buf: &mut Buffer) -> Option<CursorPos> {

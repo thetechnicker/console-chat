@@ -1,5 +1,4 @@
-use crate::event::{AppEvent, AppEventSender};
-use crate::widgets::Widget;
+use crate::widgets::{self, Widget};
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
     buffer::Buffer,
@@ -48,20 +47,20 @@ pub enum ButtonState {
 #[derive(Debug, Clone)]
 pub struct Button {
     state: ButtonState,
+    prev_state: ButtonState,
     label: String,
     theme: Theme,
-    event_sender: AppEventSender,
     key_id: char,
     on_press_id: String,
 }
 
 impl Button {
-    pub fn new(label: &str, event_sender: AppEventSender, key_id: char, on_press: &str) -> Self {
+    pub fn new(label: &str, key_id: char, on_press: &str) -> Self {
         Self {
             state: ButtonState::Normal,
+            prev_state: ButtonState::Normal,
             label: String::from(label),
             theme: BLUE,
-            event_sender,
             key_id,
             on_press_id: on_press.to_uppercase().to_string(),
         }
@@ -82,27 +81,26 @@ impl Button {
         }
     }
 
-    fn handle_press(&mut self, event: KeyEvent) -> bool {
+    fn handle_press(&mut self, event: KeyEvent) -> Option<widgets::WidgetEvent> {
         match event.kind {
             KeyEventKind::Press => {
                 if self.state == ButtonState::Selected
                     || event.code == KeyCode::Char(self.key_id.clone())
                 {
+                    self.prev_state = self.state;
                     self.state = ButtonState::Active;
-                    self.event_sender
-                        .send(AppEvent::OnWidgetEnter(self.on_press_id.clone(), None));
-                    return true;
+                    return Some(widgets::WidgetEvent::Button(self.on_press_id.clone()));
                 }
-                false
+                None
             }
             KeyEventKind::Release => {
                 if self.state == ButtonState::Active {
-                    self.state = ButtonState::Selected;
-                    return true;
+                    self.state = self.prev_state;
+                    return None;
                 }
-                false
+                None
             }
-            _ => false,
+            _ => None,
         }
     }
 }
@@ -112,12 +110,12 @@ impl Widget for Button {
         self.state = ButtonState::Normal;
     }
 
-    fn handle_key_event(&mut self, event: KeyEvent) -> bool {
+    fn handle_key_event(&mut self, event: KeyEvent) -> Option<widgets::WidgetEvent> {
         match event.code {
             KeyCode::Enter => self.handle_press(event),
             KeyCode::Char(' ') => self.handle_press(event),
             KeyCode::Char(c) if c == self.key_id => self.handle_press(event),
-            _ => false,
+            _ => None,
         }
     }
 

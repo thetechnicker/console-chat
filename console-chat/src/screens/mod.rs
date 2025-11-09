@@ -77,7 +77,9 @@ pub trait Screen: Debug {
 
 pub mod login;
 pub use login::*;
+/*
 pub mod home;
 pub use home::*;
 pub mod chat;
 pub use chat::*;
+*/
