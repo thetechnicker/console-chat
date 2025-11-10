@@ -27,7 +27,9 @@ pub struct ChatScreen {
 impl ChatScreen {
     pub fn new(event_sender: AppEventSender) -> Self {
         let input = Rc::new(RefCell::new(
-            widgets::InputWidget::new("Input", "SEND_MSG").clear_on_enter(),
+            widgets::InputWidget::new("Input", "SEND_MSG")
+                .clear_on_enter(true)
+                .with_clippboard(true),
         ));
         let msg_list = Rc::new(RefCell::new(widgets::MessageList::new()));
         let widget_hirarchie = screens::WidgetElement::Collection(Rc::new([

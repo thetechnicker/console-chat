@@ -1,5 +1,6 @@
+use crate::utils;
 use crate::widgets::{self, Widget};
-use crossterm::event::{Event, KeyCode, KeyEvent};
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -31,6 +32,7 @@ pub struct InputWidget {
     input: Input,
     on_enter_id: Option<String>,
     clear_on_enter: bool,
+    use_clipboard: bool,
 }
 
 impl InputWidget {
@@ -42,11 +44,16 @@ impl InputWidget {
             input: Input::default(),
             on_enter_id: Some(on_enter.to_uppercase().to_owned()),
             clear_on_enter: false,
+            use_clipboard: false,
         }
     }
+    pub fn with_clippboard(mut self, clipboard: bool) -> Self {
+        self.use_clipboard = clipboard;
+        self
+    }
 
-    pub fn clear_on_enter(mut self) -> Self {
-        self.clear_on_enter = true;
+    pub fn clear_on_enter(mut self, clear: bool) -> Self {
+        self.clear_on_enter = clear;
         self
     }
 
@@ -94,6 +101,18 @@ impl Widget for InputWidget {
                     event_id.to_string(),
                     Some(content),
                 )));
+            }
+        }
+        if self.use_clipboard
+            && KeyCode::Char('v') == key_event.code
+            && key_event.is_press()
+            && key_event.modifiers.contains(KeyModifiers::CONTROL)
+        {
+            if let Some(content) = utils::get_clipboard_content() {
+                let mut value = self.input.value().to_string();
+                let cursor = self.input.cursor();
+                value.insert_str(cursor, &content);
+                self.input = Input::new(value).with_cursor(cursor);
             }
         }
         self.input.handle_event(&Event::Key(key_event));
