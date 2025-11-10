@@ -1,8 +1,8 @@
 # import warnings
 from enum import Enum  # , auto
 from typing import Any, Optional
-from app.database import DBPublicUser as PublicUser
 
+from app.database import DBPublicUser as PublicUser
 from pydantic import BaseModel, model_validator
 from typing_extensions import Self
 

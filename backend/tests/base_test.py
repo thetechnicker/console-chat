@@ -2,16 +2,15 @@
 Basic tests to see if the most basic features work.
 """
 
-from dotenv import load_dotenv
 import os
-import pytest
-from sqlmodel import Session, SQLModel, create_engine, StaticPool
-from httpx import ASGITransport, AsyncClient
+
 import fakeredis
-
-from app.main import DatabaseContext, get_db_context  # type:ignore
+import pytest
 from app.main import app  # type:ignore
-
+from app.main import DatabaseContext, get_db_context  # type:ignore
+from dotenv import load_dotenv
+from httpx import ASGITransport, AsyncClient
+from sqlmodel import Session, SQLModel, StaticPool, create_engine
 
 load_dotenv()
 debug_key = os.environ.get("DEV_API_KEY")
