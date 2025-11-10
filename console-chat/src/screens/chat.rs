@@ -130,12 +130,75 @@ mod tests {
     use super::super::Screen;
     use super::ChatScreen;
     use crate::event::test_utils::dummy_event_sender;
+    use crate::network::{
+        NetworkEvent,
+        data_model::messages::{BaseMessage, MessageType, ServerMessage},
+        data_model::user::PublicUser,
+    };
     use insta::assert_snapshot;
+    use lipsum::lipsum;
     use ratatui::{Terminal, backend::TestBackend};
 
     #[test]
     fn test_render_chat() {
         let chat_screen = ChatScreen::new(dummy_event_sender().0.into());
+        let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
+        terminal
+            .draw(|frame| {
+                let area = frame.area();
+                let buf = frame.buffer_mut();
+                chat_screen.draw(area, buf);
+            })
+            .unwrap();
+        assert_snapshot!(terminal.backend());
+    }
+    #[test]
+    fn test_render_chat_msg() {
+        let mut chat_screen = ChatScreen::new(dummy_event_sender().0.into());
+
+        for i in 0..5 {
+            chat_screen.handle_network_event(NetworkEvent::Message(ServerMessage {
+                base: BaseMessage {
+                    message_type: MessageType::PlainText,
+                    text: format!("lorem ipsum {}", i),
+                    data: None,
+                },
+                user: Some(PublicUser {
+                    display_name: "User1".to_string(),
+                    color: Some("#101010".to_string()),
+                }),
+            }));
+        }
+
+        let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
+        terminal
+            .draw(|frame| {
+                let area = frame.area();
+                let buf = frame.buffer_mut();
+                chat_screen.draw(area, buf);
+            })
+            .unwrap();
+        assert_snapshot!(terminal.backend());
+    }
+
+    #[test]
+    fn test_render_chat_long_msg() {
+        let mut chat_screen = ChatScreen::new(dummy_event_sender().0.into());
+
+        for i in 0..2 {
+            chat_screen.handle_network_event(NetworkEvent::Message(ServerMessage {
+                base: BaseMessage {
+                    message_type: MessageType::PlainText,
+                    text: format!("{}\n{}", i, lipsum(100),),
+                    data: None,
+                },
+                user: Some(PublicUser {
+                    display_name: "User1".to_string(),
+                    color: Some("#101010".to_string()),
+                }),
+            }));
+        }
+
         let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
         terminal
             .draw(|frame| {
