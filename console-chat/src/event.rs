@@ -3,6 +3,7 @@ use crate::screens::CurrentScreen;
 use color_eyre::eyre::OptionExt;
 use crossterm::event::{Event as CrosstermEvent, KeyCode, KeyEvent, KeyModifiers};
 use futures::{FutureExt, StreamExt};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
 
@@ -40,16 +41,6 @@ impl From<CrosstermEvent> for Event {
     }
 }
 
-/*
-#[derive(Clone, Debug)]
-pub enum AppEvent {
-    Focus,
-    NoFocus,
-    Clear,
-    KeyEvent(KeyEvent),
-}
-*/
-
 /// Application events.
 ///
 /// You can extend this enum with your own custom events.
@@ -57,19 +48,12 @@ pub enum AppEvent {
 pub enum AppEvent {
     /// Quit the application.
     Quit,
-
-    Focus,
-    NoFocus,
+    FocusItem(usize),
     Clear(bool),
-
-    //TriggerApiReconnect,
     NetworkEvent(NetworkEvent),
-
     KeyEvent(KeyEvent),
-    ButtonPress(String),
+    OnWidgetEnter(String, Option<Arc<[String]>>),
     SwitchScreen(CurrentScreen),
-    SendMessage(String),
-    SimpleMSG(String),
 }
 
 /// Terminal event handler.
@@ -263,6 +247,8 @@ fn handle_key_events(key_event: KeyEvent) -> Event {
             Event::App(AppEvent::Quit)
         }
         _ => Event::App(AppEvent::KeyEvent(key_event)),
+        //_ if key_event.is_repeat() => Event::App(AppEvent::KeyEvent(key_event)),
+        //_ => Event::Crossterm(CrosstermEvent::Key(key_event)),
     }
 }
 

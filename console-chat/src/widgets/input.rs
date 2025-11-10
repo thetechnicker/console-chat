@@ -1,6 +1,5 @@
-use crate::event::AppEvent;
-use crate::widgets::Widget;
-use crossterm::event::Event;
+use crate::widgets::{self, Widget};
+use crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -10,6 +9,7 @@ use ratatui::{
 
 use tui_input::Input;
 use tui_input::backend::crossterm::EventHandler;
+
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum InputMode {
     #[default]
@@ -29,30 +29,25 @@ pub struct InputWidget {
     input_type: InputType,
     input_mode: InputMode,
     input: Input,
-    //placeholder: Option<String>,
-}
-
-impl Default for InputWidget {
-    fn default() -> Self {
-        Self {
-            titel: String::from("Input"),
-            input_type: InputType::Text,
-            input_mode: InputMode::default(),
-            input: Input::default(),
-            //       placeholder: None,
-        }
-    }
+    on_enter_id: Option<String>,
+    clear_on_enter: bool,
 }
 
 impl InputWidget {
-    pub fn new(titel: &str) -> Self {
+    pub fn new(titel: &str, on_enter: &str) -> Self {
         Self {
             titel: String::from(titel),
             input_type: InputType::Text,
             input_mode: InputMode::default(),
             input: Input::default(),
-            //placeholder: None,
+            on_enter_id: Some(on_enter.to_uppercase().to_owned()),
+            clear_on_enter: false,
         }
+    }
+
+    pub fn clear_on_enter(mut self) -> Self {
+        self.clear_on_enter = true;
+        self
     }
 
     pub fn password(mut self) -> Self {
@@ -74,24 +69,35 @@ impl InputWidget {
 }
 
 impl Widget for InputWidget {
-    fn handle_event(&mut self, event: AppEvent) {
-        match event {
-            AppEvent::Clear(hard) => {
-                self.stop_editing();
-                if hard {
+    fn clear(&mut self, hard: bool) {
+        self.stop_editing();
+        if hard {
+            self.input.reset();
+        }
+    }
+
+    fn focus(&mut self) {
+        self.start_editing();
+    }
+    fn unfocus(&mut self) {
+        self.stop_editing();
+    }
+
+    fn handle_key_event(&mut self, key_event: KeyEvent) -> Option<widgets::WidgetEvent> {
+        if KeyCode::Enter == key_event.code && key_event.is_press() {
+            if let Some(event_id) = self.on_enter_id.as_ref() {
+                let content = self.get_content().clone();
+                if self.clear_on_enter {
                     self.input.reset();
                 }
+                return Some(widgets::WidgetEvent::Input((
+                    event_id.to_string(),
+                    Some(content),
+                )));
             }
-            AppEvent::NoFocus => self.stop_editing(),
-            AppEvent::Focus => self.start_editing(),
-            AppEvent::KeyEvent(key) => match self.input_mode {
-                InputMode::Normal => {}
-                InputMode::Editing => {
-                    self.input.handle_event(&Event::Key(key));
-                }
-            },
-            _ => {}
         }
+        self.input.handle_event(&Event::Key(key_event));
+        None
     }
 
     fn draw(&self, area: Rect, buf: &mut Buffer, ret: &mut Option<u16>) {

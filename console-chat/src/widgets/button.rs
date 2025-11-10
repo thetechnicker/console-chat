@@ -1,6 +1,5 @@
-use crate::event::{AppEvent, EventSender};
-use crate::widgets::Widget;
-use crossterm::event::KeyEventKind;
+use crate::widgets::{self, Widget};
+use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -48,20 +47,22 @@ pub enum ButtonState {
 #[derive(Debug, Clone)]
 pub struct Button {
     state: ButtonState,
+    prev_state: ButtonState,
     label: String,
     theme: Theme,
-    event_sender: EventSender,
-    on_press: AppEvent,
+    key_id: char,
+    on_press_id: String,
 }
 
 impl Button {
-    pub fn new(label: &str, event_sender: EventSender, on_press: AppEvent) -> Self {
+    pub fn new(label: &str, key_id: char, on_press: &str) -> Self {
         Self {
             state: ButtonState::Normal,
+            prev_state: ButtonState::Normal,
             label: String::from(label),
             theme: BLUE,
-            event_sender,
-            on_press,
+            key_id,
+            on_press_id: on_press.to_uppercase().to_string(),
         }
     }
     pub fn is_pressed(&self) -> bool {
@@ -79,59 +80,62 @@ impl Button {
             ButtonState::Active => (theme.background, theme.text, theme.highlight, theme.shadow),
         }
     }
+
+    fn handle_press(&mut self, event: KeyEvent) -> Option<widgets::WidgetEvent> {
+        match event.kind {
+            KeyEventKind::Press => {
+                if self.state == ButtonState::Selected
+                    || event.code == KeyCode::Char(self.key_id.clone())
+                {
+                    self.prev_state = self.state;
+                    self.state = ButtonState::Active;
+                    return Some(widgets::WidgetEvent::Button(self.on_press_id.clone()));
+                }
+                None
+            }
+            KeyEventKind::Release => {
+                if self.state == ButtonState::Active {
+                    self.state = self.prev_state;
+                    return None;
+                }
+                None
+            }
+            _ => None,
+        }
+    }
 }
 
 impl Widget for Button {
-    fn handle_event(&mut self, event: AppEvent) {
-        match event {
-            AppEvent::Clear(_) => self.state = ButtonState::Normal,
-            AppEvent::NoFocus => self.state = ButtonState::Normal,
-            AppEvent::Focus => self.state = ButtonState::Selected,
-            AppEvent::KeyEvent(key) => match key.kind {
-                KeyEventKind::Press => {
-                    if self.state == ButtonState::Selected {
-                        self.state = ButtonState::Active;
-                        self.event_sender.send(self.on_press.clone().into());
-                    }
-                }
-                KeyEventKind::Release => {
-                    if self.state == ButtonState::Active {
-                        self.state = ButtonState::Selected
-                    }
-                }
-                _ => {}
-            },
-            _ => {}
+    fn clear(&mut self, _: bool) {
+        self.state = ButtonState::Normal;
+    }
+
+    fn handle_key_event(&mut self, event: KeyEvent) -> Option<widgets::WidgetEvent> {
+        match event.code {
+            KeyCode::Enter => self.handle_press(event),
+            KeyCode::Char(' ') => self.handle_press(event),
+            KeyCode::Char(c) if c == self.key_id => self.handle_press(event),
+            _ => None,
         }
     }
+
+    fn focus(&mut self) {
+        self.state = ButtonState::Selected;
+    }
+    fn unfocus(&mut self) {
+        self.state = ButtonState::Normal;
+    }
+
     fn draw(&self, area: Rect, buf: &mut Buffer, _: &mut Option<u16>) {
         let (background, text, shadow, _highlight) = self.colors();
         let block = Block::bordered()
+            .title_bottom(self.key_id.to_string())
             .border_type(ratatui::widgets::BorderType::Rounded)
             .style(Style::new().fg(shadow));
         let inner = block.inner(area);
         block.render(area, buf);
         buf.set_style(inner, Style::new().bg(background).fg(text));
-        /*
-                // render top line if there's enough space
-                if area.height > 2 {
-                    buf.set_string(
-                        area.x,
-                        area.y,
-                        "▔".repeat(area.width as usize),
-                        Style::new().fg(highlight).bg(background),
-                    );
-                }
-                // render bottom line if there's enough space
-                if area.height > 1 {
-                    buf.set_string(
-                        area.x,
-                        area.y + area.height - 1,
-                        "▁".repeat(area.width as usize),
-                        Style::new().fg(shadow).bg(background),
-                    );
-                }
-        */
+
         let line: Line<'_> = String::from(&self.label).into();
         // render label centered
         buf.set_line(

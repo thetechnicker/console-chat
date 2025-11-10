@@ -2,8 +2,7 @@ use crate::DEFAULT_BORDER;
 use crate::event::{AppEvent, Event, EventHandler};
 use crate::network::{self, ApiError};
 use crate::screens::{self, Screen};
-use crossterm::event::Event as CrosstermEvent;
-use log; //::{debug, error, info, trace};
+use crossterm::event::{Event as CrosstermEvent, KeyCode};
 use ratatui::DefaultTerminal;
 use ratatui::{
     Frame,
@@ -11,6 +10,7 @@ use ratatui::{
     style::{Color, Modifier, Style},
     widgets::{Block, BorderType, Clear, Padding, Paragraph, Wrap},
 };
+use tracing::{debug, error, trace};
 
 #[derive(Debug)]
 struct Popup {
@@ -19,17 +19,16 @@ struct Popup {
     pub creation: std::time::Instant,
 }
 
-/// Application.
 #[derive(Debug)]
 pub struct App {
     running: bool,
     events: EventHandler,
 
     current_screen: screens::CurrentScreen,
-    chat_screen: screens::ChatScreen,
+
     login_screen: screens::LoginScreen,
     home_screen: screens::HomeScreen,
-
+    chat_screen: screens::ChatScreen,
     exit_time: Option<std::time::Instant>,
     api: network::client::ApiClient,
 
@@ -52,7 +51,7 @@ impl App {
         let event_sender = event_handler.get_event_sender();
         let api =
             network::client::ApiClient::new(url, event_sender.clone().into()).unwrap_or_else(|e| {
-                log::error!("ApiClient initialization failed: {e}");
+                error!("ApiClient initialization failed: {e}");
                 panic!("ApiClient initialization failed: {e}");
             });
 
@@ -60,10 +59,9 @@ impl App {
             running: true,
             events: event_handler,
             current_screen: screens::CurrentScreen::default(),
+            login_screen: screens::LoginScreen::new(event_sender.clone().into()),
+            home_screen: screens::HomeScreen::new(event_sender.clone().into()),
             chat_screen: screens::ChatScreen::new(event_sender.clone().into()),
-            login_screen: screens::LoginScreen::new(event_sender.clone()),
-            home_screen: screens::HomeScreen::new(event_sender.clone()),
-
             exit_time: None,
             api,
             error_box: None,
@@ -84,13 +82,10 @@ impl App {
         mut self,
         mut terminal: DefaultTerminal,
     ) -> color_eyre::Result<Option<std::time::Duration>> {
-        //self.events.send(AppEvent::SwitchScreen(screens::CurrentScreen::Chat));
         while self.running {
-            //let start = std::time::Instant::now();
             terminal.draw(|frame| self.render(frame))?;
 
             let event = self.events.next().await?;
-            log::trace!("Handling Event: {event:?}");
             match event {
                 Event::Tick => self.tick(),
                 Event::Crossterm(event) => {
@@ -99,14 +94,13 @@ impl App {
                     }
                 }
                 Event::App(app_event) => {
-                    log::debug!("AppEvent: {app_event:?}");
+                    debug!("AppEvent: {app_event:?}");
                     match app_event {
                         AppEvent::Quit => self.quit(),
                         AppEvent::SwitchScreen(new_screen) => {
                             self.current_screen = new_screen;
                             self.events.send(AppEvent::Clear(true));
                         }
-                        AppEvent::SimpleMSG(str) => log::info!("{}", str),
                         AppEvent::NetworkEvent(network::NetworkEvent::Error(e)) => {
                             self.handle_network_error(e);
                         }
@@ -121,57 +115,80 @@ impl App {
                                 }
                             }
                         }
-                        AppEvent::SendMessage(msg) => {
-                            log::debug!("Sending: {}", msg);
-                            if let Err(e) = self.api.send_txt(&msg).await {
-                                self.handle_network_error(e)
+                        AppEvent::OnWidgetEnter(id_str, content) => {
+                            match id_str.to_uppercase().as_str() {
+                                _ if id_str.starts_with("LOGIN") => {
+                                    let login = if id_str == "LOGIN_ANONYM" {
+                                        None
+                                    } else {
+                                        Some(self.login_screen.get_data())
+                                    };
+                                    match self.api.auth(login).await {
+                                        Ok(()) => self.events.send(AppEvent::SwitchScreen(
+                                            screens::CurrentScreen::Home,
+                                        )),
+
+                                        Err(e) => {
+                                            error!("Error when logging in: {e}");
+                                            self.events.send(AppEvent::NetworkEvent(
+                                                network::NetworkEvent::Error(e),
+                                            ));
+                                        }
+                                    }
+                                }
+                                "LOGOUT" => {
+                                    self.api.reset().await;
+                                    self.events.send(AppEvent::SwitchScreen(
+                                        screens::CurrentScreen::Login,
+                                    ));
+                                }
+                                "JOIN" => {
+                                    let room_val = self.home_screen.get_data();
+                                    if let Some(room) = room_val.as_str() {
+                                        if room == "" {
+                                            self.events.send(AppEvent::NetworkEvent(
+                                                ApiError::from("Room cant be empty").into(),
+                                            ));
+                                        }
+                                        if let Err(e) = self.api.listen(room).await {
+                                            self.handle_network_error(e);
+                                        } else {
+                                            self.events.send(AppEvent::SwitchScreen(
+                                                screens::CurrentScreen::Chat,
+                                            ));
+                                        }
+                                    }
+                                }
+                                "QUIT" => {
+                                    self.events.send(AppEvent::Quit);
+                                }
+                                "SEND_MSG" => {
+                                    if let Some(msg) = content {
+                                        debug!("Sending: {:?}", msg);
+                                        if let Err(e) = self.api.send_txt(&msg[0]).await {
+                                            self.handle_network_error(e)
+                                        }
+                                    }
+                                }
+                                str => {
+                                    self.send_to_current_screen(AppEvent::OnWidgetEnter(
+                                        str.to_string(),
+                                        content,
+                                    ));
+                                }
                             }
                         }
-                        AppEvent::ButtonPress(str) => match str.as_str() {
-                            _ if str.starts_with("LOGIN") => {
-                                let login = if str == "LOGIN_ANONYM" {
-                                    None
-                                } else {
-                                    Some(self.login_screen.get_data())
-                                };
-                                match self.api.auth(login).await {
-                                    Ok(()) => self
-                                        .events
-                                        .send(AppEvent::SwitchScreen(screens::CurrentScreen::Home)),
-
-                                    Err(e) => {
-                                        log::error!("Error when logging in: {e}");
-                                        self.events.send(AppEvent::NetworkEvent(
-                                            network::NetworkEvent::Error(e),
-                                        ));
-                                    }
-                                }
-                            }
-                            "LOGOUT" => {
-                                self.api.reset().await;
-                                self.events
-                                    .send(AppEvent::SwitchScreen(screens::CurrentScreen::Login));
-                            }
-                            "JOIN" => {
-                                let room_val = self.home_screen.get_data();
-                                if let Some(room) = room_val.as_str() {
-                                    if let Err(e) = self.api.listen(room).await {
-                                        self.handle_network_error(e);
-                                    } else {
-                                        self.events.send(AppEvent::SwitchScreen(
-                                            screens::CurrentScreen::Chat,
-                                        ));
-                                    }
-                                }
-                            }
-                            /*
-                             */
-                            str => {
-                                log::info!("Unhandled Button: {str}")
-                            }
-                        },
                         AppEvent::KeyEvent(k) if self.error_box.is_none() => {
-                            self.send_to_current_screen(AppEvent::KeyEvent(k));
+                            if !self.send_to_current_screen(AppEvent::KeyEvent(k)) {
+                                if let KeyCode::Char(c) = k.code {
+                                    if c.is_numeric() {
+                                        let id = (c as u8) - ('0' as u8);
+                                        self.send_to_current_screen(AppEvent::FocusItem(
+                                            id as usize,
+                                        ));
+                                    }
+                                }
+                            }
                         }
                         AppEvent::KeyEvent(k) if self.error_box.is_some() => {
                             if k.is_press() {
@@ -187,14 +204,12 @@ impl App {
                             }
                         }
                         _ => {
-                            log::debug!("Unhandled Event: {app_event:#?}");
+                            //debug!("Unhandled Event: {app_event:#?}");
                             self.send_to_current_screen(app_event);
                         }
                     };
                 }
             }
-            //let duration = start.elapsed();
-            //self.help = format!("{:?}", duration);
         }
         if let Some(exit) = self.exit_time {
             return Ok(Some(exit.elapsed()));
@@ -203,7 +218,10 @@ impl App {
     }
 
     fn handle_network_error(&mut self, e: ApiError) {
-        log::error!("Network Error: {e}");
+        error!("Network Error: {e}");
+        if let ApiError::CriticalFailure = e {
+            self.events.send(AppEvent::Quit);
+        }
         if self.error_box.is_some() {
             self.error_qeue.push(e);
             return;
@@ -251,7 +269,7 @@ impl App {
             let buf = frame.buffer_mut();
             cursor = screen.draw(main, buf);
         }
-        log::trace!("{cursor:?}");
+        trace!("{cursor:?}");
         if let Some(cursor) = cursor {
             frame.set_cursor_position((cursor.x, cursor.y));
         }
@@ -300,18 +318,20 @@ impl App {
     }
     pub fn get_current_screen(&self) -> Option<&dyn screens::Screen> {
         match self.current_screen {
-            screens::CurrentScreen::Chat => Some(&self.chat_screen as &dyn screens::Screen),
             screens::CurrentScreen::Login => Some(&self.login_screen as &dyn screens::Screen),
             screens::CurrentScreen::Home => Some(&self.home_screen as &dyn screens::Screen),
+            screens::CurrentScreen::Chat => Some(&self.chat_screen as &dyn screens::Screen),
+            //_ => None,
         }
     }
     pub fn get_current_screen_mut(&mut self) -> Option<&mut dyn screens::Screen> {
         match self.current_screen {
-            screens::CurrentScreen::Chat => Some(&mut self.chat_screen as &mut dyn screens::Screen),
             screens::CurrentScreen::Login => {
                 Some(&mut self.login_screen as &mut dyn screens::Screen)
             }
             screens::CurrentScreen::Home => Some(&mut self.home_screen as &mut dyn screens::Screen),
+            screens::CurrentScreen::Chat => Some(&mut self.chat_screen as &mut dyn screens::Screen),
+            //_ => None,
         }
     }
 

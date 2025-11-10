@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
+use tracing::{debug, instrument, trace};
 
 pub type NoResTokioHandles = JoinHandle<Result<(), ApiError>>;
 
@@ -105,6 +106,7 @@ impl ApiClient {
                 }
             }
         }
+        let _ = self.listen_stop_flag.send(false);
     }
 
     pub async fn reset(&mut self) {
@@ -137,6 +139,7 @@ impl ApiClient {
         Ok(())
     }
 
+    #[instrument]
     pub async fn handle_event(&mut self, event: NetworkEvent) -> Result<(), ApiError> {
         match event {
             NetworkEvent::CreateKey => {
@@ -160,7 +163,7 @@ impl ApiClient {
                     .await?;
 
                 let message: messages::ServerMessage = handle_errors_json(resp).await?;
-                log::debug!("{:?}", message);
+                debug!("{:?}", message);
             }
             NetworkEvent::SendKey(pub_key) => {
                 let room = self.get_room()?;
@@ -183,7 +186,7 @@ impl ApiClient {
                             .await?;
 
                         let message: messages::ServerMessage = handle_errors_json(resp).await?;
-                        log::debug!("{:?}", message);
+                        debug!("{:?}", message);
                     }
                 }
             }
@@ -210,6 +213,7 @@ impl ApiClient {
             .cloned()
     }
 
+    #[instrument]
     pub async fn send_txt(&mut self, msg: &str) -> Result<(), ApiError> {
         if self.symetric_key.is_poisoned() {
             let mut lock = self.symetric_key.lock().unwrap_or_else(|e| e.into_inner());
@@ -220,11 +224,11 @@ impl ApiClient {
             Some(ref key) => messages::ClientMessage::encrypted(encryption::encrypt(msg, key)?),
             None => messages::ClientMessage::new(msg),
         };
-        log::trace!("Sending Message...");
+        trace!("Sending Message...");
         let room = self.get_room()?;
         let url = self.base_url.join(&format!("room/{room}"))?;
         let body = serde_json::json!(args);
-        log::debug!("Sending: {body}");
+        debug!("Sending: {body}");
         let resp = self
             .client
             .post(url)
@@ -232,13 +236,35 @@ impl ApiClient {
             .bearer_auth(self.bearer_token.clone().expect("No Token Given"))
             .send()
             .await?;
-        //log::debug!("{}", resp.text().await?);
         let message: messages::ServerMessage = handle_errors_json(resp).await?;
-        log::debug!("{:?}", message);
+        debug!("{:?}", message);
         Ok(())
     }
 
+    fn restart_handle_message(&mut self) {
+        match self.handle_messages_task.take() {
+            None => self.event_sender.send(ApiError::CriticalFailure.into()),
+            Some(task) => self.handle_messages_task = Some(task),
+        }
+    }
+
+    #[instrument(level = "trace")]
     pub async fn listen(&mut self, room: &str) -> Result<(), ApiError> {
+        if room.trim() == "" {
+            return Err("Room Cant be emtpy".into());
+        }
+
+        if let Some(t) = self.handle_messages_task.as_ref() {
+            if t.is_finished() {
+                panic!();
+            }
+        }
+        self.restart_handle_message();
+        {
+            let mut lock = self.symetric_key.lock().unwrap_or_else(|e| e.into_inner());
+            *lock = None;
+        }
+
         self.current_room = Some(room.to_string());
         let url = self.base_url.join(&format!("room/{room}"))?;
         let token = self.bearer_token.clone().expect("No Token Given");
@@ -247,6 +273,7 @@ impl ApiClient {
             //return Err("Already Joined a room".into());
             self.handled_listen_task_results().await;
         }
+        let _ = self.listen_stop_flag.send(false);
 
         match self.listen_data.take() {
             None => return Err("This is very BAD".into()),

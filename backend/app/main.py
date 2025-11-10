@@ -2,36 +2,25 @@ import asyncio
 import hashlib
 import os
 import warnings
-from datetime import datetime, timedelta, timezone
-from typing import Any, Optional, Annotated, NamedTuple
-from uuid import uuid4
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
+from typing import Annotated, Any, NamedTuple, Optional
+from uuid import uuid4
 
 import jwt
 import valkey.asyncio as valkey
+from app.database import DBPublicUser, DBUser, init_postgesql_connection
+from app.datamodel import ClientMessage, MessageType, ServerMessage, UserStatus
 from dotenv import load_dotenv
 from fastapi import Body, Depends, FastAPI, HTTPException, Query, Security, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from jwt import PyJWTError
-from sqlmodel import Session, select
-
 
 # import sqlmodel
 from pydantic import ValidationError
-
-from app.database import (
-    DBPublicUser,
-    DBUser,
-    init_postgesql_connection,
-)
-from app.datamodel import (
-    ClientMessage,
-    MessageType,
-    ServerMessage,
-    UserStatus,
-)
+from sqlmodel import Session, select
 
 BetterUser = DBUser
 PublicUser = DBPublicUser
@@ -51,6 +40,14 @@ if SECRET_KEY == "secret":
 auth = HTTPBearer()  # Enforce auth
 bearer_scheme = HTTPBearer(auto_error=False)  # Optional auth
 api_key = APIKeyHeader(name="X-Api-Key")
+
+
+def deterministic_color_from_string(input_string: str) -> str:
+    # Hash the input string using SHA-256 to get a consistent fixed-length hash
+    hash_bytes = hashlib.sha256(input_string.encode("utf-8")).hexdigest()
+    # Convert first three bytes of hash to integers for RGB
+    color = hash_bytes[0:6]
+    return f"#{color}"
 
 
 v_pool = None
@@ -186,7 +183,9 @@ async def login(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Wrong Credentials"
             )
     elif username:
-        public = PublicUser(display_name=username)
+        public = PublicUser(
+            display_name=username, color=deterministic_color_from_string(username)
+        )
         user = BetterUser(
             username=str(uuid4()),
             password_hash=None,
@@ -199,9 +198,12 @@ async def login(
             detail="Incomplete login parameters",
         )
     else:
-        public = PublicUser(display_name="anonymos")
+        username = str(uuid4())
+        public = PublicUser(
+            display_name="anonymos", color=deterministic_color_from_string(username)
+        )
         user = BetterUser(
-            username=str(uuid4()),
+            username=username,
             password_hash=None,
             private=True,
             public_data=public,

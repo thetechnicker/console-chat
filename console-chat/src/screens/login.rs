@@ -1,139 +1,141 @@
 use crate::DEFAULT_BORDER;
-use crate::event::{AppEvent, EventSender};
-use crate::screens::{CursorPos, Screen};
+use crate::event::AppEvent;
+use crate::event::AppEventSender;
+use crate::screens::{self, CursorPos, Screen};
 use crate::widgets;
 use crate::widgets::Widget;
-use crossterm::event::{KeyCode, KeyEventKind};
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Layout, Rect},
     widgets::{Block, Widget as UiWidget},
 };
 use serde_json;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 #[derive(Debug)]
 pub struct LoginScreen {
-    pub tab_index: usize,
-    pub max_tab: usize,
-    pub event_sender: EventSender,
-    pub user_input: widgets::InputWidget,
-    pub pwd_input: widgets::InputWidget,
-    pub skip_button: widgets::Button,
-    pub ok_button: widgets::Button,
-    pub cancel_button: widgets::Button,
+    event_sender: AppEventSender,
+    mode: screens::InputMode,
+
+    user_input: Rc<RefCell<widgets::InputWidget>>,
+    pwd_input: Rc<RefCell<widgets::InputWidget>>,
+    join_anonym_button: Rc<RefCell<widgets::Button>>,
+    join_button: Rc<RefCell<widgets::Button>>,
+    exit_button: Rc<RefCell<widgets::Button>>,
+
+    widget_hirarchie: screens::WidgetElement,
+    buttons: screens::WidgetElement,
+
+    x: usize,
+    y: usize,
 }
 
 impl LoginScreen {
-    pub fn new(event_sender: EventSender) -> Self {
-        Self {
-            tab_index: 0,
-            max_tab: 6,
-            event_sender: event_sender.clone(),
-            user_input: widgets::InputWidget::new("Username"),
-            pwd_input: widgets::InputWidget::new("Password").password(),
-            skip_button: widgets::Button::new(
-                "Anonym",
-                event_sender.clone(),
-                AppEvent::ButtonPress("LOGIN_ANONYM".to_string()),
-            )
-            .theme(widgets::GREEN),
-            ok_button: widgets::Button::new(
-                "Login",
-                event_sender.clone(),
-                AppEvent::ButtonPress("LOGIN".to_string()),
-            )
-            .theme(widgets::BLUE),
-            cancel_button: widgets::Button::new("Exit", event_sender.clone(), AppEvent::Quit)
-                .theme(widgets::RED),
-        }
-    }
-    pub fn send_current_widget_event(&mut self, event: AppEvent) {
-        if let Some(elem) = self.current_widget_mut() {
-            elem.handle_event(event)
-        }
-    }
-    pub fn send_all_widgets_event(&mut self, event: AppEvent) {
-        for i in 0..self.max_tab {
-            if let Some(elem) = self.widget_at_mut(i) {
-                elem.handle_event(event.clone());
-            }
-        }
-    }
+    pub fn new(event_sender: AppEventSender) -> Self {
+        let user_input = Rc::new(RefCell::new(widgets::InputWidget::new(
+            "Username", "USERNAME",
+        )));
 
-    pub fn current_widget(&self) -> Option<&dyn Widget> {
-        self.widget_at(self.tab_index)
-    }
-    pub fn widget_at(&self, index: usize) -> Option<&dyn Widget> {
-        match index {
-            1 => Some(&self.user_input as &dyn Widget),
-            2 => Some(&self.pwd_input as &dyn Widget),
-            3 => Some(&self.ok_button as &dyn Widget),
-            4 => Some(&self.skip_button as &dyn Widget),
-            5 => Some(&self.cancel_button as &dyn Widget),
-            _ => None,
+        {
+            user_input.borrow_mut().focus();
         }
-    }
-    pub fn widget_at_mut(&mut self, index: usize) -> Option<&mut dyn Widget> {
-        match index {
-            1 => Some(&mut self.user_input as &mut dyn Widget),
-            2 => Some(&mut self.pwd_input as &mut dyn Widget),
-            3 => Some(&mut self.ok_button as &mut dyn Widget),
-            4 => Some(&mut self.skip_button as &mut dyn Widget),
-            5 => Some(&mut self.cancel_button as &mut dyn Widget),
-            _ => None,
+
+        let pwd_input = Rc::new(RefCell::new(
+            widgets::InputWidget::new("Password", "LOGIN").password(),
+        ));
+        let join_button = Rc::new(RefCell::new(
+            widgets::Button::new("Login", 'i', "LOGIN").theme(widgets::BLUE),
+        ));
+        let join_anonym_button = Rc::new(RefCell::new(
+            widgets::Button::new("Anonym", 'a', "LOGIN_ANONYM").theme(widgets::GREEN),
+        ));
+        let exit_button = Rc::new(RefCell::new(
+            widgets::Button::new("Exit", 'q', "QUIT").theme(widgets::RED),
+        ));
+
+        let buttons = screens::WidgetElement::Collection(Rc::new([
+            screens::WidgetElement::Item(join_button.clone()),
+            screens::WidgetElement::Item(join_anonym_button.clone()),
+            screens::WidgetElement::Item(exit_button.clone()),
+        ]));
+
+        let widget_hirarchie = screens::WidgetElement::Collection(Rc::new([
+            screens::WidgetElement::Item(user_input.clone()),
+            screens::WidgetElement::Item(pwd_input.clone()),
+            screens::WidgetElement::Collection(Rc::new([
+                screens::WidgetElement::Item(join_button.clone()),
+                screens::WidgetElement::Item(join_anonym_button.clone()),
+            ])),
+            screens::WidgetElement::Item(exit_button.clone()),
+        ]));
+
+        Self {
+            x: 0,
+            y: 0,
+            event_sender: event_sender,
+            mode: screens::InputMode::default(),
+            user_input,
+            pwd_input,
+            join_button,
+            join_anonym_button,
+            exit_button,
+            widget_hirarchie,
+            buttons,
         }
-    }
-    pub fn current_widget_mut(&mut self) -> Option<&mut dyn Widget> {
-        self.widget_at_mut(self.tab_index)
     }
 }
 
 impl Screen for LoginScreen {
-    fn handle_event(&mut self, event: AppEvent) -> bool {
-        match event {
-            AppEvent::Clear(hard) => {
-                self.tab_index = 0;
-                for i in 0..self.max_tab {
-                    if let Some(w) = self.widget_at_mut(i) {
-                        w.handle_event(AppEvent::Clear(hard));
-                    }
-                }
-            }
-            AppEvent::KeyEvent(key_event) => match key_event.code {
-                KeyCode::Tab if key_event.kind == KeyEventKind::Press => {
-                    self.send_current_widget_event(AppEvent::NoFocus);
-                    self.tab_index = (self.tab_index.wrapping_add(1)) % self.max_tab;
-                    self.send_current_widget_event(AppEvent::Focus);
-                }
-                KeyCode::BackTab if key_event.kind == KeyEventKind::Press => {
-                    self.send_current_widget_event(AppEvent::NoFocus);
-                    self.tab_index = if self.tab_index == 0 {
-                        self.max_tab - 1
-                    } else {
-                        self.tab_index.wrapping_sub(1)
-                    } % self.max_tab;
-                    self.send_current_widget_event(AppEvent::Focus);
-                }
-                KeyCode::Esc => {
-                    self.send_all_widgets_event(AppEvent::NoFocus);
-                    self.tab_index = 0;
-                }
-                _ => {
-                    self.send_current_widget_event(AppEvent::KeyEvent(key_event));
-                }
-            },
-            _ => {
-                return false;
-            }
-        };
-        true
+    fn get_widget_hirarchie(&self) -> screens::WidgetElement {
+        self.widget_hirarchie.clone()
     }
 
-    /*
+    fn get_buttons(&self) -> Option<screens::WidgetElement> {
+        Some(self.buttons.clone())
     }
-    impl UiWidget for &LoginScreen {
-        fn render(self, area: Rect, buf: &mut Buffer) {
-        */
+    fn get_index_mut(&mut self) -> (&mut usize, &mut usize) {
+        (&mut self.x, &mut self.y)
+    }
+
+    fn get_index(&self) -> (usize, usize) {
+        (self.x, self.y)
+    }
+    fn set_index(&mut self, x: usize, y: usize) {
+        self.x = x;
+        self.y = y;
+    }
+
+    fn handle_widget_event(&mut self, command: String, _: Option<String>) {
+        match command.to_uppercase().as_str() {
+            "QUIT" => self.event_sender.send(AppEvent::Quit),
+            "LOGIN_ANONYM" | "LOGIN" => self
+                .event_sender
+                .send(AppEvent::OnWidgetEnter(command.clone(), None)),
+            "USERNAME" => {
+                self.unfocus();
+                crate::utils::increment_wrapping(&mut self.y, self.widget_hirarchie.num_rows());
+                self.focus();
+            }
+            _ => {}
+        }
+    }
+
+    fn get_mode(&self) -> screens::InputMode {
+        self.mode
+    }
+
+    fn set_mode(&mut self, mode: screens::InputMode) {
+        self.mode = mode;
+    }
+
+    fn get_data(&self) -> serde_json::Value {
+        serde_json::json!({
+            "username":self.user_input.borrow().get_content(),
+            "password":self.pwd_input.borrow().get_content(),
+        })
+    }
+
     fn draw(&self, area: Rect, buf: &mut Buffer) -> Option<CursorPos> {
         // MAIN
         let login_block = Block::bordered().border_type(DEFAULT_BORDER);
@@ -162,38 +164,37 @@ impl Screen for LoginScreen {
         let mut p_x: Option<u16> = None;
 
         // User Input
-        self.user_input.draw(user_input, buf, &mut u_x);
+        self.user_input.borrow().draw(user_input, buf, &mut u_x);
 
         // Password Input
-        self.pwd_input.draw(pwd_input, buf, &mut p_x);
+        self.pwd_input.borrow().draw(pwd_input, buf, &mut p_x);
 
         // Buttons
         let x = 50;
         let [ok_area, anonym_area] =
             Layout::horizontal([Constraint::Percentage(x), Constraint::Percentage(x)])
                 .areas(buttons);
-        self.ok_button.draw(ok_area, buf, &mut None);
-        self.skip_button.draw(anonym_area, buf, &mut None);
-        self.cancel_button.draw(idk, buf, &mut None);
+        self.join_button.borrow().draw(ok_area, buf, &mut None);
+        self.join_anonym_button
+            .borrow()
+            .draw(anonym_area, buf, &mut None);
+        self.exit_button.borrow().draw(idk, buf, &mut None);
 
-        if let Some(x) = u_x {
-            Some(CursorPos {
-                x: x + user_input.x,
-                y: user_input.y + 1_u16,
-            })
+        return if self.mode == screens::InputMode::Editing {
+            if let Some(x) = u_x {
+                Some(CursorPos {
+                    x: x + user_input.x,
+                    y: user_input.y + 1_u16,
+                })
+            } else {
+                p_x.map(|x| CursorPos {
+                    x: x + pwd_input.x,
+                    y: pwd_input.y + 1_u16,
+                })
+            }
         } else {
-            p_x.map(|x| CursorPos {
-                x: x + pwd_input.x,
-                y: pwd_input.y + 1_u16,
-            })
-        }
-    }
-
-    fn get_data(&self) -> serde_json::Value {
-        serde_json::json!({
-            "username":self.user_input.get_content(),
-            "password":self.pwd_input.get_content(),
-        })
+            None
+        };
     }
 }
 #[cfg(test)]
@@ -205,7 +206,7 @@ mod tests {
     use ratatui::{Terminal, backend::TestBackend};
 
     #[test]
-    fn test_render_home() {
+    fn test_render_login() {
         let chat_screen = LoginScreen::new(dummy_event_sender().0.into());
         let mut terminal = Terminal::new(TestBackend::new(80, 20)).unwrap();
         terminal
@@ -216,65 +217,5 @@ mod tests {
             })
             .unwrap();
         assert_snapshot!(terminal.backend());
-    }
-    #[tokio::test]
-    async fn test_tab_switch_increments_index() {
-        use crate::event as crate_event;
-        use crossterm::event;
-
-        let (send, _) = dummy_event_sender();
-        let mut chat_screen = LoginScreen::new(send.into());
-
-        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-            event::KeyCode::Tab,
-            event::KeyModifiers::NONE,
-        )));
-        assert_eq!(chat_screen.tab_index, 1);
-
-        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-            event::KeyCode::Esc,
-            event::KeyModifiers::NONE,
-        )));
-        assert_eq!(chat_screen.tab_index, 0);
-
-        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-            event::KeyCode::BackTab,
-            event::KeyModifiers::NONE,
-        )));
-        assert_eq!(chat_screen.tab_index, chat_screen.max_tab - 1);
-
-        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-            event::KeyCode::Esc,
-            event::KeyModifiers::NONE,
-        )));
-        assert_eq!(chat_screen.tab_index, 0);
-
-        let magic_test_amount = 10;
-        for _ in 0..magic_test_amount {
-            chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-                event::KeyCode::Tab,
-                event::KeyModifiers::NONE,
-            )));
-        }
-        assert_eq!(
-            chat_screen.tab_index,
-            magic_test_amount % chat_screen.max_tab
-        );
-
-        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-            event::KeyCode::Esc,
-            event::KeyModifiers::NONE,
-        )));
-        assert_eq!(chat_screen.tab_index, 0);
-
-        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-            event::KeyCode::BackTab,
-            event::KeyModifiers::NONE,
-        )));
-        chat_screen.handle_event(crate_event::AppEvent::KeyEvent(event::KeyEvent::new(
-            event::KeyCode::BackTab,
-            event::KeyModifiers::NONE,
-        )));
-        assert_eq!(chat_screen.tab_index, chat_screen.max_tab - 2);
     }
 }

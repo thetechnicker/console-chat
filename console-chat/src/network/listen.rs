@@ -10,6 +10,7 @@ use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::watch;
 use tokio_stream::{self, StreamExt};
+use tracing::{debug, instrument};
 
 pub type ListenTask = tokio::task::JoinHandle<Result<ListenData, ApiError>>;
 pub type HandleMessagesTask = tokio::task::JoinHandle<Result<HandleMessagesData, ApiError>>;
@@ -47,6 +48,7 @@ impl ListenData {
         }
     }
 
+    #[instrument]
     pub fn run(mut self) -> ListenTask {
         tokio::spawn(async move {
             let mut stop = self.stop_flag.clone();
@@ -73,10 +75,12 @@ impl ListenData {
                     }
                 }
             }
+
             Ok(self)
         })
     }
 
+    #[instrument]
     async fn send_listen_request(&mut self) -> Result<reqwest::Response, ApiError> {
         let resp = self
             .client
@@ -90,6 +94,7 @@ impl ListenData {
         Ok(handle_errors_raw(resp).await?)
     }
 
+    #[instrument]
     async fn handle_stream(&mut self, resp: reqwest::Response) -> Result<(), ApiError> {
         let mut stream = resp.bytes_stream();
         let mut is_end = false;
@@ -98,48 +103,42 @@ impl ListenData {
             let chunk = stream.next();
             tokio::select! {
                 Some(chunk)=chunk=>{
-            log::debug!("Received Chunk {chunk:?}");
-            let chunk = match chunk {
-                Err(e) => {
-                    log::debug!("Error Receiving chunk: {e:#?}");
-                    break;
-                }
-                Ok(data) => data,
-            };
+                    debug!("Received Chunk {chunk:?}");
+                    let chunk = match chunk {
+                        Err(e) => {
+                            debug!("Error Receiving chunk: {e:#?}");
+                            break;
+                        }
+                        Ok(data) => data,
+                    };
 
-            let s = str::from_utf8(&chunk)?;
+                    let s = str::from_utf8(&chunk)?;
 
-            log::debug!("chunk as string: {s}");
+                    debug!("chunk as string: {s}");
 
-            if s == "END" {
-                is_end = true;
-            }
-            if is_end {
-                continue;
-            }
+                    if s == "END" {
+                        is_end = true;
+                    }
+                    if is_end {
+                        continue;
+                    }
 
-            let msg = match serde_json::from_str::<messages::ServerMessage>(s) {
-                Ok(msg) => Ok(msg),
-                //Making composite Error to include the responce string
-                Err(e) => Err(ApiError::from((e, s))),
-            }?;
-            let res = self.msg_queue_sender.send(msg);
-            if res.is_err() {
-                break;
-            }
+                    let msg = match serde_json::from_str::<messages::ServerMessage>(s) {
+                        Ok(msg) => Ok(msg),
+                        //Making composite Error to include the responce string
+                        Err(e) => Err(ApiError::from((e, s))),
+                    }?;
+                    debug!("sending msg away");
+                    let res = self.msg_queue_sender.send(msg);
+                    if res.is_err() {
+                        break;
+                    }
                 }
                 _ = self.stop_flag.changed()=>{
                         break;
                 }
             }
         }
-        /*
-                while let Some(chunk) = stream.next().await {
-                    if *self.stop_flag.borrow() {
-                        break;
-                    }
-                }
-        */
         Ok(())
     }
 }
@@ -170,6 +169,7 @@ impl HandleMessagesData {
         }
     }
 
+    #[instrument]
     fn handle_system_msg(&self, msg: messages::ServerMessage) -> Result<NetworkEvent, ApiError> {
         if msg.base.message_type != messages::MessageType::System {
             return Err("".into());
@@ -189,6 +189,7 @@ impl HandleMessagesData {
         Err("No Data given".into())
     }
 
+    #[instrument]
     fn handle_key_request(&self, msg: messages::ServerMessage) -> Result<NetworkEvent, ApiError> {
         if let Some(data) = msg.base.data {
             if data.contains_key("key") {
@@ -205,6 +206,7 @@ impl HandleMessagesData {
         Err("No Data given".into())
     }
 
+    #[instrument]
     fn handle_key_responce(&mut self, msg: messages::ServerMessage) -> Result<(), ApiError> {
         if self.symetric_key.lock().as_ref().is_ok_and(|x| x.is_some()) {
             return Ok(());
@@ -245,8 +247,9 @@ impl HandleMessagesData {
         return Ok(());
     }
 
+    #[instrument]
     fn handle_message(&mut self, mut msg: messages::ServerMessage) -> Result<(), ApiError> {
-        log::debug!("Received Message: {msg:#?}");
+        debug!("Received Message: {msg:#?}");
         match msg.base.message_type {
             messages::MessageType::System => {
                 let event = self.handle_system_msg(msg)?;
@@ -331,9 +334,12 @@ impl HandleMessagesData {
         Ok(())
     }
 
+    #[instrument]
     pub fn run(mut self) -> HandleMessagesTask {
+        debug!("LISTENING TO MESSAGES");
         tokio::spawn(async move {
             while let Some(msg) = self.msg_queue_receiver.recv().await {
+                debug!("NEW MESSAGE");
                 self.handle_message(msg)?;
             }
             Ok(self)

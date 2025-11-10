@@ -18,6 +18,7 @@ impl std::fmt::Display for ResponseErrorData {
 
 #[derive(Debug, Clone)]
 pub enum ApiError {
+    CriticalFailure,
     GenericError(String),
     UrlParseError(url::ParseError),
 
@@ -51,6 +52,9 @@ impl std::fmt::Display for ApiError {
             ApiError::Base64DecodeError(error) => write!(f, "Base64Error: {}", error),
             ApiError::CompositError(error, str) => {
                 write!(f, "CompositError: {}, \"{}\"", error, str)
+            }
+            ApiError::CriticalFailure => {
+                write!(f, "A Unexpected Error Happend")
             }
         }
     }
