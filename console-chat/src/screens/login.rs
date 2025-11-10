@@ -45,7 +45,7 @@ impl LoginScreen {
             widgets::InputWidget::new("Password", "LOGIN").password(),
         ));
         let join_button = Rc::new(RefCell::new(
-            widgets::Button::new("Login", 'i', "LOGIN").theme(widgets::BLUE),
+            widgets::Button::new("Login", 'o', "LOGIN").theme(widgets::BLUE),
         ));
         let join_anonym_button = Rc::new(RefCell::new(
             widgets::Button::new("Anonym", 'a', "LOGIN_ANONYM").theme(widgets::GREEN),
