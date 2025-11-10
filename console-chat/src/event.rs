@@ -48,22 +48,12 @@ impl From<CrosstermEvent> for Event {
 pub enum AppEvent {
     /// Quit the application.
     Quit,
-
-    Focus,
-    NoFocus,
     FocusItem(usize),
     Clear(bool),
-
     NetworkEvent(NetworkEvent),
-
     KeyEvent(KeyEvent),
-
     OnWidgetEnter(String, Option<Arc<[String]>>),
-
     SwitchScreen(CurrentScreen),
-
-    SendMessage(String),
-    SimpleMSG(String),
 }
 
 /// Terminal event handler.

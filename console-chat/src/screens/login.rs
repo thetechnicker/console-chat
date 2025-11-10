@@ -4,7 +4,6 @@ use crate::event::AppEventSender;
 use crate::screens::{self, CursorPos, Screen};
 use crate::widgets;
 use crate::widgets::Widget;
-use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Layout, Rect},
@@ -13,7 +12,6 @@ use ratatui::{
 use serde_json;
 use std::cell::RefCell;
 use std::rc::Rc;
-use tracing::debug;
 
 #[derive(Debug)]
 pub struct LoginScreen {
@@ -86,26 +84,26 @@ impl LoginScreen {
             buttons,
         }
     }
+}
 
-    fn focus(&self) {
-        debug!(
-            "Focus ({}, {}) {:#?}",
-            self.x, self.y, self.widget_hirarchie
-        );
-        match self.widget_hirarchie.get_item(self.y, self.x) {
-            None => panic!(),
-            Some(item) => item.borrow_mut().focus(),
-        };
+impl Screen for LoginScreen {
+    fn get_widget_hirarchie(&self) -> screens::WidgetElement {
+        self.widget_hirarchie.clone()
     }
-    fn unfocus(&self) {
-        debug!(
-            "UnFocus ({}, {}) {:#?}",
-            self.x, self.y, self.widget_hirarchie
-        );
-        match self.widget_hirarchie.get_item(self.y, self.x) {
-            None => panic!(),
-            Some(item) => item.borrow_mut().unfocus(),
-        };
+
+    fn get_buttons(&self) -> Option<screens::WidgetElement> {
+        Some(self.buttons.clone())
+    }
+    fn get_index_mut(&mut self) -> (&mut usize, &mut usize) {
+        (&mut self.x, &mut self.y)
+    }
+
+    fn get_index(&self) -> (usize, usize) {
+        (self.x, self.y)
+    }
+    fn set_index(&mut self, x: usize, y: usize) {
+        self.x = x;
+        self.y = y;
     }
 
     fn handle_widget_event(&mut self, command: String, _: Option<String>) {
@@ -122,16 +120,6 @@ impl LoginScreen {
             _ => {}
         }
     }
-}
-
-impl Screen for LoginScreen {
-    fn clear(&mut self, hard: bool) {
-        for w in self.widget_hirarchie.iter() {
-            w.borrow_mut().clear(hard);
-        }
-        self.mode = screens::InputMode::default();
-        self.focus();
-    }
 
     fn get_mode(&self) -> screens::InputMode {
         self.mode
@@ -146,77 +134,6 @@ impl Screen for LoginScreen {
             "username":self.user_input.borrow().get_content(),
             "password":self.pwd_input.borrow().get_content(),
         })
-    }
-
-    fn normal_mode(&mut self, event: KeyEvent) -> bool {
-        match event.code {
-            KeyCode::Char('h') if event.is_press() || event.is_repeat() => {
-                self.unfocus();
-                crate::utils::decrement_wrapping(
-                    &mut self.x,
-                    self.widget_hirarchie.num_col(self.y),
-                );
-                self.focus();
-                return true;
-            }
-            KeyCode::Char('l') if event.is_press() || event.is_repeat() => {
-                self.unfocus();
-                crate::utils::increment_wrapping(
-                    &mut self.x,
-                    self.widget_hirarchie.num_col(self.y),
-                );
-                self.focus();
-                return true;
-            }
-            KeyCode::Char('j') if event.is_press() || event.is_repeat() => {
-                self.unfocus();
-                crate::utils::increment_wrapping(&mut self.y, self.widget_hirarchie.num_rows());
-                self.focus();
-                return true;
-            }
-            KeyCode::Char('k') if event.is_press() || event.is_repeat() => {
-                self.unfocus();
-                crate::utils::decrement_wrapping(&mut self.y, self.widget_hirarchie.num_rows());
-                self.focus();
-                return true;
-            }
-            KeyCode::Char('i') if event.is_press() || event.is_repeat() => {
-                self.mode = screens::InputMode::Editing;
-                return true;
-            }
-            _ => {
-                for button in self.buttons.iter() {
-                    let mut command: Option<String> = None;
-                    if let Some(widgets::WidgetEvent::Button(event)) =
-                        button.borrow_mut().handle_key_event(event.clone())
-                    {
-                        command = Some(event.clone());
-                    }
-                    if let Some(event) = command {
-                        self.handle_widget_event(event, None);
-                        return true;
-                    }
-                }
-            }
-        }
-        false
-    }
-
-    fn edit_mode(&mut self, event: KeyEvent) -> bool {
-        let item = match self.widget_hirarchie.get_item(self.y, self.x) {
-            None => panic!(),
-            Some(item) => item,
-        };
-        let w_event = item.borrow_mut().handle_key_event(event);
-        if let Some(w_event) = w_event {
-            match w_event {
-                widgets::WidgetEvent::Button(command) => self.handle_widget_event(command, None),
-                widgets::WidgetEvent::Input((command, data)) => {
-                    self.handle_widget_event(command, data)
-                }
-            }
-        }
-        true
     }
 
     fn draw(&self, area: Rect, buf: &mut Buffer) -> Option<CursorPos> {

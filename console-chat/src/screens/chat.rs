@@ -1,10 +1,9 @@
 use crate::DEFAULT_BORDER;
-use crate::event::AppEventSender;
+use crate::event::{AppEvent, AppEventSender};
 use crate::network;
 use crate::screens::{self, CursorPos, Screen};
 use crate::widgets;
 use crate::widgets::Widget;
-use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Layout, Rect},
@@ -12,7 +11,7 @@ use ratatui::{
 };
 use std::cell::RefCell;
 use std::rc::Rc;
-use tracing::debug;
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct ChatScreen {
@@ -28,7 +27,7 @@ pub struct ChatScreen {
 impl ChatScreen {
     pub fn new(event_sender: AppEventSender) -> Self {
         let input = Rc::new(RefCell::new(
-            widgets::InputWidget::new("Input", "SEND_MSG", event_sender.clone()).clear_on_enter(),
+            widgets::InputWidget::new("Input", "SEND_MSG").clear_on_enter(),
         ));
         let msg_list = Rc::new(RefCell::new(widgets::MessageList::new()));
         let widget_hirarchie = screens::WidgetElement::Collection(Rc::new([
@@ -45,26 +44,6 @@ impl ChatScreen {
             widget_hirarchie,
         }
     }
-    fn focus(&self) {
-        debug!(
-            "Focus ({}, {}) {:#?}",
-            self.x, self.y, self.widget_hirarchie
-        );
-        match self.widget_hirarchie.get_item(self.y, self.x) {
-            None => panic!(),
-            Some(item) => item.borrow_mut().focus(),
-        };
-    }
-    fn unfocus(&self) {
-        debug!(
-            "UnFocus ({}, {}) {:#?}",
-            self.x, self.y, self.widget_hirarchie
-        );
-        match self.widget_hirarchie.get_item(self.y, self.x) {
-            None => panic!(),
-            Some(item) => item.borrow_mut().unfocus(),
-        };
-    }
 }
 
 impl Screen for ChatScreen {
@@ -78,11 +57,23 @@ impl Screen for ChatScreen {
         }
     }
 
-    fn clear(&mut self, hard: bool) {
-        self.msg_list.borrow_mut().clear(hard);
-        self.input.borrow_mut().clear(hard);
-        self.mode = screens::InputMode::default();
-        self.focus();
+    fn get_widget_hirarchie(&self) -> screens::WidgetElement {
+        self.widget_hirarchie.clone()
+    }
+
+    fn get_buttons(&self) -> Option<screens::WidgetElement> {
+        None
+    }
+    fn get_index_mut(&mut self) -> (&mut usize, &mut usize) {
+        (&mut self.x, &mut self.y)
+    }
+
+    fn get_index(&self) -> (usize, usize) {
+        (self.x, self.y)
+    }
+    fn set_index(&mut self, x: usize, y: usize) {
+        self.x = x;
+        self.y = y;
     }
 
     fn set_mode(&mut self, mode: screens::InputMode) {
@@ -93,59 +84,16 @@ impl Screen for ChatScreen {
         self.mode
     }
 
-    fn normal_mode(&mut self, event: KeyEvent) -> bool {
-        match event.code {
-            KeyCode::Char('h') if event.is_press() || event.is_repeat() => {
-                self.unfocus();
-                crate::utils::decrement_wrapping(
-                    &mut self.x,
-                    self.widget_hirarchie.num_col(self.y),
-                );
-                self.focus();
-                return true;
+    fn handle_widget_event(&mut self, command: String, content: Option<String>) {
+        if let Some(content) = content {
+            match command.to_uppercase().as_str() {
+                "SEND_MSG" => self.event_sender.send(AppEvent::OnWidgetEnter(
+                    command.clone(),
+                    Some(Arc::new([content.clone()])),
+                )),
+                _ => {}
             }
-            KeyCode::Char('l') if event.is_press() || event.is_repeat() => {
-                self.unfocus();
-                crate::utils::increment_wrapping(
-                    &mut self.x,
-                    self.widget_hirarchie.num_col(self.y),
-                );
-                self.focus();
-                return true;
-            }
-            KeyCode::Char('j') if event.is_press() || event.is_repeat() => {
-                self.unfocus();
-                crate::utils::increment_wrapping(&mut self.y, self.widget_hirarchie.num_rows());
-                self.focus();
-                return true;
-            }
-            KeyCode::Char('k') if event.is_press() || event.is_repeat() => {
-                self.unfocus();
-                crate::utils::decrement_wrapping(&mut self.y, self.widget_hirarchie.num_rows());
-                self.focus();
-                return true;
-            }
-            KeyCode::Char('i') if event.is_press() || event.is_repeat() => {
-                self.mode = screens::InputMode::Editing;
-                return true;
-            }
-            KeyCode::Char('i') => {
-                self.event_sender.send(crate::event::AppEvent::SwitchScreen(
-                    screens::CurrentScreen::Home,
-                ));
-                return true;
-            }
-            _ => {}
         }
-        false
-    }
-
-    fn edit_mode(&mut self, event: KeyEvent) -> bool {
-        let item = match self.widget_hirarchie.get_item(self.y, self.x) {
-            None => panic!(),
-            Some(item) => item,
-        };
-        item.borrow_mut().handle_key_event(event)
     }
 
     fn draw(&self, area: Rect, buf: &mut Buffer) -> Option<CursorPos> {

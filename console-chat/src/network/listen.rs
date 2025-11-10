@@ -48,6 +48,7 @@ impl ListenData {
         }
     }
 
+    #[instrument]
     pub fn run(mut self) -> ListenTask {
         tokio::spawn(async move {
             let mut stop = self.stop_flag.clone();
@@ -79,6 +80,7 @@ impl ListenData {
         })
     }
 
+    #[instrument]
     async fn send_listen_request(&mut self) -> Result<reqwest::Response, ApiError> {
         let resp = self
             .client
@@ -92,7 +94,7 @@ impl ListenData {
         Ok(handle_errors_raw(resp).await?)
     }
 
-    #[instrument(level = "debug")]
+    #[instrument]
     async fn handle_stream(&mut self, resp: reqwest::Response) -> Result<(), ApiError> {
         let mut stream = resp.bytes_stream();
         let mut is_end = false;
@@ -126,6 +128,7 @@ impl ListenData {
                         //Making composite Error to include the responce string
                         Err(e) => Err(ApiError::from((e, s))),
                     }?;
+                    debug!("sending msg away");
                     let res = self.msg_queue_sender.send(msg);
                     if res.is_err() {
                         break;
@@ -166,6 +169,7 @@ impl HandleMessagesData {
         }
     }
 
+    #[instrument]
     fn handle_system_msg(&self, msg: messages::ServerMessage) -> Result<NetworkEvent, ApiError> {
         if msg.base.message_type != messages::MessageType::System {
             return Err("".into());
@@ -185,6 +189,7 @@ impl HandleMessagesData {
         Err("No Data given".into())
     }
 
+    #[instrument]
     fn handle_key_request(&self, msg: messages::ServerMessage) -> Result<NetworkEvent, ApiError> {
         if let Some(data) = msg.base.data {
             if data.contains_key("key") {
@@ -201,6 +206,7 @@ impl HandleMessagesData {
         Err("No Data given".into())
     }
 
+    #[instrument]
     fn handle_key_responce(&mut self, msg: messages::ServerMessage) -> Result<(), ApiError> {
         if self.symetric_key.lock().as_ref().is_ok_and(|x| x.is_some()) {
             return Ok(());
@@ -241,6 +247,7 @@ impl HandleMessagesData {
         return Ok(());
     }
 
+    #[instrument]
     fn handle_message(&mut self, mut msg: messages::ServerMessage) -> Result<(), ApiError> {
         debug!("Received Message: {msg:#?}");
         match msg.base.message_type {
@@ -327,9 +334,12 @@ impl HandleMessagesData {
         Ok(())
     }
 
+    #[instrument]
     pub fn run(mut self) -> HandleMessagesTask {
+        debug!("LISTENING TO MESSAGES");
         tokio::spawn(async move {
             while let Some(msg) = self.msg_queue_receiver.recv().await {
+                debug!("NEW MESSAGE");
                 self.handle_message(msg)?;
             }
             Ok(self)

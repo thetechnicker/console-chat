@@ -253,6 +253,12 @@ impl ApiClient {
         if room.trim() == "" {
             return Err("Room Cant be emtpy".into());
         }
+
+        if let Some(t) = self.handle_messages_task.as_ref() {
+            if t.is_finished() {
+                panic!();
+            }
+        }
         self.restart_handle_message();
         {
             let mut lock = self.symetric_key.lock().unwrap_or_else(|e| e.into_inner());

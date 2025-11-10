@@ -2,7 +2,7 @@ use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::fmt;
 
 pub fn init_tracing_file(file_prefix: &str) -> tracing_appender::non_blocking::WorkerGuard {
-    let file_appender = RollingFileAppender::new(Rotation::MINUTELY, "./logs", file_prefix);
+    let file_appender = RollingFileAppender::new(Rotation::HOURLY, "./logs", file_prefix);
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
 
     fmt()
@@ -21,6 +21,8 @@ pub fn init_tracing_file(file_prefix: &str) -> tracing_appender::non_blocking::W
                 .with_target(true)
                 .with_line_number(true)
                 .with_file(true)
+                .with_thread_names(true)
+                .with_source_location(true)
                 .with_timer(fmt::time::LocalTime::rfc_3339()),
         )
         .init();

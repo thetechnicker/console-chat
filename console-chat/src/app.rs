@@ -10,7 +10,7 @@ use ratatui::{
     style::{Color, Modifier, Style},
     widgets::{Block, BorderType, Clear, Padding, Paragraph, Wrap},
 };
-use tracing::{debug, error, info, trace};
+use tracing::{debug, error, trace};
 
 #[derive(Debug)]
 struct Popup {
@@ -27,8 +27,8 @@ pub struct App {
     current_screen: screens::CurrentScreen,
 
     login_screen: screens::LoginScreen,
-    //home_screen: screens::HomeScreen,
-    //chat_screen: screens::ChatScreen,
+    home_screen: screens::HomeScreen,
+    chat_screen: screens::ChatScreen,
     exit_time: Option<std::time::Instant>,
     api: network::client::ApiClient,
 
@@ -60,8 +60,8 @@ impl App {
             events: event_handler,
             current_screen: screens::CurrentScreen::default(),
             login_screen: screens::LoginScreen::new(event_sender.clone().into()),
-            //home_screen: screens::HomeScreen::new(event_sender.clone().into()),
-            //chat_screen: screens::ChatScreen::new(event_sender.clone().into()),
+            home_screen: screens::HomeScreen::new(event_sender.clone().into()),
+            chat_screen: screens::ChatScreen::new(event_sender.clone().into()),
             exit_time: None,
             api,
             error_box: None,
@@ -101,7 +101,6 @@ impl App {
                             self.current_screen = new_screen;
                             self.events.send(AppEvent::Clear(true));
                         }
-                        AppEvent::SimpleMSG(str) => info!("{}", str),
                         AppEvent::NetworkEvent(network::NetworkEvent::Error(e)) => {
                             self.handle_network_error(e);
                         }
@@ -114,12 +113,6 @@ impl App {
                                 if let Err(e) = self.api.handle_event(network_event).await {
                                     self.handle_network_error(e);
                                 }
-                            }
-                        }
-                        AppEvent::SendMessage(msg) => {
-                            debug!("Sending: {}", msg);
-                            if let Err(e) = self.api.send_txt(&msg).await {
-                                self.handle_network_error(e)
                             }
                         }
                         AppEvent::OnWidgetEnter(id_str, content) => {
@@ -149,7 +142,6 @@ impl App {
                                         screens::CurrentScreen::Login,
                                     ));
                                 }
-                                /*
                                 "JOIN" => {
                                     let room_val = self.home_screen.get_data();
                                     if let Some(room) = room_val.as_str() {
@@ -167,7 +159,6 @@ impl App {
                                         }
                                     }
                                 }
-                                */
                                 "QUIT" => {
                                     self.events.send(AppEvent::Quit);
                                 }
@@ -213,7 +204,7 @@ impl App {
                             }
                         }
                         _ => {
-                            debug!("Unhandled Event: {app_event:#?}");
+                            //debug!("Unhandled Event: {app_event:#?}");
                             self.send_to_current_screen(app_event);
                         }
                     };
@@ -328,9 +319,9 @@ impl App {
     pub fn get_current_screen(&self) -> Option<&dyn screens::Screen> {
         match self.current_screen {
             screens::CurrentScreen::Login => Some(&self.login_screen as &dyn screens::Screen),
-            //screens::CurrentScreen::Home => Some(&self.home_screen as &dyn screens::Screen),
-            //screens::CurrentScreen::Chat => Some(&self.chat_screen as &dyn screens::Screen),
-            _ => None,
+            screens::CurrentScreen::Home => Some(&self.home_screen as &dyn screens::Screen),
+            screens::CurrentScreen::Chat => Some(&self.chat_screen as &dyn screens::Screen),
+            //_ => None,
         }
     }
     pub fn get_current_screen_mut(&mut self) -> Option<&mut dyn screens::Screen> {
@@ -338,9 +329,9 @@ impl App {
             screens::CurrentScreen::Login => {
                 Some(&mut self.login_screen as &mut dyn screens::Screen)
             }
-            //screens::CurrentScreen::Home => Some(&mut self.home_screen as &mut dyn screens::Screen),
-            //screens::CurrentScreen::Chat => Some(&mut self.chat_screen as &mut dyn screens::Screen),
-            _ => None,
+            screens::CurrentScreen::Home => Some(&mut self.home_screen as &mut dyn screens::Screen),
+            screens::CurrentScreen::Chat => Some(&mut self.chat_screen as &mut dyn screens::Screen),
+            //_ => None,
         }
     }
 

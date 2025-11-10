@@ -1,9 +1,8 @@
 use crate::DEFAULT_BORDER;
-use crate::event::AppEventSender;
+use crate::event::{AppEvent, AppEventSender};
 use crate::screens::{self, CursorPos, Screen};
 use crate::widgets;
 use crate::widgets::Widget;
-use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Layout, Rect},
@@ -12,10 +11,10 @@ use ratatui::{
 use serde_json;
 use std::cell::RefCell;
 use std::rc::Rc;
-use tracing::debug;
 
 #[derive(Debug)]
 pub struct HomeScreen {
+    event_sender: AppEventSender,
     mode: screens::InputMode,
     room_input: Rc<RefCell<widgets::InputWidget>>,
     join_button: Rc<RefCell<widgets::Button>>,
@@ -31,11 +30,7 @@ pub struct HomeScreen {
 
 impl HomeScreen {
     pub fn new(event_sender: AppEventSender) -> Self {
-        let room_input = Rc::new(RefCell::new(widgets::InputWidget::new(
-            "Room",
-            "JOIN",
-            event_sender.clone(),
-        )));
+        let room_input = Rc::new(RefCell::new(widgets::InputWidget::new("Room", "JOIN")));
         let join_button = Rc::new(RefCell::new(
             widgets::Button::new("Join Room", 'o', "JOIN").theme(widgets::GREEN),
         ));
@@ -63,6 +58,7 @@ impl HomeScreen {
 
         Self {
             mode: screens::InputMode::default(),
+            event_sender,
             x: 0,
             y: 0,
             room_input,
@@ -73,39 +69,11 @@ impl HomeScreen {
             buttons,
         }
     }
-    fn focus(&self) {
-        debug!(
-            "Focus ({}, {}) {:#?}",
-            self.x, self.y, self.widget_hirarchie
-        );
-        match self.widget_hirarchie.get_item(self.y, self.x) {
-            None => panic!(),
-            Some(item) => item.borrow_mut().focus(),
-        };
-    }
-    fn unfocus(&self) {
-        debug!(
-            "UnFocus ({}, {}) {:#?}",
-            self.x, self.y, self.widget_hirarchie
-        );
-        match self.widget_hirarchie.get_item(self.y, self.x) {
-            None => panic!(),
-            Some(item) => item.borrow_mut().unfocus(),
-        };
-    }
 }
 
 impl Screen for HomeScreen {
     fn get_data(&self) -> serde_json::Value {
         serde_json::json!(self.room_input.borrow().get_content())
-    }
-
-    fn clear(&mut self, hard: bool) {
-        for w in self.widget_hirarchie.iter() {
-            w.borrow_mut().clear(hard);
-        }
-        self.mode = screens::InputMode::default();
-        self.focus();
     }
 
     fn set_mode(&mut self, mode: screens::InputMode) {
@@ -116,61 +84,34 @@ impl Screen for HomeScreen {
         self.mode
     }
 
-    fn normal_mode(&mut self, event: KeyEvent) -> bool {
-        match event.code {
-            KeyCode::Char('h') if event.is_press() || event.is_repeat() => {
-                self.unfocus();
-                crate::utils::decrement_wrapping(
-                    &mut self.x,
-                    self.widget_hirarchie.num_col(self.y),
-                );
-                self.focus();
-                return true;
-            }
-            KeyCode::Char('l') if event.is_press() || event.is_repeat() => {
-                self.unfocus();
-                crate::utils::increment_wrapping(
-                    &mut self.x,
-                    self.widget_hirarchie.num_col(self.y),
-                );
-                self.focus();
-                return true;
-            }
-            KeyCode::Char('j') if event.is_press() || event.is_repeat() => {
-                self.unfocus();
-                crate::utils::increment_wrapping(&mut self.y, self.widget_hirarchie.num_rows());
-                self.focus();
-                return true;
-            }
-            KeyCode::Char('k') if event.is_press() || event.is_repeat() => {
-                self.unfocus();
-                crate::utils::decrement_wrapping(&mut self.y, self.widget_hirarchie.num_rows());
-                self.focus();
-                return true;
-            }
-            KeyCode::Char('i') if event.is_press() || event.is_repeat() => {
-                self.mode = screens::InputMode::Editing;
-                return true;
-            }
-            _ => {
-                for button in self.buttons.iter() {
-                    if button.borrow_mut().handle_key_event(event.clone()) {
-                        return true;
-                    }
-                }
-            }
+    fn get_widget_hirarchie(&self) -> screens::WidgetElement {
+        self.widget_hirarchie.clone()
+    }
+
+    fn get_buttons(&self) -> Option<screens::WidgetElement> {
+        Some(self.buttons.clone())
+    }
+    fn get_index_mut(&mut self) -> (&mut usize, &mut usize) {
+        (&mut self.x, &mut self.y)
+    }
+
+    fn get_index(&self) -> (usize, usize) {
+        (self.x, self.y)
+    }
+    fn set_index(&mut self, x: usize, y: usize) {
+        self.x = x;
+        self.y = y;
+    }
+
+    fn handle_widget_event(&mut self, command: String, _: Option<String>) {
+        match command.to_uppercase().as_str() {
+            "QUIT" => self.event_sender.send(AppEvent::Quit),
+            "JOIN" | "LOGOUT" => self
+                .event_sender
+                .send(AppEvent::OnWidgetEnter(command.clone(), None)),
+            _ => {}
         }
-        false
     }
-
-    fn edit_mode(&mut self, event: KeyEvent) -> bool {
-        let item = match self.widget_hirarchie.get_item(self.y, self.x) {
-            None => panic!(),
-            Some(item) => item,
-        };
-        item.borrow_mut().handle_key_event(event)
-    }
-
     fn draw(&self, area: Rect, buf: &mut Buffer) -> Option<CursorPos> {
         // MAIN
         let login_block = Block::bordered().border_type(DEFAULT_BORDER);
