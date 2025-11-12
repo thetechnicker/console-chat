@@ -18,11 +18,11 @@ pub fn init_tracing_file(file_prefix: &str) -> tracing_appender::non_blocking::W
                 //.compact()
                 //.json()
                 .with_level(true)
-                .with_target(true)
-                .with_line_number(true)
-                .with_file(true)
-                .with_thread_names(true)
-                .with_source_location(true)
+                //.with_target(true)
+                //.with_line_number(true)
+                //.with_file(true)
+                //.with_thread_names(true)
+                //.with_source_location(true)
                 .with_timer(fmt::time::LocalTime::rfc_3339()),
         )
         .init();

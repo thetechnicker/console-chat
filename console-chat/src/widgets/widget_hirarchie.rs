@@ -6,8 +6,10 @@ use crate::widgets::Widget;
 
 #[derive(Debug, Clone)]
 pub enum WidgetElement {
-    Collection(Rc<[WidgetElement]>),
     Item(Rc<RefCell<dyn Widget>>),
+    Collection(Rc<[WidgetElement]>),
+    /// This WidgetElement contains a element that has a length itself
+    CollectionWithLongElement((Rc<[WidgetElement]>, usize)),
 }
 
 use std::ops::Index;
@@ -17,8 +19,9 @@ impl Index<usize> for WidgetElement {
 
     fn index(&self, index: usize) -> &Self::Output {
         match self {
-            WidgetElement::Collection(collection) => &collection[index],
             WidgetElement::Item(_) => panic!("Can't index an item"),
+            WidgetElement::Collection(collection) => &collection[index],
+            WidgetElement::CollectionWithLongElement(collection) => &collection.0[index],
         }
     }
 }
@@ -38,6 +41,10 @@ impl<'a> WidgetElementIter<'a> {
             WidgetElement::Item(item) => Some(item),
             WidgetElement::Collection(collection) => {
                 stack.push(collection.iter());
+                None
+            }
+            WidgetElement::CollectionWithLongElement(collection) => {
+                stack.push(collection.0.iter());
                 None
             }
         };
@@ -69,6 +76,10 @@ impl<'a> Iterator for WidgetElementIter<'a> {
                         // Push the iterator of this collection onto stack
                         self.stack.push(collection.iter());
                     }
+                    WidgetElement::CollectionWithLongElement(collection) => {
+                        // Push the iterator of this collection onto stack
+                        self.stack.push(collection.0.iter());
+                    }
                 }
             } else {
                 // Current iterator exhausted, pop it off
@@ -88,26 +99,51 @@ impl WidgetElement {
 
     pub fn num_rows(&self) -> usize {
         match self {
+            WidgetElement::Item(i) => i.borrow().get_len(),
             WidgetElement::Collection(c) => c.len(),
-            WidgetElement::Item(_) => 0,
+            WidgetElement::CollectionWithLongElement((c, long_item)) => {
+                c.len() + c[*long_item].num_rows()
+            }
         }
     }
     pub fn num_col(&self, row: usize) -> usize {
         match self {
+            WidgetElement::Item(i) => i.borrow().get_len(),
             WidgetElement::Collection(c) => c[row].num_rows(),
-            WidgetElement::Item(_) => 0,
+            WidgetElement::CollectionWithLongElement((c, long_item)) => {
+                c.len() + c[*long_item].num_rows()
+            }
         }
     }
 
-    pub fn get_item(&self, row: usize, column: usize) -> Option<Rc<RefCell<dyn Widget>>> {
+    pub fn get_widget(&self, indecies: &[usize]) -> Option<Rc<RefCell<dyn Widget>>> {
+        let mut current_item: Self = self.clone();
+        for index in indecies {
+            current_item = match current_item {
+                Self::Item(item) => Self::Item(item.clone()),
+                Self::Collection(collection) => collection[*index].clone(),
+                Self::CollectionWithLongElement(collection) => collection.0[*index].clone(),
+            };
+            if let Self::Item(item) = current_item {
+                return Some(item);
+            }
+        }
+        None
+    }
+
+    pub fn get_item_2d(&self, row: usize, column: usize) -> Option<Rc<RefCell<dyn Widget>>> {
         match self {
-            WidgetElement::Collection(c) => match c[row].clone() {
-                WidgetElement::Collection(c) => match c[column].clone() {
-                    WidgetElement::Collection(_) => None,
+            WidgetElement::CollectionWithLongElement((c, _)) | WidgetElement::Collection(c) => {
+                match c[row].clone() {
+                    WidgetElement::CollectionWithLongElement((c, _))
+                    | WidgetElement::Collection(c) => match c[column].clone() {
+                        WidgetElement::CollectionWithLongElement(_)
+                        | WidgetElement::Collection(_) => None,
+                        WidgetElement::Item(item) => Some(item.clone()),
+                    },
                     WidgetElement::Item(item) => Some(item.clone()),
-                },
-                WidgetElement::Item(item) => Some(item.clone()),
-            },
+                }
+            }
             WidgetElement::Item(item) => Some(item.clone()),
         }
     }

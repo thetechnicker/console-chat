@@ -35,4 +35,8 @@ pub trait Widget: Debug {
     {
         self as &dyn Widget
     }
+
+    fn get_len(&self) -> usize {
+        0
+    }
 }

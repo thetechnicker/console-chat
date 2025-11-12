@@ -3,6 +3,7 @@ use crate::app::App;
 use tracing::info;
 
 pub mod app;
+pub mod custom_hashmap;
 pub mod event;
 pub mod log;
 pub mod network;

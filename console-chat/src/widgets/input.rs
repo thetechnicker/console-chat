@@ -113,6 +113,7 @@ impl Widget for InputWidget {
                 let cursor = self.input.cursor();
                 value.insert_str(cursor, &content);
                 self.input = Input::new(value).with_cursor(cursor);
+                return None;
             }
         }
         self.input.handle_event(&Event::Key(key_event));

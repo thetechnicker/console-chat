@@ -32,10 +32,13 @@ impl ChatScreen {
                 .with_clippboard(true),
         ));
         let msg_list = Rc::new(RefCell::new(widgets::MessageList::new()));
-        let widget_hirarchie = screens::WidgetElement::Collection(Rc::new([
-            screens::WidgetElement::Item(input.clone()),
-            screens::WidgetElement::Item(msg_list.clone()),
-        ]));
+        let widget_hirarchie = screens::WidgetElement::CollectionWithLongElement((
+            Rc::new([
+                screens::WidgetElement::Item(input.clone()),
+                screens::WidgetElement::Item(msg_list.clone()),
+            ]),
+            1,
+        ));
         Self {
             x: 0,
             y: 0,
@@ -71,7 +74,11 @@ impl Screen for ChatScreen {
     }
 
     fn get_index(&self) -> (usize, usize) {
-        (self.x, self.y)
+        if self.y == 0 {
+            (self.x, self.y)
+        } else {
+            (self.x, 1)
+        }
     }
     fn set_index(&mut self, x: usize, y: usize) {
         self.x = x;
@@ -86,7 +93,11 @@ impl Screen for ChatScreen {
         self.mode
     }
 
-    fn handle_widget_event(&mut self, command: String, content: Option<String>) {
+    fn handle_widget_event(&mut self, event: widgets::WidgetEvent) {
+        let (command, content) = match event {
+            widgets::WidgetEvent::Button(command) => (command, None),
+            widgets::WidgetEvent::Input((command, args)) => (command, args),
+        };
         if let Some(content) = content {
             match command.to_uppercase().as_str() {
                 "SEND_MSG" => self.event_sender.send(AppEvent::OnWidgetEnter(
@@ -99,6 +110,9 @@ impl Screen for ChatScreen {
     }
 
     fn draw(&self, area: Rect, buf: &mut Buffer) -> Option<CursorPos> {
+        if self.y > 0 {
+            self.msg_list.borrow_mut().set_line((self.y - 1) as u16);
+        }
         // MAIN
         let chat_block = Block::bordered().border_type(DEFAULT_BORDER);
         let chat_inner = chat_block.inner(area);
