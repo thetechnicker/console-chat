@@ -6,8 +6,10 @@
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
 This is a simple chat service for the terminal.
+The purpose of this project is for me to learn new stuff.
 
 ## Overview
 
 - `backend`: This folder contains the backend for this chat application.
 - `console-chat`: This is the current TUI chat application.
+

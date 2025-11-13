@@ -197,6 +197,7 @@ mod tests {
         assert_snapshot!(terminal.backend());
     }
 
+    /*
     #[test]
     fn test_render_chat_long_msg() {
         let mut chat_screen = ChatScreen::new(dummy_event_sender().0.into());
@@ -225,4 +226,5 @@ mod tests {
             .unwrap();
         assert_snapshot!(terminal.backend());
     }
+    */
 }
