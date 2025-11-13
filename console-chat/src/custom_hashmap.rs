@@ -1,165 +1,173 @@
 //! This is a custom implem//! This is a custom implementation of a Prefix tree.
 //! its whole purpose is for me to learn how to do low level memory in rust
+//!
+//! Plan:
+//! key: [`&[char]`], value: [`String`]
+//! getting value example:
+//! 'a' -> 'b' -> 'c' -> "value"
+//! 'a' -> 'c' -> 'c' -> "other value"
 
+use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::marker::PhantomData;
-use std::ops::Index;
-use std::ops::IndexMut;
-use std::rc::Rc;
+use std::pin::Pin;
 
-const ZERO: usize = '0' as usize;
-const MAX: usize = 'z' as usize;
+const MAX_KEY_LEN: usize = 256;
 
-const ALPHABET_LEN: usize = MAX - ZERO + 1;
-fn char_to_index(c: char) -> usize {
-    let c = c as usize;
-    if MAX < c || c < ZERO {
-        panic!(
-            "Char outside of range: min: {}, max: {}, c: {}",
-            MAX, ZERO, c
-        );
-    }
-    c - ZERO
-}
-
-pub type Values = Rc<[String]>;
-pub type MapInner<'a> = [TrieNode<'a>; ALPHABET_LEN];
-
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
-pub struct Map<'a> {
-    inner: MapInner<'a>,
-}
-
-impl<'a> Default for Map<'a> {
-    fn default() -> Self {
-        Self {
-            inner: std::array::from_fn(|_| TrieNode::default()),
-        }
-    }
-}
-
-impl<'a> Index<char> for Map<'a> {
-    type Output = TrieNode<'a>;
-    fn index(&self, c: char) -> &TrieNode<'a> {
-        &self.inner[char_to_index(c)]
-    }
-}
-impl<'a> IndexMut<char> for Map<'a> {
-    fn index_mut(&mut self, c: char) -> &mut TrieNode<'a> {
-        &mut self.inner[char_to_index(c)]
-    }
-}
-
-#[derive(Default, PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
 pub struct Value<'a, T> {
     ptr: *const T,
-    marker: PhantomData<&'a T>,
+    _phantom: PhantomData<&'a T>,
 }
 
+/// Do not use this in your code.
 impl<'a, T> Value<'a, T> {
-    /// Create a new Value from a reference with lifetime `'a`
-    pub fn new(reference: &T) -> Self {
+    #[allow(dead_code)]
+    pub fn new(value: &'a T) -> Self {
         Self {
-            ptr: reference as *const T,
-            marker: PhantomData,
+            ptr: value as *const T,
+            _phantom: PhantomData,
         }
     }
-    pub fn get_value(&self) -> Option<&T> {
+
+    pub fn from_raw(value: *const T) -> Self {
+        Self {
+            ptr: value,
+            _phantom: PhantomData,
+        }
+    }
+
+    unsafe fn get_unchecked(&self) -> &'a T {
+        unsafe { &*self.ptr }
+    }
+
+    pub fn get(&self) -> Option<&'a T> {
         unsafe {
             if !self.ptr.is_null() {
-                return Some(&*self.ptr);
+                return Some(self.get_unchecked());
             }
         }
         None
     }
 }
 
-#[derive(Default, PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
-pub enum TrieNode<'a> {
-    #[default]
-    None,
+impl<'a, T> std::fmt::Debug for Value<'a, T>
+where
+    T: std::fmt::Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Value")
+            .field("content", &self.get())
+            .field("raw", &self.ptr)
+            .finish()
+    }
+}
+
+type CharMap<'a> = HashMap<char, Node<'a>>;
+
+#[derive(Debug)]
+pub enum Node<'a> {
     Value(Value<'a, String>),
-    Map(Rc<Map<'a>>),
+    Map(CharMap<'a>), // for simplicity, fixed branching
 }
-
-#[derive(Debug, Clone)]
-pub struct Trie<'a> {
-    root: Rc<Map<'a>>,
-    values: Values,
-}
-
-impl<'a> Trie<'a> {
-    pub fn new(mapped_values: &[(Vec<char>, String)]) -> Self {
-        let mut root = Map::default();
-        let mut values = Vec::with_capacity(mapped_values.len());
-        for (_, value) in mapped_values.iter() {
-            values.push(value.to_owned());
+impl<'a> Node<'a> {
+    pub fn map(&self) -> Option<&CharMap<'a>> {
+        match self {
+            Node::Map(map) => Some(map),
+            Node::Value(_) => None,
         }
-        let boxed_values = values.into_boxed_slice();
-        let values: Values = Rc::from(boxed_values);
-        //let mut root_2: Map<'a> = std::array::from_fn(|_| TrieNode::default());
-        for (i, (key, _)) in mapped_values.iter().enumerate() {
-            let mut key = VecDeque::from(key.to_owned());
-            let idk = Value::new(&values[i]);
-            let mut end = TrieNode::Value(idk);
-            let start: char = key.pop_front().unwrap_or('0');
-            for c in key.iter().rev() {
-                let mut map = Map::default();
-                map[*c] = end;
-                end = TrieNode::Map(Rc::new(map));
+    }
+
+    pub fn value(&self) -> Option<Result<&str, String>> {
+        match self {
+            Node::Map(_) => None,
+            Node::Value(value) => {
+                if let Some(value) = value.get() {
+                    Some(Ok(value))
+                } else {
+                    Some(Err("the value is a invalid pointer".to_string()))
+                }
             }
-            root[start] = end;
         }
-        let this = Self {
-            root: Rc::new(root),
-            values,
-        };
-        this
     }
-    pub fn get_node(&self, c: char) -> &TrieNode<'a> {
-        &self.root[c]
+}
+
+#[derive(Debug)]
+pub struct Root<'a> {
+    values: Pin<Box<[String]>>,
+    root: CharMap<'a>,
+}
+
+// TODO: return result to explain error, maybe 3 state enum ok, length, existing sub path ends
+// earlier than new path
+fn build_prefix_path_recursive<'a>(
+    key: &mut VecDeque<char>,
+    map: &mut CharMap<'a>,
+    end: Value<'a, String>,
+) {
+    if key.len() > MAX_KEY_LEN {
+        panic!()
     }
-    pub fn get_values(&self) -> Rc<[String]> {
-        self.values.clone()
+    if let Some(c) = key.pop_front() {
+        if let Some(existing_path) = map.get_mut(&c) {
+            match existing_path {
+                Node::Map(map) => build_prefix_path_recursive(key, map, end),
+                Node::Value(_) => panic!(),
+            }
+        } else {
+            let mut end = Node::Value(end);
+            while let Some(c) = key.pop_back() {
+                end = Node::Map(HashMap::from([(c, end)]));
+            }
+            map.insert(c, end);
+        }
+    }
+}
+
+impl<'a> Root<'a> {
+    pub fn new(values: Vec<(&[char], String)>) -> Self {
+        let mut value_box = Pin::new(vec![String::new(); values.len()].into_boxed_slice());
+        let mut root = CharMap::new();
+        for (i, (key, value)) in values.iter().enumerate() {
+            let mut key = VecDeque::from(key.to_vec());
+            value_box[i] = value.to_owned();
+            let mapped_value = Value::from_raw(&value_box[i]);
+            build_prefix_path_recursive(&mut key, &mut root, mapped_value);
+        }
+        Self {
+            values: value_box,
+            root,
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::rc::Rc;
-
     #[test]
-    fn test_trie() {
-        let key = vec!['a', 'b', 'c'];
-        let trie = Trie::new(&[(key, "ABC".into())]);
-        let mut node = trie.get_node('a');
-        assert!(matches!(node, TrieNode::Map(_)));
-        if let TrieNode::Map(map) = node {
-            node = &map['b'];
-        }
-        assert!(matches!(node, TrieNode::Map(_)));
-        if let TrieNode::Map(map) = node {
-            node = &map['c'];
-        }
-        assert!(matches!(node, TrieNode::Value(_)));
+    fn create_tree() {
+        let trie = Root::new(vec![
+            (&['a', 'a', 'a'], "Test".to_owned()),
+            (&['a', 'a', 'b'], "Test".to_owned()),
+            (&['a', 'a', 'c'], "Test".to_owned()),
+            (&['a', 'b', 'a'], "Test".to_owned()),
+            (&['a', 'b', 'b'], "Test".to_owned()),
+            (&['a', 'b', 'c'], "Test".to_owned()),
+            (&['a', 'c', 'a'], "Test".to_owned()),
+            (&['a', 'c', 'b'], "Test".to_owned()),
+            (&['a', 'c', 'c'], "Test".to_owned()),
+        ]);
 
-        if let TrieNode::Value(v) = node {
-            assert_eq!(v.get_value(), Some("ABC".to_string()).as_ref());
-        }
-    }
+        let node = trie.root.get(&'a');
+        assert!(matches!(node, Some(Node::Map(_))));
+        let map = node.unwrap().map().unwrap();
 
-    #[test]
-    fn test_value_new_and_deref() {
-        // Create an Rc slice of Strings
-        let values: Rc<[String]> = Rc::from(vec!["a".into(), "b".into(), "c".into()]);
+        let node = map.get(&'a');
+        assert!(matches!(node, Some(Node::Map(_))));
+        let map = node.unwrap().map().unwrap();
 
-        // Create a Value pointing to the second element
-        let val = Value::new(&values[1]);
-
-        // Safety: val.ptr points to values[1], which is still alive
-        unsafe {
-            assert_eq!(&*val.ptr, "b");
-        }
+        let node = map.get(&'a');
+        assert!(matches!(node, Some(Node::Value(_))));
+        let map = node.unwrap().value().unwrap();
+        assert_eq!(map, Ok(trie.values[0].as_str()));
     }
 }
