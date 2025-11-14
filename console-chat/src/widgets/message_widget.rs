@@ -48,6 +48,10 @@ impl MessageList {
 }
 
 impl Widget for MessageList {
+    fn is_long(&self) -> bool {
+        true
+    }
+
     fn get_len(&self) -> usize {
         self.len.borrow().clone()
     }
