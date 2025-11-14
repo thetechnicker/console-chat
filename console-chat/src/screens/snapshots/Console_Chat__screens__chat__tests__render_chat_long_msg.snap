@@ -3,6 +3,9 @@ source: src/screens/chat.rs
 expression: terminal.backend()
 ---
 "╔══════════════════════════════════════════════════════════════════════════════╗"
+"║│in quo a nobis philosophia defensa et collaudata est, cum id, quod maxime   │║"
+"║│placeat, facere possimus, omnis voluptas assumenda est, omnis dolor         │║"
+"║╰────────────────────────────────────────────────────────────────────────────╯║"
 "║╭User1───────────────────────────────────────────────────────────────────────╮║"
 "║│1                                                                           │║"
 "║│Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod     │║"
@@ -15,9 +18,6 @@ expression: terminal.backend()
 "║│in quo a nobis philosophia defensa et collaudata est, cum id, quod maxime   │║"
 "║│placeat, facere possimus, omnis voluptas assumenda est, omnis dolor         │║"
 "║╰────────────────────────────────────────────────────────────────────────────╯║"
-"║                                                                              ║"
-"║                                                                              ║"
-"║                                                                              ║"
 "║╭────────────────────────────────────────────────────────────────────────────╮║"
 "║│Input                                                                       │║"
 "║╰────────────────────────────────────────────────────────────────────────────╯║"

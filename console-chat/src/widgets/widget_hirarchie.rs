@@ -228,6 +228,11 @@ mod test {
         let c = crate::widgets::Button::new("abc", 'c', "abc");
         let d = crate::widgets::Button::new("abc", 'c', "abc");
         let y = widget_element!([a, [b, c], d]);
-        assert!(false, "{:#?}", y);
+        assert!(matches!(y, WidgetElement::Collection(_)));
+        assert!(matches!(y[0], WidgetElement::Item(_)));
+        assert!(matches!(y[1], WidgetElement::Collection(_)));
+        assert!(matches!(y[1][0], WidgetElement::Item(_)));
+        assert!(matches!(y[1][1], WidgetElement::Item(_)));
+        assert!(matches!(y[2], WidgetElement::Item(_)));
     }
 }

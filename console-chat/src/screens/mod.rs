@@ -1,8 +1,8 @@
 use crate::custom_hashmap;
 use crate::event::AppEvent;
 use crate::network::NetworkEvent;
+use crate::widgets::WidgetEvent;
 pub use crate::widgets::widget_hirarchie::*;
-use crate::widgets::{self, WidgetEvent};
 use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
 use ratatui::{buffer::Buffer, layout::Rect};
@@ -32,19 +32,17 @@ pub struct CursorPos {
     pub y: u16,
 }
 
-struct BaseScreen<'a> {
+/*
+pub struct BaseScreen<'a> {
     widget_hirarchie: WidgetElement,
     commands: custom_hashmap::Trie<'a>,
 }
 
-struct ScreenBuilder<'a> {
+pub struct ScreenBuilder<'a> {
     widget_hirarchie: WidgetElement,
     commands: custom_hashmap::Trie<'a>,
 }
-
-struct WidgetGroup<T>([T])
-where
-    T: Default;
+*/
 
 pub trait Screen: Debug {
     fn draw(&self, area: Rect, buf: &mut Buffer) -> Option<CursorPos>;

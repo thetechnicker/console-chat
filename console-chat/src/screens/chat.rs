@@ -196,10 +196,9 @@ mod tests {
         assert_snapshot!(terminal.backend());
     }
 
-    /*
     #[test]
     fn test_render_chat_long_msg() {
-    use lipsum::lipsum;
+        use lipsum::lipsum;
         let mut chat_screen = ChatScreen::new(dummy_event_sender().0.into());
 
         for i in 0..2 {
@@ -226,5 +225,4 @@ mod tests {
             .unwrap();
         assert_snapshot!(terminal.backend());
     }
-    */
 }
