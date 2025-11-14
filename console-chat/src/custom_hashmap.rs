@@ -10,6 +10,7 @@ use std::pin::Pin;
 
 const MAX_KEY_LEN: usize = 256;
 
+#[derive(Clone)]
 struct Value<'a, T> {
     ptr: *const T,
     _phantom: PhantomData<&'a T>,
@@ -60,31 +61,10 @@ where
 
 type CharMap<'a> = HashMap<char, Node<'a>>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Node<'a> {
     Value(Value<'a, String>),
     Map(CharMap<'a>), // for simplicity, fixed branching
-}
-impl<'a> Node<'a> {
-    pub fn map(&self) -> Option<&CharMap<'a>> {
-        match self {
-            Node::Map(map) => Some(map),
-            Node::Value(_) => None,
-        }
-    }
-
-    pub fn value(&self) -> Option<Result<&str, String>> {
-        match self {
-            Node::Map(_) => None,
-            Node::Value(value) => {
-                if let Some(value) = value.get() {
-                    Some(Ok(value))
-                } else {
-                    Some(Err("the value is a invalid pointer".to_string()))
-                }
-            }
-        }
-    }
 }
 
 fn build_prefix_path_recursive<'a>(
@@ -138,14 +118,14 @@ impl<'a> Trie<'a> {
         })
     }
 
-    pub fn get_values(&self) -> &[String] {
+    pub fn get_values(&'a self) -> &'a [String] {
         &self.values
     }
 
     fn get_node(&self, c: char) -> Option<&Node<'a>> {
         self.root.get(&c)
     }
-    pub fn traverse(self) -> TrieTraverser<'a> {
+    pub fn traverse(&'a self) -> TrieTraverser<'a> {
         TrieTraverser {
             root: self,
             node: None,
@@ -166,38 +146,18 @@ pub enum TraversalResult {
     Value(String),
 }
 
+#[derive(Debug)]
 pub struct TrieTraverser<'a> {
-    root: Trie<'a>,
-    node: Option<Value<'a, Node<'a>>>,
+    root: &'a Trie<'a>,
+    node: Option<Node<'a>>,
 }
 
 impl<'a> TrieTraverser<'a> {
-    #[allow(dead_code)]
-    fn next_consuming(mut self, c: char) -> TraversalResult2<'a> {
-        if let Some(node) = self.node.take() {
-            if let Some(map) = node.get().unwrap().map() {
-                match map.get(&c) {
-                    Some(node) => self.node = Some(Value::from_raw(node)),
-                    None => return TraversalResult2::Error(self.root),
-                }
-            } else {
-                panic!("This is invalid");
-            }
-        } else {
-            self.node = self.root.get_node(c).map(|node| Value::from_raw(node));
-        }
-        if let Some(Node::Value(v)) = self.node.as_ref().map(|n| n.get().unwrap()) {
-            let str = v.get().map(|str| str.clone()).unwrap();
-            return TraversalResult2::Value(str, self.root);
-        }
-        TraversalResult2::Map(self)
-    }
-
     pub fn next(&mut self, c: char) -> Result<TraversalResult, String> {
         if let Some(node_ptr) = self.node.take() {
-            match node_ptr.get().unwrap() {
+            match node_ptr {
                 Node::Map(map) => match map.get(&c) {
-                    Some(node) => self.node = Some(Value::from_raw(node)),
+                    Some(node) => self.node = Some(node.clone()),
                     None => {
                         self.node = None;
                         return Ok(TraversalResult::UnusedPath);
@@ -208,13 +168,15 @@ impl<'a> TrieTraverser<'a> {
                 }
             }
         } else {
-            self.node = self.root.get_node(c).map(|node| Value::from_raw(node));
+            self.node = self.root.get_node(c).cloned(); //.map(|node| Value::from_raw(node));
         }
-        if let Some(Node::Value(v)) = self.node.as_ref().map(|node| node.get().unwrap()) {
+        if let Some(Node::Value(v)) = self.node.as_ref() {
+            //.map(|node| node.get().unwrap()) {
             let str = v.get().map(|str| str.clone()).unwrap();
             self.node = None;
             return Ok(TraversalResult::Value(str));
         }
+        println!("{:?}", self);
         Ok(TraversalResult::MappingNode)
     }
 }
@@ -222,6 +184,22 @@ impl<'a> TrieTraverser<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    impl<'a> Node<'a> {
+        fn map(&'a self) -> Option<&'a CharMap<'a>> {
+            match self {
+                Node::Map(map) => Some(map),
+                Node::Value(_) => None,
+            }
+        }
+        fn value(&'a self) -> Option<&'a Value<'a, String>> {
+            match self {
+                Node::Value(value) => Some(value),
+                Node::Map(_) => None,
+            }
+        }
+    }
+
     #[test]
     fn create_tree() {
         let trie = Trie::new(vec![
@@ -247,8 +225,8 @@ mod tests {
 
         let node = map.get(&'a');
         assert!(matches!(node, Some(Node::Value(_))));
-        let map = node.unwrap().value().unwrap();
-        assert_eq!(map, Ok(trie.values[0].as_str()));
+        let map = node.unwrap().value().unwrap().get();
+        assert_eq!(map, Some(&trie.values[0]));
     }
 
     #[test]
@@ -286,9 +264,16 @@ mod tests {
 
         let mut traveler = trie.traverse();
         for c in "abc".chars() {
-            match traveler.next(c) {
-                Ok(_) => {}
-                Err(_) => panic!(),
+            let next = traveler.next(c);
+            assert!(matches!(next, Ok(_)));
+            if let Ok(result) = next {
+                match result {
+                    TraversalResult::Value(value) => {
+                        assert_eq!(value, "Test".to_string());
+                        break;
+                    }
+                    _ => {}
+                }
             }
         }
     }

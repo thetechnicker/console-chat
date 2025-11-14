@@ -32,13 +32,13 @@ impl ChatScreen {
                 .with_clippboard(true),
         ));
         let msg_list = Rc::new(RefCell::new(widgets::MessageList::new()));
-        let widget_hirarchie = screens::WidgetElement::CollectionWithLongElement((
+        let widget_hirarchie = screens::WidgetElement::CollectionWithLongElement(
             Rc::new([
                 screens::WidgetElement::Item(input.clone()),
                 screens::WidgetElement::Item(msg_list.clone()),
             ]),
             1,
-        ));
+        );
         Self {
             x: 0,
             y: 0,
@@ -152,7 +152,6 @@ mod tests {
         data_model::user::PublicUser,
     };
     use insta::assert_snapshot;
-    use lipsum::lipsum;
     use ratatui::{Terminal, backend::TestBackend};
 
     #[test]
@@ -200,6 +199,7 @@ mod tests {
     /*
     #[test]
     fn test_render_chat_long_msg() {
+    use lipsum::lipsum;
         let mut chat_screen = ChatScreen::new(dummy_event_sender().0.into());
 
         for i in 0..2 {
