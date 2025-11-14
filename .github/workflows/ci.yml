@@ -78,10 +78,6 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        include:
-          - os: ubuntu-latest
-            packages: "libx11-dev libpng-dev"
-          - os: windows-latest
     steps:
       # if your project needs OpenSSL, uncomment this to fix Windows builds.
       # it's commented out by default as the install command takes 5-10m.
@@ -90,6 +86,11 @@ jobs:
       # - run: vcpkg install openssl:x64-windows-static-md
       #   if: runner.os == 'Windows'
       - uses: actions/checkout@v5
+      - name: Install dependencies (Linux only)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt update
+          sudo apt install -y libx11-dev libpng-dev
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       # enable this ci template to run regardless of whether the lockfile is checked in or not
