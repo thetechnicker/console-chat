@@ -1,6 +1,8 @@
 use crossterm::event::KeyEvent;
 use ratatui::{buffer::Buffer, layout::Rect};
+use std::cell::RefCell;
 use std::fmt::Debug;
+use std::rc::Rc;
 
 pub mod input;
 pub use input::*;
@@ -18,6 +20,13 @@ pub enum WidgetEvent {
 }
 
 pub trait Widget: Debug {
+    fn boxed(self) -> Rc<RefCell<Self>>
+    where
+        Self: Sized,
+    {
+        Rc::new(RefCell::new(self))
+    }
+
     fn focus(&mut self) {}
     fn unfocus(&mut self) {}
 
@@ -34,5 +43,12 @@ pub trait Widget: Debug {
         Self: Sized,
     {
         self as &dyn Widget
+    }
+
+    fn get_len(&self) -> usize {
+        0
+    }
+    fn is_long(&self) -> bool {
+        false
     }
 }

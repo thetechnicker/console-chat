@@ -106,7 +106,11 @@ impl Screen for LoginScreen {
         self.y = y;
     }
 
-    fn handle_widget_event(&mut self, command: String, _: Option<String>) {
+    fn handle_widget_event(&mut self, event: widgets::WidgetEvent) {
+        let (command, _) = match event {
+            widgets::WidgetEvent::Button(command) => (command, None),
+            widgets::WidgetEvent::Input((command, args)) => (command, args),
+        };
         match command.to_uppercase().as_str() {
             "QUIT" => self.event_sender.send(AppEvent::Quit),
             "LOGIN_ANONYM" | "LOGIN" => self

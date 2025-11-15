@@ -23,3 +23,16 @@ where
     }
     *x = if *x == zero { max - one } else { *x - one } % max;
 }
+
+use clippers;
+use clippers::ClipperData;
+
+pub fn get_clipboard_content() -> Option<String> {
+    let mut clipboard = clippers::Clipboard::get();
+    match clipboard.read() {
+        Some(ClipperData::Image(_)) => None,
+        Some(ClipperData::Text(text)) => Some(text.to_string()),
+        Some(_) => None,
+        None => None,
+    }
+}
