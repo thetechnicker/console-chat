@@ -32,5 +32,5 @@ palette = "0.7.6"
 clippers = "0.1.2"
 
 [dev-dependencies]
-insta = "1.43.2"
+insta = "1.44.1"
 lipsum = "0.9.1"
