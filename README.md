@@ -2,7 +2,8 @@
 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![Rust](https://img.shields.io/badge/rust-stable-orange)
-[![CI](https://github.com/thetechnicker/console-chat/actions/workflows/ci.yml/badge.svg)](https://github.com/thetechnicker/console-chat/actions/workflows/ci.yml)
+[![CI - Python](https://github.com/thetechnicker/console-chat/actions/workflows/ci-python.yml/badge.svg)](https://github.com/thetechnicker/console-chat/actions/workflows/ci-python.yml)
+[![CI - Rust](https://github.com/thetechnicker/console-chat/actions/workflows/ci-rust.yml/badge.svg)](https://github.com/thetechnicker/console-chat/actions/workflows/ci-rust.yml)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
 This is a simple chat service for the terminal.
