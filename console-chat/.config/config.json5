@@ -40,6 +40,7 @@
   },
   "themes": {
     "Home": {
+      "root":"DARK_GRAY",
       "join": "GREEN",
       "login": "BLUE",
       "settings": "GRAY",

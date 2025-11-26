@@ -99,22 +99,22 @@ impl Component for Login<'_> {
         self.active = false;
     }
     fn init(&mut self, _: Size) -> Result<()> {
+        let _themes = self.config.themes.get(&crate::app::Mode::Login);
         self.vim = [Some(Vim::default()), Some(Vim::default())];
         self.username.set_cursor_line_style(Style::default());
         self.username
             .set_style(Style::default().fg(Color::LightGreen));
-        self.username
-            .set_block(Block::default().borders(Borders::ALL).title("Username"));
+        self.username.set_block(VimMode::Normal.highlight_block());
 
         self.password.set_cursor_line_style(Style::default());
         self.password.set_mask_char('\u{2022}');
         self.password
             .set_style(Style::default().fg(Color::LightGreen));
-        self.password
-            .set_block(Block::default().borders(Borders::ALL).title("Password"));
+        self.password.set_block(VimMode::Normal.highlight_block());
 
         self.login = Button::new("Login", "", GREEN, Action::TriggerLogin);
         self.exit = Button::new("Abort", "<q>", RED, Action::OpenHome);
+        self.update_elements();
         Ok(())
     }
 

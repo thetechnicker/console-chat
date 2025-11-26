@@ -21,6 +21,11 @@ impl Settings {
 }
 
 impl Component for Settings {
+    fn init(&mut self, _: Size) -> Result<()> {
+        let _themes = self.config.themes.get(&crate::app::Mode::Settings);
+        Ok(())
+    }
+
     fn register_action_handler(&mut self, tx: UnboundedSender<Action>) -> Result<()> {
         self.command_tx = Some(tx);
         Ok(())

@@ -93,14 +93,15 @@ impl Component for Join<'_> {
         self.active = false;
     }
     fn init(&mut self, _: Size) -> Result<()> {
+        let _themes = self.config.themes.get(&crate::app::Mode::Join);
         self.vim = Some(Vim::default());
         self.room.set_cursor_line_style(Style::default());
         self.room.set_style(Style::default().fg(Color::LightGreen));
-        self.room
-            .set_block(Block::default().borders(Borders::ALL).title("Username"));
+        self.room.set_block(VimMode::Normal.highlight_block());
 
         self.join = Button::new("Join", "", GREEN, Action::TriggerJoin);
         self.cancel = Button::new("Abort", "<q>", RED, Action::OpenHome);
+        self.update_elements();
         Ok(())
     }
 

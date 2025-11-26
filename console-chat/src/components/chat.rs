@@ -10,11 +10,11 @@ use tui_textarea::TextArea;
 use super::Component;
 use crate::{action::Action, config::Config};
 
-struct Message {
+struct MessageComponent {
     content: String,
     selected: bool,
 }
-impl Message {
+impl MessageComponent {
     fn new(content: impl ToString) -> Self {
         Self {
             content: content.to_string(),
@@ -37,7 +37,7 @@ pub struct Chat<'a> {
     textinput: TextArea<'a>,
     vim: Option<Vim>,
     index: usize,
-    msgs: Vec<Message>,
+    msgs: Vec<MessageComponent>,
 }
 
 impl Chat<'_> {
@@ -68,6 +68,10 @@ impl Chat<'_> {
         if self.index > 0 {
             self.msgs.get_mut(self.index - 1).map(|m| m.select());
         }
+        if self.index != 0 {
+            self.textinput
+                .set_block(Block::default().borders(Borders::ALL).title("Chat"));
+        }
     }
 }
 
@@ -76,8 +80,9 @@ impl Component for Chat<'_> {
         self.active = false;
     }
     fn init(&mut self, _: Size) -> Result<()> {
+        let _themes = self.config.themes.get(&crate::app::Mode::Chat);
         let vim = Vim::new(VimMode::Normal, VimType::SingleLine);
-        self.textinput.set_block(vim.mode.block());
+        self.textinput.set_block(vim.mode.highlight_block());
         self.textinput.set_cursor_style(vim.mode.cursor_style());
         self.vim = Some(vim);
         Ok(())
@@ -100,7 +105,7 @@ impl Component for Chat<'_> {
                     self.vim = if let Some(this_vim) = self.vim.take() {
                         Some(match this_vim.transition(key.into(), &mut self.textinput) {
                             Transition::Mode(mode) if this_vim.mode != mode => {
-                                self.textinput.set_block(mode.block());
+                                self.textinput.set_block(mode.highlight_block());
                                 self.textinput.set_cursor_style(mode.cursor_style());
                                 this_vim.update_mode(mode)
                             }
@@ -154,7 +159,16 @@ impl Component for Chat<'_> {
             let block = Block::new().bg(Color::Blue);
             block.render(area, buf);
 
-            self.textinput.render(area, buf);
+            let [_chat, input] = Layout::vertical([Constraint::Fill(1), Constraint::Max(3)]).areas(
+                Layout::horizontal([
+                    Constraint::Fill(1),
+                    Constraint::Percentage(60),
+                    Constraint::Fill(1),
+                ])
+                .split(area)[1],
+            );
+
+            self.textinput.render(input, buf);
         }
 
         Ok(())

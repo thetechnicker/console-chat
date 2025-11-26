@@ -10,6 +10,7 @@ use lazy_static::lazy_static;
 use ratatui::style::{Color, Modifier, Style};
 use serde::{Deserialize, Serialize, Serializer, de::Deserializer};
 use tracing::error;
+use url::Url;
 
 use crate::{action::Action, app::Mode};
 
@@ -28,11 +29,25 @@ pub struct Config {
     #[serde(default, flatten)]
     pub config: AppConfig,
     #[serde(default)]
+    pub network: NetworkConfig,
+    #[serde(default)]
     pub keybindings: KeyBindings,
     #[serde(default)]
     pub styles: Styles,
     #[serde(default)]
     pub themes: Themes,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct NetworkConfig {
+    pub host: Url,
+}
+impl Default for NetworkConfig {
+    fn default() -> Self {
+        Self {
+            host: Url::parse("http://localhost").expect("default URL should be valid"),
+        }
+    }
 }
 
 lazy_static! {
@@ -91,6 +106,13 @@ impl Config {
             let user_styles = cfg.styles.entry(*mode).or_default();
             for (style_key, style) in default_styles.iter() {
                 user_styles.entry(style_key.clone()).or_insert(*style);
+            }
+        }
+
+        for (mode, default_theme) in default_config.themes.iter() {
+            let user_themes = cfg.themes.entry(*mode).or_default();
+            for (theme_key, theme) in default_theme.iter() {
+                user_themes.entry(theme_key.clone()).or_insert(*theme);
             }
         }
 
@@ -458,7 +480,7 @@ fn parse_color(s: &str) -> Option<Color> {
     }
 }
 
-#[derive(Clone, Serialize, Debug, Default, Deserialize)]
+#[derive(Clone, Serialize, Debug, Default, Deserialize, Deref, DerefMut)]
 pub struct Themes(pub HashMap<Mode, HashMap<String, crate::components::theme::Theme>>);
 
 pub fn get_key_from_value<'a, K, V>(map: &'a HashMap<K, V>, value: &V) -> Option<&'a K>

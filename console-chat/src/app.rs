@@ -12,6 +12,7 @@ use crate::{
         login::Login, settings::Settings, sorted_components,
     },
     config::Config,
+    network::handle_network,
     tui::{Event, Tui},
 };
 
@@ -195,8 +196,8 @@ impl App {
                 Action::OpenChat => self.set_mode(Mode::Chat),
                 Action::OpenRawSettings => self.set_mode(Mode::RawSettings),
                 Action::Hide => self.hide_all(),
-                Action::PerformLogin(_, _) => todo!(),
-                Action::PerformJoin(_) => todo!(),
+                //Action::PerformLogin(_, _) => ,
+                //Action::PerformJoin(_) => todo!(),
                 _ => {}
             }
             for component in self.components.iter_mut() {
@@ -204,6 +205,9 @@ impl App {
                     self.action_tx.send(action)?
                 };
             }
+            if let Some(action) = handle_network(action.clone())? {
+                self.action_tx.send(action)?
+            };
         }
         Ok(())
     }

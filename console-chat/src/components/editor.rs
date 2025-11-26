@@ -30,6 +30,7 @@ impl Component for Editor<'_> {
         self.active = false;
     }
     fn init(&mut self, _: Size) -> Result<()> {
+        let _themes = self.config.themes.get(&crate::app::Mode::RawSettings);
         let lines = serde_json::to_string_pretty(&self.config)?;
         let vim = Vim::new(VimMode::Normal, VimType::MultiLine);
         self.textinput = TextArea::from(lines.split("\n"));

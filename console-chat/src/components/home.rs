@@ -68,6 +68,7 @@ impl Component for Home {
         self.active = false;
     }
     fn init(&mut self, _: Size) -> Result<()> {
+        let _themes = self.config.themes.get(&crate::app::Mode::Home);
         self.theme = DARK_GRAY;
         self.active = true;
         self.login = Button::new("Login", "", GREEN, Action::OpenLogin);

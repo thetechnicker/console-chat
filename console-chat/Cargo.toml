@@ -31,6 +31,7 @@ lazy_static = "1.5.0"
 libc = "0.2.161"
 pretty_assertions = "1.4.1"
 ratatui = { version = "0.29.0", features = ["serde", "macros"] }
+reqwest = "0.12.24"
 serde = { version = "1.0.211", features = ["derive"] }
 serde_json = { version = "1.0.132", features = ["preserve_order"] }
 signal-hook = "0.3.17"
@@ -42,6 +43,8 @@ tracing = "0.1.40"
 tracing-error = "0.2.0"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "serde"] }
 tui-textarea = "0.7.0"
+url = { version = "2.5.7", features = ["serde"] }
+
 
 [build-dependencies]
 anyhow = "1.0.90"
