@@ -1,0 +1,60 @@
+{
+  "keybindings": {
+    "Home": {
+      "<q>": "Quit",
+      "<Ctrl-d>": "Quit",
+      "<Ctrl-c>": "Quit",
+      "<Ctrl-z>": "Suspend",
+      "<Ctrl-l>": "OpenLogin"
+    },
+    "Login": {
+      "<q>": "OpenHome",
+      "<Ctrl-d>": "Quit",
+      "<Ctrl-c>": "Quit",
+      "<Ctrl-z>": "Suspend"
+    },
+    "Join": {
+      "<q>": "OpenHome",
+      "<Ctrl-d>": "Quit",
+      "<Ctrl-c>": "Quit",
+      "<Ctrl-z>": "Suspend"
+    },
+    "Chat": {
+      "<q>": "OpenHome",
+      "<Ctrl-d>": "Quit",
+      "<Ctrl-c>": "Quit",
+      "<Ctrl-z>": "Suspend"
+    },
+    "Settings": {
+      "<q>": "OpenHome",
+      "<Ctrl-d>": "Quit",
+      "<Ctrl-c>": "Quit",
+      "<Ctrl-z>": "Suspend",
+    },
+    "RawSettings": {
+      "<q>": "OpenHome",
+      "<Ctrl-d>": "Quit",
+      "<Ctrl-c>": "Quit",
+      "<Ctrl-z>": "Suspend"
+    }
+  },
+  "themes": {
+    "Home": {
+      "join": "GREEN",
+      "login": "BLUE",
+      "settings": "GRAY",
+      "raw_settings": {
+        "text": "#303030",
+        "background": "#030303",
+        "highlight": "#c0ffee",
+        "shadow": "Red"
+      },
+      "exit": "RED"
+    },
+    "Login": {},
+    "Join": {},
+    "Chat": {},
+    "Settings": {},
+    "RawSettings": {}
+  }
+}
