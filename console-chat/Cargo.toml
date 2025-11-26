@@ -1,6 +1,6 @@
 [package]
 name = "console-chat-3"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 description = "idk"
 authors = ["Thetechnicker <106349149+thetechnicker@users.noreply.github.com>"]
