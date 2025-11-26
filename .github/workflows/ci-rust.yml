@@ -21,7 +21,7 @@ jobs:
     name: Test Suite ${{ matrix.os }}
     defaults:
       run:
-        working-directory: ./your-subfolder
+        working-directory: ./console-chat
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./your-subfolder
+        working-directory: ./console-chat
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -51,7 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./your-subfolder
+        working-directory: ./console-chat
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -67,7 +67,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./your-subfolder
+        working-directory: ./console-chat
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
