@@ -12,6 +12,10 @@ pub enum Action {
     ClearScreen,
     Error(String),
     Help,
+
+    Insert,
+    Normal,
+
     //  Open
     OpenLogin,
     OpenSettings,

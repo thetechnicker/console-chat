@@ -2,6 +2,7 @@
   "keybindings": {
     "Home": {
       "<q>": "Quit",
+      "<esc>": "Quit",
       "<Ctrl-d>": "Quit",
       "<Ctrl-c>": "Quit",
       "<Ctrl-z>": "Suspend",
@@ -9,30 +10,35 @@
     },
     "Login": {
       "<q>": "OpenHome",
+      "<esc><esc>": "OpenHome",
       "<Ctrl-d>": "Quit",
       "<Ctrl-c>": "Quit",
       "<Ctrl-z>": "Suspend"
     },
     "Join": {
       "<q>": "OpenHome",
+      "<esc><esc>": "OpenHome",
       "<Ctrl-d>": "Quit",
       "<Ctrl-c>": "Quit",
       "<Ctrl-z>": "Suspend"
     },
     "Chat": {
       "<q>": "OpenHome",
+      "<esc><esc>": "OpenHome",
       "<Ctrl-d>": "Quit",
       "<Ctrl-c>": "Quit",
       "<Ctrl-z>": "Suspend"
     },
     "Settings": {
       "<q>": "OpenHome",
+      "<esc><esc>": "OpenHome",
       "<Ctrl-d>": "Quit",
       "<Ctrl-c>": "Quit",
       "<Ctrl-z>": "Suspend",
     },
     "RawSettings": {
       "<q>": "OpenHome",
+      "<esc><esc>": "OpenHome",
       "<Ctrl-d>": "Quit",
       "<Ctrl-c>": "Quit",
       "<Ctrl-z>": "Suspend"

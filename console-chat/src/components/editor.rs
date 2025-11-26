@@ -57,6 +57,15 @@ impl Component for Editor<'_> {
                     Transition::Mode(mode) if this_vim.mode != mode => {
                         self.textinput.set_block(mode.block());
                         self.textinput.set_cursor_style(mode.cursor_style());
+                        match mode {
+                            VimMode::Insert => {
+                                self.command_tx.as_mut().unwrap().send(Action::Insert)?
+                            }
+                            VimMode::Normal if this_vim.mode == VimMode::Insert => {
+                                self.command_tx.as_mut().unwrap().send(Action::Normal)?
+                            }
+                            _ => {}
+                        };
                         this_vim.update_mode(mode)
                     }
                     Transition::Nop | Transition::Mode(_) => this_vim,

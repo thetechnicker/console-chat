@@ -1,6 +1,4 @@
-use super::theme::*;
-use crate::components::button::*;
-use crate::components::vim::*;
+use crate::components::{button::*, theme::*, vim::*};
 use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{prelude::*, widgets::*};
@@ -113,6 +111,15 @@ impl Component for Join<'_> {
                         Transition::Mode(mode) if this_vim.mode != mode => {
                             textinput.set_block(mode.highlight_block());
                             textinput.set_cursor_style(mode.cursor_style());
+                            match mode {
+                                VimMode::Insert => {
+                                    self.command_tx.as_mut().unwrap().send(Action::Insert)?
+                                }
+                                VimMode::Normal if this_vim.mode == VimMode::Insert => {
+                                    self.command_tx.as_mut().unwrap().send(Action::Normal)?
+                                }
+                                _ => {}
+                            };
                             this_vim.update_mode(mode)
                         }
                         Transition::Nop | Transition::Mode(_) | Transition::Store => this_vim,

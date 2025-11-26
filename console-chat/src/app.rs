@@ -24,6 +24,7 @@ pub struct App {
     should_quit: bool,
     should_suspend: bool,
     mode: Mode,
+    last_mode: Option<Mode>,
     last_tick_key_events: Vec<KeyEvent>,
     action_tx: mpsc::UnboundedSender<Action>,
     action_rx: mpsc::UnboundedReceiver<Action>,
@@ -38,6 +39,7 @@ pub enum Mode {
     Chat,
     Settings,
     RawSettings,
+    Insert,
 }
 
 impl App {
@@ -59,6 +61,7 @@ impl App {
             should_suspend: false,
             config: Config::new()?,
             mode: Mode::Home,
+            last_mode: None,
             last_tick_key_events: Vec::new(),
             action_tx,
             action_rx,
@@ -196,8 +199,20 @@ impl App {
                 Action::OpenChat => self.set_mode(Mode::Chat),
                 Action::OpenRawSettings => self.set_mode(Mode::RawSettings),
                 Action::Hide => self.hide_all(),
-                //Action::PerformLogin(_, _) => ,
-                //Action::PerformJoin(_) => todo!(),
+                Action::Insert => {
+                    self.last_mode = Some(self.mode);
+                    self.mode = Mode::Insert;
+                }
+                Action::Normal => {
+                    if let Some(mode) = self.last_mode.take() {
+                        self.mode = mode;
+                    } else {
+                        self.action_tx.send(Action::Error(
+                            "received Normal action but last mode wasn't set.".to_string(),
+                        ))?;
+                        self.set_mode(Mode::Home);
+                    }
+                }
                 _ => {}
             }
             for component in self.components.iter_mut() {
