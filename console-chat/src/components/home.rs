@@ -67,14 +67,30 @@ impl Component for Home {
         self.active = false;
     }
     fn init(&mut self, _: Size) -> Result<()> {
-        let _themes = self.config.themes.get(&crate::app::Mode::Home);
-        self.theme = DARK_GRAY;
         self.active = true;
-        self.login = Button::new("Login", "", GREEN, Action::OpenLogin);
-        self.join = Button::new("Join", "", BLUE, Action::OpenJoin);
-        self.settings = Button::new("Settings", "", GRAY, Action::OpenSettings);
-        self.raw_settings = Button::new("Settings File", "", GRAY, Action::OpenRawSettings);
-        self.exit = Button::new("Exit", "", RED, Action::Quit);
+        if let Some(themes) = self.config.themes.get(&crate::app::Mode::Home) {
+            self.theme = *themes.get("root").unwrap_or(&DARK_GRAY);
+
+            let join = *themes.get("join").unwrap_or(&GREEN);
+            let login = *themes.get("login").unwrap_or(&BLUE);
+            let settings = *themes.get("settings").unwrap_or(&GRAY);
+            let raw_settings = *themes.get("raw_settings").unwrap_or(&GRAY);
+            let exit = *themes.get("exit").unwrap_or(&RED);
+
+            self.join = Button::new("Join", "", join, Action::OpenJoin);
+            self.login = Button::new("Login", "", login, Action::OpenLogin);
+            self.settings = Button::new("Settings", "", settings, Action::OpenSettings);
+            self.raw_settings =
+                Button::new("Settings File", "", raw_settings, Action::OpenRawSettings);
+            self.exit = Button::new("Exit", "", exit, Action::Quit);
+        } else {
+            self.theme = DARK_GRAY;
+            self.login = Button::new("Login", "", GREEN, Action::OpenLogin);
+            self.join = Button::new("Join", "", BLUE, Action::OpenJoin);
+            self.settings = Button::new("Settings", "", GRAY, Action::OpenSettings);
+            self.raw_settings = Button::new("Settings File", "", GRAY, Action::OpenRawSettings);
+            self.exit = Button::new("Exit", "", RED, Action::Quit);
+        }
         self.update_selection(0);
         Ok(())
     }

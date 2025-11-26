@@ -8,8 +8,8 @@ use tracing::{debug, info};
 use crate::{
     action::Action,
     components::{
-        Component, chat::Chat, editor::Editor, fps::FpsCounter, home::Home, join::Join,
-        login::Login, settings::Settings, sorted_components,
+        Component, chat::Chat, editor::Editor, error_display::ErrorDisplay, fps::FpsCounter,
+        home::Home, join::Join, login::Login, settings::Settings, sorted_components,
     },
     config::Config,
     network::handle_network,
@@ -40,6 +40,7 @@ pub enum Mode {
     Settings,
     RawSettings,
     Insert,
+    Error,
 }
 
 impl App {
@@ -49,6 +50,7 @@ impl App {
             tick_rate,
             frame_rate,
             components: sorted_components(vec![
+                Box::new(ErrorDisplay::new()),
                 Box::new(Home::new()),
                 Box::new(Chat::new()),
                 Box::new(Join::new()),
@@ -119,8 +121,41 @@ impl App {
             component.init(tui.size()?)?;
         }
         self.hide_all();
-        //self.action_tx.send(Action::ClearScreen)?;
-        self.action_tx.send(Action::OpenSettings)?;
+        self.mode_to_screen()?;
+        Ok(())
+    }
+
+    fn mode_to_screen(&mut self) -> Result<()> {
+        match self.mode {
+            Mode::Home => self.action_tx.send(Action::OpenHome),
+            Mode::Join => self.action_tx.send(Action::OpenJoin),
+            Mode::Login => self.action_tx.send(Action::OpenLogin),
+            Mode::Chat => self.action_tx.send(Action::OpenChat),
+            Mode::Settings => self.action_tx.send(Action::OpenSettings),
+            Mode::RawSettings => self.action_tx.send(Action::OpenRawSettings),
+            Mode::Error | Mode::Insert => {
+                self.restore_prev_mode()?;
+                if self.mode == Mode::Insert || self.mode == Mode::Error {
+                    self.action_tx
+                        .send(Action::Error("Restoring Mode failed".to_string()))?;
+                    self.mode = Mode::Home;
+                }
+                self.mode_to_screen()?;
+                Ok(())
+            }
+        }?;
+        Ok(())
+    }
+
+    fn restore_prev_mode(&mut self) -> Result<()> {
+        if let Some(mode) = self.last_mode.take() {
+            self.mode = mode;
+        } else {
+            self.action_tx.send(Action::Error(
+                "received Normal action but last mode wasn't set.".to_string(),
+            ))?;
+            self.set_mode(Mode::Home);
+        }
         Ok(())
     }
 
@@ -203,16 +238,11 @@ impl App {
                     self.last_mode = Some(self.mode);
                     self.mode = Mode::Insert;
                 }
-                Action::Normal => {
-                    if let Some(mode) = self.last_mode.take() {
-                        self.mode = mode;
-                    } else {
-                        self.action_tx.send(Action::Error(
-                            "received Normal action but last mode wasn't set.".to_string(),
-                        ))?;
-                        self.set_mode(Mode::Home);
-                    }
+                Action::Error(_) => {
+                    self.last_mode = Some(self.mode);
+                    self.mode = Mode::Error;
                 }
+                Action::Normal => self.restore_prev_mode()?,
                 _ => {}
             }
             for component in self.components.iter_mut() {

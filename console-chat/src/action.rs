@@ -11,6 +11,7 @@ pub enum Action {
     Quit,
     ClearScreen,
     Error(String),
+    ErrorDone,
     Help,
 
     Insert,
