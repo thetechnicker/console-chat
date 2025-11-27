@@ -31,7 +31,7 @@ impl Login<'_> {
     }
 
     pub fn reset(&mut self) -> Result<()> {
-        let size = self.size.clone();
+        let size = self.size;
         *self = Self::default();
         self.init(size)
     }
@@ -69,7 +69,7 @@ impl Login<'_> {
                 self.login.set_state(ButtonState::Normal);
             }
             _ => {
-                self.index = self.index % Self::MAX_ELEMENTS;
+                self.index %= Self::MAX_ELEMENTS;
             }
         }
     }
@@ -80,10 +80,7 @@ impl<'a> Login<'a> {
         if self.index >= 2 {
             return None;
         }
-        let vim = match self.vim[self.index].take() {
-            Some(vim) => vim,
-            None => Vim::default(),
-        };
+        let vim = self.vim[self.index].take().unwrap_or_default();
         match self.index {
             0 => Some((&mut self.username, vim, self.index)),
             1 => Some((&mut self.password, vim, self.index)),
@@ -120,7 +117,7 @@ impl Component for Login<'_> {
         if self.active {
             match self.get_selected_input() {
                 Some((mut textinput, this_vim, i)) => {
-                    self.vim[i] = Some(match this_vim.transition(key.into(), &mut textinput) {
+                    self.vim[i] = Some(match this_vim.transition(key.into(), textinput) {
                         Transition::Mode(mode) if this_vim.mode != mode => {
                             textinput.set_block(mode.highlight_block());
                             textinput.set_cursor_style(mode.cursor_style());
@@ -230,7 +227,7 @@ impl Component for Login<'_> {
                 .split(area)[1],
             )[1];
 
-            Clear::default().render(center, buf);
+            Clear.render(center, buf);
             let block = Block::new().bg(Color::DarkGray);
             block.render(center, buf);
 

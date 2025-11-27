@@ -63,10 +63,10 @@ impl Chat<'_> {
 
     fn update_selection(&mut self, prev: usize) {
         if prev > 0 {
-            self.msgs.get_mut(prev - 1).map(|m| m.unselect());
+            if let Some(m) = self.msgs.get_mut(prev - 1) { m.unselect() }
         }
         if self.index > 0 {
-            self.msgs.get_mut(self.index - 1).map(|m| m.select());
+            if let Some(m) = self.msgs.get_mut(self.index - 1) { m.select() }
         }
         if self.index != 0 {
             self.textinput
@@ -100,49 +100,46 @@ impl Component for Chat<'_> {
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
         if self.active {
-            match self.index {
-                0 => {
-                    self.vim = if let Some(this_vim) = self.vim.take() {
-                        Some(match this_vim.transition(key.into(), &mut self.textinput) {
-                            Transition::Mode(mode) if this_vim.mode != mode => {
-                                self.textinput.set_block(mode.highlight_block());
-                                self.textinput.set_cursor_style(mode.cursor_style());
-                                match mode {
-                                    VimMode::Insert => {
-                                        self.command_tx.as_mut().unwrap().send(Action::Insert)?
-                                    }
-                                    VimMode::Normal if this_vim.mode == VimMode::Insert => {
-                                        self.command_tx.as_mut().unwrap().send(Action::Normal)?
-                                    }
-                                    _ => {}
-                                };
-                                this_vim.update_mode(mode)
-                            }
-                            Transition::Nop | Transition::Mode(_) => this_vim,
-                            Transition::Pending(input) => this_vim.with_pending(input),
-                            Transition::Up => this_vim,
-                            Transition::Down => this_vim,
-                            Transition::Enter(content) => {
-                                debug!("{}", content);
-                                this_vim
-                            }
-                            Transition::Store => {
-                                debug!("Storing new config");
-                                self.config =
-                                    serde_json::from_str(&self.textinput.lines().join("\n"))?;
-                                self.config.save()?;
-                                self.command_tx
-                                    .as_mut()
-                                    .unwrap()
-                                    .send(Action::ReloadConfig)?;
-                                this_vim
-                            }
-                        })
-                    } else {
-                        Some(Vim::default())
-                    }
+            if self.index == 0 {
+                self.vim = if let Some(this_vim) = self.vim.take() {
+                    Some(match this_vim.transition(key.into(), &mut self.textinput) {
+                        Transition::Mode(mode) if this_vim.mode != mode => {
+                            self.textinput.set_block(mode.highlight_block());
+                            self.textinput.set_cursor_style(mode.cursor_style());
+                            match mode {
+                                VimMode::Insert => {
+                                    self.command_tx.as_mut().unwrap().send(Action::Insert)?
+                                }
+                                VimMode::Normal if this_vim.mode == VimMode::Insert => {
+                                    self.command_tx.as_mut().unwrap().send(Action::Normal)?
+                                }
+                                _ => {}
+                            };
+                            this_vim.update_mode(mode)
+                        }
+                        Transition::Nop | Transition::Mode(_) => this_vim,
+                        Transition::Pending(input) => this_vim.with_pending(input),
+                        Transition::Up => this_vim,
+                        Transition::Down => this_vim,
+                        Transition::Enter(content) => {
+                            debug!("{}", content);
+                            this_vim
+                        }
+                        Transition::Store => {
+                            debug!("Storing new config");
+                            self.config =
+                                serde_json::from_str(&self.textinput.lines().join("\n"))?;
+                            self.config.save()?;
+                            self.command_tx
+                                .as_mut()
+                                .unwrap()
+                                .send(Action::ReloadConfig)?;
+                            this_vim
+                        }
+                    })
+                } else {
+                    Some(Vim::default())
                 }
-                _ => {}
             }
         }
         Ok(None)

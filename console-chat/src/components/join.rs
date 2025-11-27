@@ -30,7 +30,7 @@ impl Join<'_> {
     }
 
     pub fn reset(&mut self) -> Result<()> {
-        let size = self.size.clone();
+        let size = self.size;
         *self = Self::default();
         self.init(size)
     }
@@ -63,7 +63,7 @@ impl Join<'_> {
                 self.cancel.set_state(ButtonState::Selected);
             }
             _ => {
-                self.index = self.index % Self::MAX_ELEMENTS;
+                self.index %= Self::MAX_ELEMENTS;
             }
         }
     }
@@ -75,10 +75,7 @@ impl Join<'_> {
 
 impl<'a> Join<'a> {
     fn get_selected_input(&mut self) -> Option<(&mut TextArea<'a>, Vim)> {
-        let vim = match self.vim.take() {
-            Some(vim) => vim,
-            None => Vim::default(),
-        };
+        let vim = self.vim.take().unwrap_or_default();
         match self.index {
             0 => Some((&mut self.room, vim)),
             _ => None,
@@ -107,7 +104,7 @@ impl Component for Join<'_> {
         if self.active {
             match self.get_selected_input() {
                 Some((mut textinput, this_vim)) => {
-                    self.vim = Some(match this_vim.transition(key.into(), &mut textinput) {
+                    self.vim = Some(match this_vim.transition(key.into(), textinput) {
                         Transition::Mode(mode) if this_vim.mode != mode => {
                             textinput.set_block(mode.highlight_block());
                             textinput.set_cursor_style(mode.cursor_style());
@@ -210,7 +207,7 @@ impl Component for Join<'_> {
                 .split(area)[1],
             )[1];
 
-            Clear::default().render(center, buf);
+            Clear.render(center, buf);
             let block = Block::new().bg(Color::DarkGray);
             block.render(center, buf);
 

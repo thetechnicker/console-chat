@@ -39,11 +39,10 @@ impl ErrorDisplay {
         let elapsed = (now - self.last_error).as_secs_f64();
         if elapsed >= ERROR_TIMEOUT || self.current_error.is_none() {
             self.current_error = self.errors.pop();
-            if self.current_error.is_none() {
-                if let Some(command_tx) = self.command_tx.as_mut() {
+            if self.current_error.is_none()
+                && let Some(command_tx) = self.command_tx.as_mut() {
                     command_tx.send(Action::Normal)?;
                 }
-            }
         }
         Ok(())
     }

@@ -195,7 +195,7 @@ impl Component for Home {
 
             for (button, area) in buttons
                 .into_iter()
-                .zip(areas[1..Self::MAX_ELEMENTS + 1].into_iter())
+                .zip(areas[1..Self::MAX_ELEMENTS + 1].iter())
             {
                 button.draw_button(*area, buf);
             }
