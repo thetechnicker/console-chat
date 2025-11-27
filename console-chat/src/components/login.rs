@@ -116,7 +116,7 @@ impl Component for Login<'_> {
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
         if self.active {
             match self.get_selected_input() {
-                Some((mut textinput, this_vim, i)) => {
+                Some((textinput, this_vim, i)) => {
                     self.vim[i] = Some(match this_vim.transition(key.into(), textinput) {
                         Transition::Mode(mode) if this_vim.mode != mode => {
                             textinput.set_block(mode.highlight_block());

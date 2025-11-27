@@ -62,12 +62,10 @@ impl Chat<'_> {
     }
 
     fn update_selection(&mut self, prev: usize) {
-        if prev > 0 {
-            if let Some(m) = self.msgs.get_mut(prev - 1) { m.unselect() }
-        }
-        if self.index > 0 {
-            if let Some(m) = self.msgs.get_mut(self.index - 1) { m.select() }
-        }
+        if prev > 0
+            && let Some(m) = self.msgs.get_mut(prev - 1) { m.unselect() }
+        if self.index > 0
+            && let Some(m) = self.msgs.get_mut(self.index - 1) { m.select() }
         if self.index != 0 {
             self.textinput
                 .set_block(Block::default().borders(Borders::ALL).title("Chat"));
@@ -99,8 +97,8 @@ impl Component for Chat<'_> {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
-        if self.active {
-            if self.index == 0 {
+        if self.active
+            && self.index == 0 {
                 self.vim = if let Some(this_vim) = self.vim.take() {
                     Some(match this_vim.transition(key.into(), &mut self.textinput) {
                         Transition::Mode(mode) if this_vim.mode != mode => {
@@ -141,7 +139,6 @@ impl Component for Chat<'_> {
                     Some(Vim::default())
                 }
             }
-        }
         Ok(None)
     }
 
