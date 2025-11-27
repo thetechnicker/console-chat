@@ -17,6 +17,20 @@ end
 Client ->> RestApi: Request Token for anonym session
 RestApi ->> Client: Token for anonym User
 
+```
+
+## Login
+
+```mermaid
+sequenceDiagram
+box Client
+    participant UI
+    participant Client
+end
+box Server 
+    participant RestApi
+    participant DB
+end
 
 UI ->>+ Client: Login
 Client ->> RestApi: Send Login Request
@@ -48,8 +62,38 @@ Client ->>- UI: Display Login status
 
 ```
 
-<!--```
+## Chatting
 
-## Login
+```mermaid
+sequenceDiagram
+box Client
+    participant UI
+    participant Client
+end
+box Server 
+    participant RestApi
+    participant DB
+end
 
-```mermaid-->
+UI ->>+ Client: Join
+loop    
+    alt Normal
+        par Message Receival
+            Client ->>+ RestApi: get /room/<room-name>[?timeout=<timeout-in-seconds>]
+            RestApi -->> Client: Start streamed responce
+            RestApi -->> Client: Messages
+            RestApi ->>- Client: responce end after timeout
+        and Message Sending
+                UI ->> Client: Enter Message
+                Client ->>+ RestApi: post /room/<room-name>
+                RestApi ->>- Client: Success or Error
+        end
+    else Leave
+        UI ->> Client: Leave
+        Client ->>+ RestApi: terminate connection
+        RestApi -->>- Client: Ok
+    end
+end
+Client ->>- UI: Session Terminated
+```
+
