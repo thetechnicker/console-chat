@@ -28,9 +28,13 @@ pub fn init() -> Result<()> {
         .with_target(false)
         .with_ansi(false)
         .with_filter(env_filter);
+
+    let debug_str = format!("{:#?}", file_subscriber);
+
     tracing_subscriber::registry()
         .with(file_subscriber)
         .with(ErrorLayer::default())
         .try_init()?;
+    tracing::info!("{}", debug_str);
     Ok(())
 }
