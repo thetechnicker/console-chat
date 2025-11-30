@@ -14,7 +14,7 @@ use std::sync::OnceLock;
 use tokio::sync::Mutex;
 use tokio::{sync::mpsc::UnboundedSender, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, instrument, trace};
+use tracing::{debug, error, trace};
 use url::Url;
 
 const LISTEN_TIMEOUT: u64 = 30;
@@ -114,24 +114,36 @@ where
     T: TryInto<Url> + std::fmt::Debug,
     <T as TryInto<url::Url>>::Error: Sync + Send + std::error::Error + 'static,
 {
-    debug!("Initializing network client");
-    let url = url.try_into()?;
-    let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
-        .build()?;
-    let key = Keys::new()?;
-    CLIENT.get_or_init(|| {
-        Mutex::new(Client {
-            url,
-            client: client,
-            token: None,
-            action_tx,
-            room: None,
-            key,
-        })
-    });
-    auth().await?;
-    debug!("Initializing done");
+    if CLIENT.get().is_none() {
+        debug!("Initializing network client");
+        let url = url.try_into()?;
+        let key = Keys::new()?;
+        let is_localhost = url
+            .host_str()
+            .map(|host| host == "localhost" || host == "127.0.0.1" || host == "::1")
+            .unwrap_or(false);
+
+        let client_builder = reqwest::Client::builder();
+
+        let client_builder = if is_localhost {
+            client_builder.danger_accept_invalid_certs(true)
+        } else {
+            client_builder
+        };
+        let client = client_builder.build()?;
+        CLIENT.get_or_init(|| {
+            Mutex::new(Client {
+                url,
+                client: client,
+                token: None,
+                action_tx,
+                room: None,
+                key,
+            })
+        });
+        auth().await?;
+        debug!("Initializing done");
+    }
     Ok(())
 }
 
@@ -201,6 +213,11 @@ async fn leave(_: ()) -> Result<Option<Action>, NetworkError> {
     if let Some(listen_worker) = listen_worker_guard.take() {
         debug!("cancelling listen_worker");
         listen_worker.cancellation_token.cancel();
+        listen_worker.task.await??;
+        if let Some(client_mutex) = CLIENT.get() {
+            let mut client = client_mutex.lock().await;
+            client.room = None;
+        }
     }
     Ok(None)
 }
@@ -227,7 +244,7 @@ async fn listen(client: Client, cancellation_token: CancellationToken) -> Result
                 debug!("Received Chunk {chunk:?}");
                 let chunk = match chunk {
                     Err(e) => {
-                        debug!("Error Receiving chunk: {e:#?}");
+                        error!("Error Receiving chunk: {e:#?}");
                         break;
                     }
                     Ok(data) => data,
@@ -244,9 +261,14 @@ async fn listen(client: Client, cancellation_token: CancellationToken) -> Result
                 let msg = match serde_json::from_str::<messages::ServerMessage>(s) {
                     Ok(msg) => Ok(msg),
                     Err(e) => Err(NetworkError::from((e, s))),
-                }?;
-                debug!("Got message: {msg:#?}\n{}", if msg.base.is_mine(){"is mine"}else{"from someone else"});
-                let _ = client.action_tx.send(Action::ReceivedMessage(msg));
+                };
+                match msg{
+                    Ok(msg)=>{
+                        debug!("Got message: {msg:#?}\n{}", if msg.base.is_mine(){"is mine"}else{"from someone else"});
+                        let _ = client.action_tx.send(Action::ReceivedMessage(msg));
+                    }
+                    Err(e)=>{error!("{e}");continue},
+                }
             }
         }
     }

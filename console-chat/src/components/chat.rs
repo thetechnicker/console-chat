@@ -178,6 +178,7 @@ impl Component for Chat<'_> {
         match action {
             Action::OpenChat => self.active = true,
             Action::ReceivedMessage(msg) => self.msgs.push(msg.into()),
+            Action::Leave => self.msgs.clear(),
             Action::Tick => {
                 // add any logic here that should run on every tick
             }

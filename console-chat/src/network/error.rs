@@ -1,6 +1,7 @@
 use alkali::AlkaliError;
 use std::error::Error;
 use std::sync::Arc;
+use tokio::task::JoinError;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ResponseErrorData {
@@ -35,6 +36,8 @@ pub enum NetworkError {
     SerdeError(Arc<serde_json::Error>),
     AlkaliError(AlkaliError),
     CompositError(Arc<NetworkError>, String),
+
+    JoinError(Arc<JoinError>),
 }
 
 impl std::fmt::Display for NetworkError {
@@ -53,6 +56,7 @@ impl std::fmt::Display for NetworkError {
             NetworkError::SerdeError(error) => write!(f, "SerdeError: {}", error),
             NetworkError::AlkaliError(error) => write!(f, "AlkaliError: {}", error),
             NetworkError::Base64DecodeError(error) => write!(f, "Base64Error: {}", error),
+            NetworkError::JoinError(error) => write!(f, "Tokio Join Error: {}", error),
             NetworkError::CompositError(error, str) => {
                 write!(f, "CompositError: {}, \"{}\"", error, str)
             } //      NetworkError::CriticalFailure => {
@@ -94,6 +98,11 @@ impl From<base64::DecodeError> for NetworkError {
 impl From<AlkaliError> for NetworkError {
     fn from(value: AlkaliError) -> Self {
         Self::AlkaliError(value)
+    }
+}
+impl From<JoinError> for NetworkError {
+    fn from(value: JoinError) -> Self {
+        Self::JoinError(Arc::new(value))
     }
 }
 

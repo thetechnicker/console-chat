@@ -6,7 +6,7 @@ use tokio::sync::mpsc;
 use tracing::{debug, info};
 
 use crate::{
-    action::{Action, AppError},
+    action::Action,
     components::{
         Component, chat::Chat, editor::Editor, error_display::ErrorDisplay, fps::FpsCounter,
         home::Home, join::Join, login::Login, settings::Settings, sorted_components,

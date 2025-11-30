@@ -32,10 +32,8 @@ impl Join<'_> {
 
     pub fn reset(&mut self) -> Result<()> {
         let size = self.size;
-        //let command_tx = self.command_tx.clone();
-        //*self = Self::default();
         self.index = 0;
-        //self.command_tx=command_tx;
+        self.room = TextArea::default();
         self.init(size)
     }
 
