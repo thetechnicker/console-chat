@@ -32,21 +32,24 @@ impl MessageComponent {
 
 impl Widget for &MessageComponent {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let color = self
-            .content
-            .user
-            .clone()
-            .unwrap_or_default()
+        let user = self.content.user.clone().unwrap_or_default();
+        let color = user
             .color
             .map_or(Color::Gray, |c| c.parse().unwrap_or(Color::Gray));
-
+        let alignment = if self.content.base.is_mine() {
+            Alignment::Right
+        } else {
+            Alignment::Left
+        };
         Paragraph::new(self.content.base.text.clone())
-            .block(Block::bordered().border_type(BorderType::Rounded).fg(color))
-            .alignment(if self.content.base.is_mine() {
-                Alignment::Right
-            } else {
-                Alignment::Left
-            })
+            .block(
+                Block::bordered()
+                    .border_type(BorderType::Rounded)
+                    .fg(color)
+                    .title(user.display_name)
+                    .title_alignment(alignment),
+            )
+            .alignment(alignment)
             .render(area, buf);
     }
 }

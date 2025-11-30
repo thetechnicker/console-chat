@@ -1,4 +1,5 @@
 use rand::random;
+use ratatui::style::Color;
 use serde::{self, Deserialize, Deserializer, Serialize, Serializer};
 use std::ops::Deref;
 use std::time::Duration;
@@ -54,8 +55,8 @@ pub struct PublicUser {
 impl Default for PublicUser {
     fn default() -> Self {
         Self {
-            display_name: "UNKNOWN".to_string(),
-            color: random_color(),
+            display_name: "".to_string(),
+            color: Some(Color::Gray.to_string()),
         }
     }
 }
