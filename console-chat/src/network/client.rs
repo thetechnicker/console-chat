@@ -228,12 +228,14 @@ async fn listen(client: Client, cancellation_token: CancellationToken) -> Result
     let token = client.token.ok_or(NetworkError::MissingAuthToken)?;
 
     loop {
+        trace!("sending listen Request");
         let responce = send_listen_request(
             client.client.clone(),
             client.url.join(&format!("room/{room}"))?,
             token.clone(),
         )
         .await?;
+        trace!("got responce, starting stream");
         let mut stream = responce.bytes_stream();
         tokio::select! {
             _ = cancellation_token.cancelled() => {
@@ -245,7 +247,7 @@ async fn listen(client: Client, cancellation_token: CancellationToken) -> Result
                 let chunk = match chunk {
                     Err(e) => {
                         error!("Error Receiving chunk: {e:#?}");
-                        break;
+                        continue;
                     }
                     Ok(data) => data,
                 };
