@@ -1,3 +1,4 @@
+use crate::action::AppError;
 use crate::components::{button::*, theme::*, vim::*};
 use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent};
@@ -153,17 +154,17 @@ impl Component for Login<'_> {
                     KeyCode::Enter => {
                         if self.index == 2 {
                             self.login.set_state(ButtonState::Active);
-                            let username = self.username.lines()[0].clone();
-                            let password = self.password.lines()[0].clone();
-                            let login_action = Action::PerformLogin(
-                                username,
-                                if password.is_empty() {
-                                    None
-                                } else {
-                                    Some(password)
-                                },
-                            );
-                            self.reset()?;
+                            let username = self.username.lines()[0].clone().trim().to_owned();
+                            let password = self.password.lines()[0].clone().trim().to_owned();
+                            let login_action = match (username.is_empty(), password.is_empty()) {
+                                (true, true) => Action::Error(AppError::MissingPasswordAndUsername),
+                                (false, true) => Action::Error(AppError::MissingPassword),
+                                (true, false) => Action::Error(AppError::MissingUsername),
+                                (false, false) => {
+                                    self.reset()?;
+                                    Action::PerformLogin(username, password)
+                                }
+                            };
                             return Ok(Some(login_action));
                         } else if self.index == 3 {
                             self.exit.set_state(ButtonState::Active);
@@ -212,6 +213,8 @@ impl Component for Login<'_> {
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
         if self.active {
             let buf = frame.buffer_mut();
+            let block = Block::new().bg(Color::Blue);
+            block.render(area, buf);
 
             let center = Layout::vertical([
                 Constraint::Fill(1),

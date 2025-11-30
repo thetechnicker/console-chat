@@ -169,13 +169,13 @@ async fn auth() -> Result<()> {
             }
         };
         debug!("got auth result: {:#?}", token);
-        register_auth(token.ttl.clone());
+        keep_token_alive_auth(token.ttl.clone());
         client.token = Some(token);
     }
     Ok(())
 }
 
-fn register_auth(ttl: std::time::Duration) {
+fn keep_token_alive_auth(ttl: std::time::Duration) {
     let timeout = ttl - std::time::Duration::from_secs(3);
     debug!("Scheduling Auth to run againin in: {timeout:?}");
     tokio::spawn(async move {
@@ -195,7 +195,11 @@ pub fn handle_network(action: Action) -> Result<Option<Action>> {
             run_async_sync(join_room, room)?;
             Some(Action::OpenChat)
         }
-        Action::PerformLogin(_, _) => Some(Action::OpenHome),
+        Action::PerformLogin(username, password) => {
+            run_async_sync(login, (username, password))?;
+            Some(Action::OpenHome)
+            //None
+        }
         Action::SendMessage(message) => {
             run_async_sync(send_txt, message)?;
             None
@@ -312,6 +316,23 @@ async fn join_room(room: String) -> Result<Option<Action>, NetworkError> {
                 }
             }
         }
+    }
+    Ok(None)
+}
+
+pub async fn login(credentials: (String, String)) -> Result<Option<Action>, NetworkError> {
+    use std::collections::HashMap;
+    let (username, password) = credentials;
+    if let Some(client_lock) = CLIENT.get() {
+        let mut client = client_lock.lock().await;
+        let body = HashMap::from([("username", username), ("password", password)]);
+        let mut request = client.post(client.url.join("auth")?).json(&body);
+        if let Some(token) = client.token.as_ref() {
+            request = request.bearer_auth(token.token.clone());
+        }
+        let responce: Token = handle_errors_json(request.send().await?).await?;
+        debug!("{responce:#?}");
+        client.token = Some(responce);
     }
     Ok(None)
 }

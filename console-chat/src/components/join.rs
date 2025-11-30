@@ -199,6 +199,8 @@ impl Component for Join<'_> {
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
         if self.active {
             let buf = frame.buffer_mut();
+            let block = Block::new().bg(Color::Blue);
+            block.render(area, buf);
 
             let center = Layout::vertical([
                 Constraint::Fill(1),

@@ -64,19 +64,24 @@ impl Component for ErrorDisplay {
         if let Some(error) = self.current_error.as_ref() {
             let center = Layout::vertical([
                 Constraint::Fill(1),
-                Constraint::Percentage(50),
+                Constraint::Percentage(30),
                 Constraint::Fill(1),
             ])
             .split(
                 Layout::horizontal([
                     Constraint::Fill(1),
-                    Constraint::Percentage(50),
+                    Constraint::Percentage(30),
                     Constraint::Fill(1),
                 ])
                 .split(area)[1],
             )[1];
 
-            let display = Paragraph::new(format!("{error}"));
+            frame.render_widget(Clear::default(), center);
+
+            let display = Paragraph::new(format!("{error}"))
+                .centered()
+                .block(Block::bordered().border_type(BorderType::QuadrantInside))
+                .on_red();
             frame.render_widget(display, center);
         }
         Ok(())

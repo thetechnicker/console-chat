@@ -160,7 +160,7 @@ async def root(_: API_KEY_AUTH):
     return {"message": "Hello World"}
 
 
-@app.post("/auth", response_model=UserStatus)
+@app.post("/auth")  # , response_model=UserStatus)
 async def login(
     username: Optional[str] = Body(None),
     password: Optional[str] = Body(None),
@@ -194,7 +194,7 @@ async def login(
         )
     elif password:  # or username:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="Incomplete login parameters",
         )
     else:
@@ -295,7 +295,7 @@ async def send(
     )
 
 
-@app.get("/room/{room}", response_model=ServerMessage)
+@app.get("/room/{room}")  # , response_model=ServerMessage)
 async def get(
     room: str,
     listen_seconds: int = Query(30, description="How long to listen in seconds"),

@@ -5,6 +5,9 @@ use strum::Display;
 #[derive(Debug, Clone, Display)]
 pub enum AppError {
     MissingActionTX,
+    MissingPassword,
+    MissingUsername,
+    MissingPasswordAndUsername,
     NetworkError(NetworkError),
     Error(String),
 }
@@ -17,17 +20,47 @@ impl PartialEq for AppError {
                 Self::Error(o) => e == o,
                 Self::NetworkError(error) => &format!("{error}") == e,
                 Self::MissingActionTX => false,
+                Self::MissingPassword => false,
+                Self::MissingUsername => false,
+                Self::MissingPasswordAndUsername => false,
             },
             Self::NetworkError(error) => match other {
                 Self::Error(e) => &format!("{error}") == e,
                 Self::NetworkError(e) => format!("{error}") == format!("{e}"),
                 Self::MissingActionTX => false,
+                Self::MissingPassword => false,
+                Self::MissingUsername => false,
+                Self::MissingPasswordAndUsername => false,
             },
             Self::MissingActionTX => match other {
                 Self::Error(_) => false,
                 Self::NetworkError(_) => false,
                 Self::MissingActionTX => true,
+                Self::MissingPassword => false,
+                Self::MissingUsername => false,
+                Self::MissingPasswordAndUsername => false,
             },
+            Self::MissingPassword => {
+                if let Self::MissingPassword = other {
+                    true
+                } else {
+                    false
+                }
+            }
+            Self::MissingUsername => {
+                if let Self::MissingUsername = other {
+                    true
+                } else {
+                    false
+                }
+            }
+            Self::MissingPasswordAndUsername => {
+                if let Self::MissingPasswordAndUsername = other {
+                    true
+                } else {
+                    false
+                }
+            }
         }
     }
 }
@@ -42,6 +75,7 @@ impl Serialize for AppError {
         serializer.serialize_str(&self.to_string())
     }
 }
+
 impl<'de> Deserialize<'de> for AppError {
     fn deserialize<D>(deserializer: D) -> Result<AppError, D::Error>
     where
@@ -55,6 +89,7 @@ impl<'de> Deserialize<'de> for AppError {
         Ok(AppError::Error(s))
     }
 }
+
 impl From<&str> for AppError {
     fn from(s: &str) -> Self {
         AppError::Error(s.to_owned())
@@ -99,7 +134,7 @@ pub enum Action {
     Hide,
 
     TriggerLogin,
-    PerformLogin(String, Option<String>),
+    PerformLogin(String, String),
     TriggerJoin,
     PerformJoin(String),
     SendMessage(String),
