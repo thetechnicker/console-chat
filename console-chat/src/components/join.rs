@@ -4,12 +4,13 @@ use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{prelude::*, widgets::*};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::debug;
+use tracing::trace;
 use tui_textarea::TextArea;
 
 use super::Component;
-use crate::{action::Action, config::Config};
+use crate::{action::Action, action::AppError, config::Config};
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Join<'a> {
     active: bool,
     command_tx: Option<UnboundedSender<Action>>,
@@ -31,7 +32,10 @@ impl Join<'_> {
 
     pub fn reset(&mut self) -> Result<()> {
         let size = self.size;
-        *self = Self::default();
+        //let command_tx = self.command_tx.clone();
+        //*self = Self::default();
+        self.index = 0;
+        //self.command_tx=command_tx;
         self.init(size)
     }
 
@@ -71,6 +75,13 @@ impl Join<'_> {
     const fn get_buttons(&mut self) -> [&mut Button; 2] {
         [&mut self.join, &mut self.cancel]
     }
+
+    fn send(&mut self, action: Action) -> Result<()> {
+        trace!("sending action: {action}");
+        let action_tx = self.command_tx.as_ref().ok_or(AppError::MissingActionTX)?;
+        let res = Ok(action_tx.send(action)?);
+        res
+    }
 }
 
 impl<'a> Join<'a> {
@@ -109,11 +120,9 @@ impl Component for Join<'_> {
                             textinput.set_block(mode.highlight_block());
                             textinput.set_cursor_style(mode.cursor_style());
                             match mode {
-                                VimMode::Insert => {
-                                    self.command_tx.as_mut().unwrap().send(Action::Insert)?
-                                }
+                                VimMode::Insert => self.send(Action::Insert)?,
                                 VimMode::Normal if this_vim.mode == VimMode::Insert => {
-                                    self.command_tx.as_mut().unwrap().send(Action::Normal)?
+                                    self.send(Action::Normal)?
                                 }
                                 _ => {}
                             };

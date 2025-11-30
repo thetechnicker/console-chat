@@ -76,6 +76,7 @@ pub enum VimType {
 }
 
 // State of Vim emulation
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Vim {
     pub vim_type: VimType,
     pub mode: VimMode,

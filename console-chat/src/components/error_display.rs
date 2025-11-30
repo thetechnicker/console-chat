@@ -6,15 +6,15 @@ use ratatui::{prelude::*, widgets::*};
 
 use super::Component;
 
-use crate::action::Action;
+use crate::action::{Action, AppError};
 
 const ERROR_TIMEOUT: f64 = 5.0;
 
 #[derive(Debug, Clone)]
 pub struct ErrorDisplay {
     last_error: Instant,
-    errors: Vec<String>,
-    current_error: Option<String>,
+    errors: Vec<AppError>,
+    current_error: Option<AppError>,
     command_tx: Option<UnboundedSender<Action>>,
 }
 
@@ -40,9 +40,10 @@ impl ErrorDisplay {
         if elapsed >= ERROR_TIMEOUT || self.current_error.is_none() {
             self.current_error = self.errors.pop();
             if self.current_error.is_none()
-                && let Some(command_tx) = self.command_tx.as_mut() {
-                    command_tx.send(Action::Normal)?;
-                }
+                && let Some(command_tx) = self.command_tx.as_mut()
+            {
+                command_tx.send(Action::Normal)?;
+            }
         }
         Ok(())
     }
@@ -75,7 +76,7 @@ impl Component for ErrorDisplay {
                 .split(area)[1],
             )[1];
 
-            let display = Paragraph::new(error.clone());
+            let display = Paragraph::new(format!("{error}"));
             frame.render_widget(display, center);
         }
         Ok(())

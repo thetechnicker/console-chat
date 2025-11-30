@@ -45,7 +45,7 @@ pub struct NetworkConfig {
 impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
-            host: Url::parse("http://localhost").expect("default URL should be valid"),
+            host: Url::parse("https://localhost:8443").expect("default URL should be valid"),
         }
     }
 }
@@ -130,7 +130,6 @@ impl Config {
 }
 
 pub fn get_data_dir() -> PathBuf {
-    
     if let Some(s) = DATA_FOLDER.clone() {
         s
     } else if let Some(proj_dirs) = project_directory() {
@@ -141,7 +140,6 @@ pub fn get_data_dir() -> PathBuf {
 }
 
 pub fn get_config_dir() -> PathBuf {
-    
     if let Some(s) = CONFIG_FOLDER.clone() {
         s
     } else if let Some(proj_dirs) = project_directory() {
@@ -330,7 +328,7 @@ pub fn parse_key_sequence(raw: &str) -> Result<Vec<KeyEvent>, String> {
     }
     let raw = if !raw.contains("><") {
         let raw = raw.strip_prefix('<').unwrap_or(raw);
-        
+
         raw.strip_prefix('>').unwrap_or(raw)
     } else {
         raw

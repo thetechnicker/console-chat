@@ -32,6 +32,7 @@ json5 = "0.4.1"
 lazy_static = "1.5.0"
 libc = "0.2.161"
 pretty_assertions = "1.4.1"
+rand = "0.9.2"
 ratatui = { version = "0.29.0", features = ["serde", "macros"] }
 reqwest = { version = "0.12.24", features = ["json", "stream"] }
 serde = { version = "1.0.211", features = ["derive"] }
@@ -43,9 +44,10 @@ tokio = { version = "1.40.0", features = ["full"] }
 tokio-util = "0.7.12"
 tracing = "0.1.40"
 tracing-error = "0.2.0"
-tracing-subscriber = { version = "0.3.18", features = ["env-filter", "serde"] }
+tracing-subscriber = { version = "0.3.18", features = ["env-filter", "serde", "json"] }
 tui-textarea = "0.7.0"
 url = { version = "2.5.7", features = ["serde"] }
+uuid = { version = "1.18.1", features = ["serde"] }
 
 
 [build-dependencies]

@@ -6,7 +6,7 @@ use tokio::sync::mpsc;
 use tracing::{debug, info};
 
 use crate::{
-    action::Action,
+    action::{Action, AppError},
     components::{
         Component, chat::Chat, editor::Editor, error_display::ErrorDisplay, fps::FpsCounter,
         home::Home, join::Join, login::Login, settings::Settings, sorted_components,
@@ -138,7 +138,7 @@ impl App {
                 self.restore_prev_mode()?;
                 if self.mode == Mode::Insert || self.mode == Mode::Error {
                     self.action_tx
-                        .send(Action::Error("Restoring Mode failed".to_string()))?;
+                        .send(Action::Error("Restoring Mode failed".into()))?;
                     self.mode = Mode::Home;
                 }
                 self.mode_to_screen()?;
@@ -153,9 +153,9 @@ impl App {
             self.mode = mode;
         } else {
             self.action_tx.send(Action::Error(
-                "received Normal action but last mode wasn't set.".to_string(),
+                "received Normal action but last mode wasn't set.".into(),
             ))?;
-            self.set_mode(Mode::Home);
+            self.set_mode(Mode::Home)?;
         }
         Ok(())
     }
@@ -206,9 +206,16 @@ impl App {
         Ok(())
     }
 
-    fn set_mode(&mut self, mode: Mode) {
+    fn set_mode(&mut self, mode: Mode) -> Result<()> {
+        if self.mode == Mode::Insert || self.mode == Mode::Error {
+            self.restore_prev_mode()?;
+        }
         self.hide_all();
+        if self.mode != mode && self.mode == Mode::Chat {
+            let _ = self.action_tx.send(Action::Leave);
+        }
         self.mode = mode;
+        Ok(())
     }
 
     fn handle_actions(&mut self, tui: &mut Tui) -> Result<()> {
@@ -228,12 +235,12 @@ impl App {
                 Action::Render => self.render(tui)?,
                 Action::ReloadConfig => self.reload_config(tui)?,
                 //open
-                Action::OpenJoin => self.set_mode(Mode::Join),
-                Action::OpenSettings => self.set_mode(Mode::Settings),
-                Action::OpenLogin => self.set_mode(Mode::Login),
-                Action::OpenHome => self.set_mode(Mode::Home),
-                Action::OpenChat => self.set_mode(Mode::Chat),
-                Action::OpenRawSettings => self.set_mode(Mode::RawSettings),
+                Action::OpenJoin => self.set_mode(Mode::Join)?,
+                Action::OpenSettings => self.set_mode(Mode::Settings)?,
+                Action::OpenLogin => self.set_mode(Mode::Login)?,
+                Action::OpenHome => self.set_mode(Mode::Home)?,
+                Action::OpenChat => self.set_mode(Mode::Chat)?,
+                Action::OpenRawSettings => self.set_mode(Mode::RawSettings)?,
                 Action::Hide => self.hide_all(),
                 Action::Insert => {
                     self.last_mode = Some(self.mode);
@@ -249,7 +256,7 @@ impl App {
             for component in self.components.iter_mut() {
                 if let Some(action) = component.update(action.clone())? {
                     self.action_tx.send(action)?
-                };
+                }
             }
             if let Some(action) = handle_network(action.clone())? {
                 self.action_tx.send(action)?
@@ -270,7 +277,7 @@ impl App {
                 if let Err(err) = component.draw(frame, frame.area()) {
                     let _ = self
                         .action_tx
-                        .send(Action::Error(format!("Failed to draw: {:?}", err)));
+                        .send(Action::Error(format!("Failed to draw: {:?}", err).into()));
                 }
             }
         })?;

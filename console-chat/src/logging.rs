@@ -7,13 +7,16 @@ use crate::config;
 lazy_static::lazy_static! {
     pub static ref LOG_ENV: String = format!("{}_LOG_LEVEL", config::PROJECT_NAME.clone());
     pub static ref LOG_FILE: String = format!("{}.log", env!("CARGO_PKG_NAME"));
+    pub static ref ANSI_LOG_FILE: String = format!("{}.ansi.log", env!("CARGO_PKG_NAME"));
 }
 
 pub fn init() -> Result<()> {
     let directory = config::get_data_dir();
     std::fs::create_dir_all(directory.clone())?;
     let log_path = directory.join(LOG_FILE.clone());
+    let ansi_log_path = directory.join(ANSI_LOG_FILE.clone());
     let log_file = std::fs::File::create(log_path)?;
+    let ansi_log_file = std::fs::File::create(ansi_log_path)?;
     let env_filter = EnvFilter::builder().with_default_directive(tracing::Level::INFO.into());
     // If the `RUST_LOG` environment variable is set, use that as the default, otherwise use the
     // value of the `LOG_ENV` environment variable. If the `LOG_ENV` environment variable contains
@@ -21,20 +24,31 @@ pub fn init() -> Result<()> {
     let env_filter = env_filter
         .try_from_env()
         .or_else(|_| env_filter.with_env_var(LOG_ENV.clone()).from_env())?;
+
     let file_subscriber = fmt::layer()
+        .json()
         .with_file(true)
         .with_line_number(true)
         .with_writer(log_file)
         .with_target(false)
         .with_ansi(false)
+        .with_filter(env_filter.clone());
+
+    let file_subscriber_ansi = fmt::layer()
+        .with_file(true)
+        .with_line_number(true)
+        .with_writer(ansi_log_file)
+        .with_target(false)
+        .with_ansi(true)
         .with_filter(env_filter);
 
-    let debug_str = format!("{:#?}", file_subscriber);
+    //let debug_str = format!("{:#?}", file_subscriber);
 
     tracing_subscriber::registry()
         .with(file_subscriber)
+        .with(file_subscriber_ansi)
         .with(ErrorLayer::default())
         .try_init()?;
-    tracing::info!("{}", debug_str);
+    //tracing::info!("{}", debug_str);
     Ok(())
 }

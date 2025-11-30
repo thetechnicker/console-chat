@@ -1,9 +1,8 @@
 use alkali::AlkaliError;
-use reqwest::StatusCode;
 use std::error::Error;
 use std::sync::Arc;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ResponseErrorData {
     pub msg: String,
     pub status: reqwest::StatusCode,
@@ -18,7 +17,9 @@ impl std::fmt::Display for ResponseErrorData {
 
 #[derive(Debug, Clone)]
 pub enum NetworkError {
-    CriticalFailure,
+    NoRoom,
+    MissingAuthToken,
+
     GenericError(String),
     UrlParseError(url::ParseError),
 
@@ -39,6 +40,8 @@ pub enum NetworkError {
 impl std::fmt::Display for NetworkError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
+            NetworkError::NoRoom => write!(f, "You haven't Joined a room"),
+            NetworkError::MissingAuthToken => write!(f, "The authentication token isnt set"),
             NetworkError::GenericError(msg) => write!(f, "Error: {}", msg),
             NetworkError::UrlParseError(e) => write!(f, "URL Parse Error: {}", e),
             NetworkError::ReqwestError(e) => write!(f, "Request Error: {}", e),
@@ -52,10 +55,9 @@ impl std::fmt::Display for NetworkError {
             NetworkError::Base64DecodeError(error) => write!(f, "Base64Error: {}", error),
             NetworkError::CompositError(error, str) => {
                 write!(f, "CompositError: {}, \"{}\"", error, str)
-            }
-            NetworkError::CriticalFailure => {
-                write!(f, "A Unexpected Error Happend")
-            }
+            } //      NetworkError::CriticalFailure => {
+              //            write!(f, "A Unexpected Error Happend")
+              //      }
         }
     }
 }
@@ -121,54 +123,3 @@ where
 }
 
 impl Error for NetworkError {}
-
-#[inline]
-pub async fn handle_errors_raw(resp: reqwest::Response) -> Result<reqwest::Response, NetworkError> {
-    if resp.status().is_success() {
-        return Ok(resp);
-    }
-    let status = resp.status();
-    let url = resp.url().to_owned();
-    let msg = resp
-        .text()
-        .await
-        .unwrap_or_else(|_| "Failed to read error message.".to_string());
-
-    let error_data = ResponseErrorData { msg, status, url };
-
-    match status {
-        StatusCode::NOT_FOUND => Err(NetworkError::NotFound(error_data)),
-        StatusCode::UNAUTHORIZED => Err(NetworkError::Unauthorized(error_data)),
-        status if status.is_client_error() => Err(NetworkError::ClientError(error_data)),
-        status if status.is_server_error() => Err(NetworkError::ServerError(error_data)),
-        _ => Err(format!("Unexpected status: {}", status).into()),
-    }
-}
-
-#[allow(unused_lifetimes)]
-#[inline]
-pub async fn handle_errors_json<'a, T>(resp: reqwest::Response) -> Result<T, NetworkError>
-where
-    T: serde::de::DeserializeOwned,
-{
-    if resp.status().is_success() {
-        let data = resp.json::<T>().await?;
-        return Ok(data);
-    }
-    let status = resp.status();
-    let url = resp.url().to_owned();
-    let msg = resp
-        .text()
-        .await
-        .unwrap_or_else(|_| "Failed to read error message.".to_string());
-
-    let error_data = ResponseErrorData { msg, status, url };
-
-    match status {
-        StatusCode::NOT_FOUND => Err(NetworkError::NotFound(error_data)),
-        StatusCode::UNAUTHORIZED => Err(NetworkError::Unauthorized(error_data)),
-        status if status.is_client_error() => Err(NetworkError::ClientError(error_data)),
-        status if status.is_server_error() => Err(NetworkError::ServerError(error_data)),
-        _ => Err(format!("Unexpected status: {}", status).into()),
-    }
-}

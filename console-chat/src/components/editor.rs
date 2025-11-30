@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use crate::components::vim::*;
 use color_eyre::Result;
 use crossterm::event::KeyEvent;
