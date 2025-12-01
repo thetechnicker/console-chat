@@ -1,9 +1,9 @@
 use super::data_model::{messages, user::*};
 use super::encryption;
 use super::error::*;
+use super::listen::*;
 use crate::action::Action;
 use color_eyre::Result;
-use futures::StreamExt;
 use lazy_static::lazy_static;
 use reqwest;
 use reqwest::StatusCode;
@@ -14,25 +14,37 @@ use std::sync::OnceLock;
 use tokio::sync::Mutex;
 use tokio::{sync::mpsc::UnboundedSender, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
+use tracing::instrument;
 use tracing::{debug, error, trace};
 use url::Url;
 
-const LISTEN_TIMEOUT: u64 = 30;
+pub static CLIENT: OnceLock<Mutex<Client>> = OnceLock::new();
+lazy_static! {
+    static ref LISTEN_WORKER: Mutex<Option<ListenHandler>> = Mutex::new(None);
+}
 
 #[derive(Debug, Clone)]
 pub struct Client {
-    url: Url,
-    client: reqwest::Client,
-    token: Option<Token>,
-    action_tx: UnboundedSender<Action>,
-    room: Option<String>,
-    key: Keys,
+    pub url: Url,
+    pub client: reqwest::Client,
+    pub token: Option<Token>,
+    pub action_tx: UnboundedSender<Action>,
+    pub room: Option<String>,
+    pub symetric_key: Arc<Mutex<Option<encryption::SymetricKey>>>,
+    pub asymetric_key: Arc<Mutex<encryption::KeyPair>>,
+}
+
+impl Deref for Client {
+    type Target = reqwest::Client;
+    fn deref(&self) -> &Self::Target {
+        &self.client
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct Keys {
-    symetric_key: Arc<Mutex<Option<encryption::SymetricKey>>>,
-    asymetric_key: Arc<Mutex<encryption::KeyPair>>,
+    pub symetric_key: Arc<Mutex<Option<encryption::SymetricKey>>>,
+    pub asymetric_key: Arc<Mutex<encryption::KeyPair>>,
 }
 
 impl Keys {
@@ -42,6 +54,96 @@ impl Keys {
             asymetric_key: Arc::new(Mutex::new(encryption::get_asym_key_pair()?)),
         })
     }
+}
+
+pub struct ListenHandler {
+    pub listen_task: JoinHandle<Result<(), NetworkError>>,
+    pub cancellation_token: CancellationToken,
+}
+
+impl Deref for ListenHandler {
+    type Target = JoinHandle<Result<(), NetworkError>>;
+    fn deref(&self) -> &Self::Target {
+        &self.listen_task
+    }
+}
+
+impl<F, Oputput> From<F> for ListenHandler
+where
+    F: FnOnce(CancellationToken) -> Oputput + 'static + Sync + Send,
+    Oputput: Future<Output = Result<(), NetworkError>> + 'static + Sync + Send,
+{
+    fn from(value: F) -> ListenHandler {
+        let cancellation_token = CancellationToken::new();
+        let cancell_token = cancellation_token.clone();
+        ListenHandler {
+            listen_task: tokio::spawn(async move { (value)(cancell_token).await }),
+            cancellation_token,
+        }
+    }
+}
+
+pub async fn init<T>(url: T, action_tx: UnboundedSender<Action>) -> Result<()>
+where
+    T: TryInto<Url> + std::fmt::Debug,
+    <T as TryInto<url::Url>>::Error: Sync + Send + std::error::Error + 'static,
+{
+    if CLIENT.get().is_none() {
+        debug!("Initializing network client");
+        let url = url.try_into()?;
+        //let key = Keys::new()?;
+        let is_localhost = url
+            .host_str()
+            .map(|host| host == "localhost" || host == "127.0.0.1" || host == "::1")
+            .unwrap_or(false);
+
+        let client_builder = reqwest::Client::builder();
+
+        let client_builder = if is_localhost {
+            client_builder.danger_accept_invalid_certs(true)
+        } else {
+            client_builder
+        };
+        let client = client_builder.build()?;
+        let asymetric_key = Arc::new(Mutex::new(encryption::get_asym_key_pair()?));
+        CLIENT.get_or_init(|| {
+            Mutex::new(Client {
+                url,
+                client: client,
+                token: None,
+                action_tx,
+                room: None,
+                symetric_key: Arc::new(Mutex::new(None)),
+                asymetric_key,
+            })
+        });
+        auth().await?;
+        debug!("Initializing done");
+    }
+    Ok(())
+}
+
+pub fn handle_network(action: Action) -> Result<Option<Action>> {
+    Ok(match action {
+        Action::PerformJoin(room) => {
+            run_async_sync(join_room, room)?;
+            Some(Action::OpenChat)
+        }
+        Action::PerformLogin(username, password) => {
+            run_async_sync(login, (username, password))?;
+            Some(Action::OpenHome)
+            //None
+        }
+        Action::SendMessage(message) => {
+            run_async_sync(send_txt, message)?;
+            None
+        }
+        Action::Leave => {
+            run_async_sync(leave, ())?;
+            None
+        }
+        _ => None,
+    })
 }
 
 pub fn run_async_sync<F, T, R>(func: F, data: T) -> Result<()>
@@ -67,87 +169,6 @@ where
     Ok(())
 }
 
-impl Deref for Client {
-    type Target = reqwest::Client;
-    fn deref(&self) -> &Self::Target {
-        &self.client
-    }
-}
-
-pub struct ListenHandler {
-    pub task: JoinHandle<Result<(), NetworkError>>,
-    pub cancellation_token: CancellationToken,
-}
-
-impl Deref for ListenHandler {
-    type Target = JoinHandle<Result<(), NetworkError>>;
-    fn deref(&self) -> &Self::Target {
-        &self.task
-    }
-}
-
-impl<F, Oputput> From<(F, Client)> for ListenHandler
-where
-    F: FnOnce(Client, CancellationToken) -> Oputput + 'static + Sync + Send,
-    Oputput: Future<Output = Result<(), NetworkError>> + 'static + Sync + Send,
-{
-    fn from(value: (F, Client)) -> ListenHandler {
-        let cancellation_token = CancellationToken::new();
-        let cancell_token = cancellation_token.clone();
-        let task = value.0;
-        let client = value.1;
-        ListenHandler {
-            task: tokio::spawn(async move { (task)(client, cancell_token).await }),
-            cancellation_token,
-        }
-    }
-}
-
-static CLIENT: OnceLock<Mutex<Client>> = OnceLock::new();
-lazy_static! {
-    static ref LISTEN_WORKER: Mutex<Option<ListenHandler>> = Mutex::new(None);
-}
-
-//#[instrument]
-pub async fn init<T>(url: T, action_tx: UnboundedSender<Action>) -> Result<()>
-where
-    T: TryInto<Url> + std::fmt::Debug,
-    <T as TryInto<url::Url>>::Error: Sync + Send + std::error::Error + 'static,
-{
-    if CLIENT.get().is_none() {
-        debug!("Initializing network client");
-        let url = url.try_into()?;
-        let key = Keys::new()?;
-        let is_localhost = url
-            .host_str()
-            .map(|host| host == "localhost" || host == "127.0.0.1" || host == "::1")
-            .unwrap_or(false);
-
-        let client_builder = reqwest::Client::builder();
-
-        let client_builder = if is_localhost {
-            client_builder.danger_accept_invalid_certs(true)
-        } else {
-            client_builder
-        };
-        let client = client_builder.build()?;
-        CLIENT.get_or_init(|| {
-            Mutex::new(Client {
-                url,
-                client: client,
-                token: None,
-                action_tx,
-                room: None,
-                key,
-            })
-        });
-        auth().await?;
-        debug!("Initializing done");
-    }
-    Ok(())
-}
-
-//#[instrument]
 async fn auth() -> Result<()> {
     trace!("Getting client lock");
     if let Some(client_lock) = CLIENT.get() {
@@ -189,113 +210,18 @@ fn keep_token_alive_auth(ttl: std::time::Duration) {
     });
 }
 
-pub fn handle_network(action: Action) -> Result<Option<Action>> {
-    Ok(match action {
-        Action::PerformJoin(room) => {
-            run_async_sync(join_room, room)?;
-            Some(Action::OpenChat)
-        }
-        Action::PerformLogin(username, password) => {
-            run_async_sync(login, (username, password))?;
-            Some(Action::OpenHome)
-            //None
-        }
-        Action::SendMessage(message) => {
-            run_async_sync(send_txt, message)?;
-            None
-        }
-        Action::Leave => {
-            run_async_sync(leave, ())?;
-            None
-        }
-        _ => None,
-    })
-}
-
 async fn leave(_: ()) -> Result<Option<Action>, NetworkError> {
     let mut listen_worker_guard = LISTEN_WORKER.lock().await;
     if let Some(listen_worker) = listen_worker_guard.take() {
         debug!("cancelling listen_worker");
         listen_worker.cancellation_token.cancel();
-        listen_worker.task.await??;
+        listen_worker.listen_task.await??;
         if let Some(client_mutex) = CLIENT.get() {
             let mut client = client_mutex.lock().await;
             client.room = None;
         }
     }
     Ok(None)
-}
-
-//#[instrument]
-async fn listen(client: Client, cancellation_token: CancellationToken) -> Result<(), NetworkError> {
-    let room = client.room.ok_or(NetworkError::NoRoom)?;
-    let token = client.token.ok_or(NetworkError::MissingAuthToken)?;
-
-    loop {
-        trace!("sending listen Request");
-        let responce = send_listen_request(
-            client.client.clone(),
-            client.url.join(&format!("room/{room}"))?,
-            token.clone(),
-        )
-        .await?;
-        trace!("got responce, starting stream");
-        let mut stream = responce.bytes_stream();
-        tokio::select! {
-            _ = cancellation_token.cancelled() => {
-                debug!("listen worker cancelled");
-                break;
-            }
-            Some(chunk)=stream.next()=>{
-                debug!("Received Chunk {chunk:?}");
-                let chunk = match chunk {
-                    Err(e) => {
-                        error!("Error Receiving chunk: {e:#?}");
-                        continue;
-                    }
-                    Ok(data) => data,
-                };
-
-                let s = str::from_utf8(&chunk)?;
-
-                debug!("chunk as string: {s}");
-
-                if s == "END" {
-                    continue;
-                }
-
-                let msg = match serde_json::from_str::<messages::ServerMessage>(s) {
-                    Ok(msg) => Ok(msg),
-                    Err(e) => Err(NetworkError::from((e, s))),
-                };
-                match msg{
-                    Ok(msg)=>{
-                        debug!("Got message: {msg:#?}\n{}", if msg.base.is_mine(){"is mine"}else{"from someone else"});
-                        let _ = client.action_tx.send(Action::ReceivedMessage(msg));
-                    }
-                    Err(e)=>{error!("{e}");continue},
-                }
-            }
-        }
-    }
-    Ok(())
-}
-
-//#[instrument]
-async fn send_listen_request(
-    client: reqwest::Client,
-    url: Url,
-    token: Token,
-) -> Result<reqwest::Response, NetworkError> {
-    let resp = client
-        .get(url)
-        .query(&[("listen_seconds", &LISTEN_TIMEOUT.to_string())])
-        .timeout(std::time::Duration::from_secs(LISTEN_TIMEOUT))
-        .bearer_auth(token.token)
-        .send()
-        .await?;
-
-    Ok(handle_errors_raw(resp).await?)
 }
 
 async fn join_room(room: String) -> Result<Option<Action>, NetworkError> {
@@ -310,7 +236,7 @@ async fn join_room(room: String) -> Result<Option<Action>, NetworkError> {
                     Some(listen_worker) => listen_worker.abort(),
                     None => {
                         let worker_client = client.clone();
-                        *listen_worker_mutex = Some(ListenHandler::from((listen, worker_client)));
+                        *listen_worker_mutex = Some(ListenHandler::from(listen));
                         debug!("Started Listen Worker");
                     }
                 }
@@ -337,17 +263,17 @@ pub async fn login(credentials: (String, String)) -> Result<Option<Action>, Netw
     Ok(None)
 }
 
-//#[instrument]
 pub async fn send_txt(msg: String) -> Result<Option<Action>, NetworkError> {
     if let Some(client_lock) = CLIENT.get() {
         let client = client_lock.lock().await;
         if let Some(room) = client.room.as_ref() {
             trace!("Sending Message...");
             let msg: Result<messages::ClientMessage, NetworkError> = {
-                let key_guard = client.key.symetric_key.lock().await;
+                let key_guard = client.symetric_key.lock().await;
                 key_guard
                     .as_ref()
                     .map_or(Ok(messages::ClientMessage::new(&msg)), |key| {
+                        trace!("{key:#?}");
                         let encrypted = encryption::encrypt(&msg, &key)?;
                         Ok(messages::ClientMessage::encrypted(encrypted))
                     })
@@ -368,7 +294,6 @@ pub async fn send_txt(msg: String) -> Result<Option<Action>, NetworkError> {
     Ok(None)
 }
 
-//#[instrument]
 pub async fn handle_errors_raw(resp: reqwest::Response) -> Result<reqwest::Response, NetworkError> {
     trace!(
         "handle_errors_raw: received response with status {}",
@@ -425,7 +350,6 @@ pub async fn handle_errors_raw(resp: reqwest::Response) -> Result<reqwest::Respo
     }
 }
 
-//#[instrument]
 pub async fn handle_errors_json<'a, T>(resp: reqwest::Response) -> Result<T, NetworkError>
 where
     T: serde::de::DeserializeOwned,
