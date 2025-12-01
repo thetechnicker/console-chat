@@ -6,7 +6,6 @@ use crate::action::Action;
 use color_eyre::Result;
 use futures::StreamExt;
 use reqwest;
-use tokio::sync::Mutex;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, trace};
@@ -15,68 +14,75 @@ use url::Url;
 pub const LISTEN_TIMEOUT: u64 = 30;
 
 pub async fn listen(cancellation_token: CancellationToken) -> Result<(), NetworkError> {
-    if let Some(client_lock) = CLIENT.get() {
-        let client = client_lock.lock().await.clone();
-        let room = client.room.clone().ok_or(NetworkError::NoRoom)?.clone();
-        let token = client.token.clone().ok_or(NetworkError::MissingAuthToken)?;
-        let (msg_tx, msg_rx) = unbounded_channel();
-        let task_msg_tx = msg_tx.clone();
-        let task_cancellation_token = cancellation_token.clone();
-        let msg_handler = tokio::spawn(async move {
-            handle_messages_async(task_cancellation_token, msg_rx, task_msg_tx).await
-        });
+    let client = Client::get()?;
+    let room = client
+        .room
+        .lock()
+        .await
+        .clone()
+        .ok_or(NetworkError::NoRoom)?
+        .clone();
+    let token = client
+        .token
+        .lock()
+        .await
+        .clone()
+        .ok_or(NetworkError::MissingAuthToken)?;
+    let (msg_tx, msg_rx) = unbounded_channel();
+    let task_msg_tx = msg_tx.clone();
+    let task_cancellation_token = cancellation_token.clone();
+    let msg_handler = tokio::spawn(async move {
+        handle_messages_async(task_cancellation_token, msg_rx, task_msg_tx).await
+    });
 
-        loop {
-            trace!("sending listen Request");
-            let responce = send_listen_request(
-                client.client.clone(),
-                client.url.join(&format!("room/{room}"))?,
-                token.clone(),
-            )
-            .await?;
-            trace!("got responce, starting stream");
-            let mut stream = responce.bytes_stream();
-            tokio::select! {
-                _ = cancellation_token.cancelled() => {
-                    debug!("listen worker cancelled");
-                    break;
-                }
-                Some(chunk)=stream.next()=>{
-                    debug!("Received Chunk {chunk:?}");
-                    let chunk = match chunk {
-                        Err(e) => {
-                            error!("Error Receiving chunk: {e:#?}");
-                            continue;
-                        }
-                        Ok(data) => data,
-                    };
-
-                    let s = str::from_utf8(&chunk)?;
-
-                    debug!("chunk as string: {s}");
-
-                    if s == "END" {
+    loop {
+        trace!("sending listen Request");
+        let responce = send_listen_request(
+            client.client.clone(),
+            client.url.join(&format!("room/{room}"))?,
+            token.clone(),
+        )
+        .await?;
+        trace!("got responce, starting stream");
+        let mut stream = responce.bytes_stream();
+        tokio::select! {
+            _ = cancellation_token.cancelled() => {
+                debug!("listen worker cancelled");
+                break;
+            }
+            Some(chunk)=stream.next()=>{
+                debug!("Received Chunk {chunk:?}");
+                let chunk = match chunk {
+                    Err(e) => {
+                        error!("Error Receiving chunk: {e:#?}");
                         continue;
                     }
+                    Ok(data) => data,
+                };
 
-                    let msg = match serde_json::from_str::<messages::ServerMessage>(s) {
-                        Ok(msg) => Ok(msg),
-                        Err(e) => Err(NetworkError::from((e, s))),
-                    };
-                    match msg{
-                        Ok(msg)=>{
-                            debug!("Got message: {msg:#?}\n{}", if msg.base.is_mine(){"is mine"}else{"from someone else"});
-                            client_lock.lock().await.action_tx.send(Action::ReceivedMessage(msg));
-                            //handle_message(client_lock, msg).await?;
-                            //let _=msg_tx.send(msg);
-                        }
-                        Err(e)=>{error!("{e}");continue},
+                let s = str::from_utf8(&chunk)?;
+
+                debug!("chunk as string: {s}");
+
+                if s == "END" {
+                    continue;
+                }
+
+                let msg = match serde_json::from_str::<messages::ServerMessage>(s) {
+                    Ok(msg) => Ok(msg),
+                    Err(e) => Err(NetworkError::from((e, s))),
+                };
+                match msg{
+                    Ok(msg)=>{
+                        debug!("Got message: {msg:#?}\n{}", if msg.base.is_mine(){"is mine"}else{"from someone else"});
+                        let _=msg_tx.send(msg);
                     }
+                    Err(e)=>{error!("{e}");continue},
                 }
             }
         }
-        msg_handler.await?;
     }
+    msg_handler.await??;
     Ok(())
 }
 
@@ -84,31 +90,49 @@ async fn handle_messages_async(
     cancellation_token: CancellationToken,
     mut msg_rx: UnboundedReceiver<messages::ServerMessage>,
     msg_tx: UnboundedSender<messages::ServerMessage>,
-) {
-    if let Some(client_lock) = CLIENT.get() {
-        loop {
-            tokio::select! {
+) -> Result<()> {
+    loop {
+        tokio::select! {
                 _ = cancellation_token.cancelled() => {
                     debug!("listen worker cancelled");
                     break;
                 }
                 Some(msg) = msg_rx.recv()=>{
-                    handle_message_intermediat(&client_lock, msg).await;
-                }
+                    trace!("computing message async");
+                    handle_message_intermediat(msg,msg_tx.clone()).await?;
             }
         }
     }
+    Ok(())
 }
 
-async fn handle_message_intermediat(client: &Mutex<Client>, msg: messages::ServerMessage) {
-    if let Err(e) = handle_message(client, msg).await {
-        let _ = client.lock().await.action_tx.send(Action::Error(e.into()));
+async fn handle_message_intermediat(
+    msg: messages::ServerMessage,
+    msg_tx: UnboundedSender<messages::ServerMessage>,
+) -> Result<()> {
+    let client = Client::get()?;
+    if let Err(e) = handle_message(msg, msg_tx).await {
+        error!("{e}");
+        client.action_tx.send(Action::Error(e.into()))?;
     }
+    Ok(())
 }
 
-async fn request_key(client_lock: &Mutex<Client>) -> Result<(), NetworkError> {
-    let client = client_lock.lock().await;
-    let room = client.room.clone().ok_or(NetworkError::NoRoom)?;
+async fn request_key() -> Result<(), NetworkError> {
+    let client = Client::get()?;
+    let room = client
+        .room
+        .lock()
+        .await
+        .clone()
+        .ok_or(NetworkError::NoRoom)?
+        .clone();
+    let token = client
+        .token
+        .lock()
+        .await
+        .clone()
+        .ok_or(NetworkError::MissingAuthToken)?;
     let url = client.url.join(&format!("room/{room}"))?;
 
     let key_guard = client.asymetric_key.lock().await;
@@ -118,13 +142,7 @@ async fn request_key(client_lock: &Mutex<Client>) -> Result<(), NetworkError> {
     let resp = client
         .post(url)
         .json(&body)
-        .bearer_auth(
-            client
-                .token
-                .clone()
-                .ok_or(NetworkError::MissingAuthToken)?
-                .token,
-        )
+        .bearer_auth(token.token)
         .send()
         .await?;
 
@@ -133,8 +151,8 @@ async fn request_key(client_lock: &Mutex<Client>) -> Result<(), NetworkError> {
     Ok(())
 }
 
-async fn set_new_sym_key(client_lock: &Mutex<Client>) -> Result<(), NetworkError> {
-    let client = client_lock.lock().await;
+async fn set_new_sym_key() -> Result<(), NetworkError> {
+    let client = Client::get()?;
     let mut key_guard = client.symetric_key.lock().await;
     *key_guard = Some(encryption::get_new_symetric_key()?);
     Ok(())
@@ -157,10 +175,11 @@ pub async fn send_listen_request(
 }
 
 pub async fn handle_message(
-    client_lock: &Mutex<Client>,
     mut msg: messages::ServerMessage,
+    msg_tx: UnboundedSender<messages::ServerMessage>,
 ) -> Result<(), NetworkError> {
     debug!("Received Message: {msg:#?}");
+    let client = Client::get()?;
     match msg.base.message_type {
         messages::MessageType::System => {
             if let Some(data) = msg.base.data {
@@ -168,11 +187,11 @@ pub async fn handle_message(
                     if let Some(online) = data.get("online").unwrap().as_number() {
                         if let Some(num_online) = online.as_u64() {
                             if num_online == 1 {
-                                set_new_sym_key(client_lock).await?;
+                                set_new_sym_key().await?;
                             }
                         }
                     }
-                    request_key(client_lock).await?;
+                    request_key().await?;
                 }
             }
         }
@@ -192,7 +211,6 @@ pub async fn handle_message(
             return Err("No Data given".into());
         }
         messages::MessageType::Key => {
-            let client = client_lock.lock().await;
             if client.symetric_key.lock().await.as_ref().is_some() {
                 return Ok(());
             }
@@ -227,55 +245,38 @@ pub async fn handle_message(
             return Ok(());
         }
         messages::MessageType::Join => {
-            let _ = client_lock
-                .lock()
-                .await
-                .action_tx
-                .send(Action::ReceivedMessage(msg));
+            let _ = client.action_tx.send(Action::ReceivedMessage(msg));
         }
-        messages::MessageType::EncryptedText => {
-            match client_lock.lock().await.symetric_key.lock().await.as_ref() {
-                None => {
-                    request_key(client_lock).await?;
-                }
-                Some(ref key) => {
-                    let text = msg.base.text.clone();
-                    if let Some(nonce_json) =
-                        msg.base.data.as_ref().map_or(None, |h| h.get("nonce"))
-                    {
-                        let mut nonce: encryption::Nonce = encryption::Nonce::default();
-                        let nonce_ref_v = encryption::from_base64(nonce_json.as_str().unwrap())?;
-                        for i in 0..nonce.len() {
-                            nonce[i] = nonce_ref_v[i];
-                        }
-                        match encryption::decrypt((text, nonce), key) {
-                            Err(_) => {
-                                let client = client_lock.lock().await;
-                                let mut sym_key_guard = client.symetric_key.lock().await;
-                                *sym_key_guard = None;
-                                request_key(client_lock).await?;
-                            }
-                            Ok(txt) => {
-                                msg.base.text = txt;
-                                let _ = client_lock
-                                    .lock()
-                                    .await
-                                    .action_tx
-                                    .send(Action::ReceivedMessage(msg));
-                            }
-                        }
-                    } else {
-                        return Err("Can't decode Message".into());
+        messages::MessageType::EncryptedText => match client.symetric_key.lock().await.as_ref() {
+            None => {
+                request_key().await?;
+            }
+            Some(ref key) => {
+                let text = msg.base.text.clone();
+                if let Some(nonce_json) = msg.base.data.as_ref().map_or(None, |h| h.get("nonce")) {
+                    let mut nonce: encryption::Nonce = encryption::Nonce::default();
+                    let nonce_ref_v = encryption::from_base64(nonce_json.as_str().unwrap())?;
+                    for i in 0..nonce.len() {
+                        nonce[i] = nonce_ref_v[i];
                     }
+                    match encryption::decrypt((text, nonce), key) {
+                        Err(_) => {
+                            let mut sym_key_guard = client.symetric_key.lock().await;
+                            *sym_key_guard = None;
+                            request_key().await?;
+                        }
+                        Ok(txt) => {
+                            msg.base.text = txt;
+                            let _ = client.action_tx.send(Action::ReceivedMessage(msg));
+                        }
+                    }
+                } else {
+                    return Err("Can't decode Message".into());
                 }
             }
-        }
+        },
         _ => {
-            let _ = client_lock
-                .lock()
-                .await
-                .action_tx
-                .send(Action::ReceivedMessage(msg));
+            let _ = client.action_tx.send(Action::ReceivedMessage(msg));
         }
     }
     Ok(())

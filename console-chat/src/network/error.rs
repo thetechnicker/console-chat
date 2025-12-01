@@ -1,4 +1,5 @@
 use alkali::AlkaliError;
+use color_eyre::Report;
 use std::error::Error;
 use std::sync::Arc;
 use tokio::task::JoinError;
@@ -38,6 +39,7 @@ pub enum NetworkError {
     CompositError(Arc<NetworkError>, String),
 
     JoinError(Arc<JoinError>),
+    Eyre(Arc<Report>),
 }
 
 impl std::fmt::Display for NetworkError {
@@ -59,9 +61,10 @@ impl std::fmt::Display for NetworkError {
             NetworkError::JoinError(error) => write!(f, "Tokio Join Error: {}", error),
             NetworkError::CompositError(error, str) => {
                 write!(f, "CompositError: {}, \"{}\"", error, str)
-            } //      NetworkError::CriticalFailure => {
-              //            write!(f, "A Unexpected Error Happend")
-              //      }
+            }
+            NetworkError::Eyre(e) => {
+                write!(f, "{e}")
+            }
         }
     }
 }
@@ -103,6 +106,11 @@ impl From<AlkaliError> for NetworkError {
 impl From<JoinError> for NetworkError {
     fn from(value: JoinError) -> Self {
         Self::JoinError(Arc::new(value))
+    }
+}
+impl From<Report> for NetworkError {
+    fn from(value: Report) -> Self {
+        Self::Eyre(Arc::new(value))
     }
 }
 

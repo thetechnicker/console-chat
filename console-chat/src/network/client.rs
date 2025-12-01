@@ -4,6 +4,7 @@ use super::error::*;
 use super::listen::*;
 use crate::action::Action;
 use color_eyre::Result;
+use color_eyre::eyre::OptionExt;
 use lazy_static::lazy_static;
 use reqwest;
 use reqwest::StatusCode;
@@ -18,22 +19,66 @@ use tracing::instrument;
 use tracing::{debug, error, trace};
 use url::Url;
 
-pub static CLIENT: OnceLock<Mutex<Client>> = OnceLock::new();
 lazy_static! {
     static ref LISTEN_WORKER: Mutex<Option<ListenHandler>> = Mutex::new(None);
 }
+
+pub static CLIENT: OnceLock<Arc<Client>> = OnceLock::new();
 
 #[derive(Debug, Clone)]
 pub struct Client {
     pub url: Url,
     pub client: reqwest::Client,
-    pub token: Option<Token>,
+    pub token: Arc<Mutex<Option<Token>>>,
     pub action_tx: UnboundedSender<Action>,
-    pub room: Option<String>,
+    pub room: Arc<Mutex<Option<String>>>,
     pub symetric_key: Arc<Mutex<Option<encryption::SymetricKey>>>,
     pub asymetric_key: Arc<Mutex<encryption::KeyPair>>,
 }
+impl Client {
+    pub async fn init<T>(url: T, action_tx: UnboundedSender<Action>) -> Result<()>
+    where
+        T: TryInto<Url> + std::fmt::Debug,
+        <T as TryInto<url::Url>>::Error: Sync + Send + std::error::Error + 'static,
+    {
+        debug!("Initializing network client");
+        let url = url.try_into()?;
+        //let key = Keys::new()?;
+        let is_localhost = url
+            .host_str()
+            .map(|host| host == "localhost" || host == "127.0.0.1" || host == "::1")
+            .unwrap_or(false);
 
+        let client_builder = reqwest::Client::builder();
+
+        let client_builder = if is_localhost {
+            client_builder.danger_accept_invalid_certs(true)
+        } else {
+            client_builder
+        };
+        let client = client_builder.build()?;
+        let asymetric_key = Arc::new(Mutex::new(encryption::get_asym_key_pair()?));
+        CLIENT.set(Arc::new(Client {
+            url,
+            client: client,
+            token: Arc::new(Mutex::new(None)),
+            action_tx,
+            room: Arc::new(Mutex::new(None)),
+            symetric_key: Arc::new(Mutex::new(None)),
+            asymetric_key,
+        }));
+        auth().await?;
+        debug!("Initializing done");
+        Ok(())
+    }
+
+    pub fn get() -> Result<Arc<Client>> {
+        Ok(CLIENT
+            .get()
+            .ok_or_eyre("Client hasnt been initialized")?
+            .clone())
+    }
+}
 impl Deref for Client {
     type Target = reqwest::Client;
     fn deref(&self) -> &Self::Target {
@@ -83,46 +128,6 @@ where
     }
 }
 
-pub async fn init<T>(url: T, action_tx: UnboundedSender<Action>) -> Result<()>
-where
-    T: TryInto<Url> + std::fmt::Debug,
-    <T as TryInto<url::Url>>::Error: Sync + Send + std::error::Error + 'static,
-{
-    if CLIENT.get().is_none() {
-        debug!("Initializing network client");
-        let url = url.try_into()?;
-        //let key = Keys::new()?;
-        let is_localhost = url
-            .host_str()
-            .map(|host| host == "localhost" || host == "127.0.0.1" || host == "::1")
-            .unwrap_or(false);
-
-        let client_builder = reqwest::Client::builder();
-
-        let client_builder = if is_localhost {
-            client_builder.danger_accept_invalid_certs(true)
-        } else {
-            client_builder
-        };
-        let client = client_builder.build()?;
-        let asymetric_key = Arc::new(Mutex::new(encryption::get_asym_key_pair()?));
-        CLIENT.get_or_init(|| {
-            Mutex::new(Client {
-                url,
-                client: client,
-                token: None,
-                action_tx,
-                room: None,
-                symetric_key: Arc::new(Mutex::new(None)),
-                asymetric_key,
-            })
-        });
-        auth().await?;
-        debug!("Initializing done");
-    }
-    Ok(())
-}
-
 pub fn handle_network(action: Action) -> Result<Option<Action>> {
     Ok(match action {
         Action::PerformJoin(room) => {
@@ -152,47 +157,43 @@ where
     R: Future<Output = Result<Option<Action>, NetworkError>> + Sync + Send + 'static,
     T: Sync + Send + 'static,
 {
-    let _ = tokio::spawn(async {
+    let _: JoinHandle<Result<()>> = tokio::spawn(async {
         let res = (func)(data).await;
-        if let Some(client_lock) = CLIENT.get() {
-            let client = client_lock.lock().await;
-            let _ = match res {
-                Ok(Some(action)) => client.action_tx.send(action),
-                Err(error) => {
-                    error!("{error}");
-                    client.action_tx.send(Action::Error(error.into()))
-                }
-                Ok(None) => Ok(()),
-            };
-        }
+        let client = Client::get()?;
+        let _ = match res {
+            Ok(Some(action)) => client.action_tx.send(action),
+            Err(error) => {
+                error!("{error}");
+                client.action_tx.send(Action::Error(error.into()))
+            }
+            Ok(None) => Ok(()),
+        };
+        Ok(())
     });
     Ok(())
 }
 
 async fn auth() -> Result<()> {
     trace!("Getting client lock");
-    if let Some(client_lock) = CLIENT.get() {
-        let mut client = client_lock.lock().await;
-        trace!("sending auth request");
-        let token: Token = match client.token.as_ref() {
-            Some(token) => {
-                handle_errors_json(
-                    client
-                        .post(client.url.join("/auth")?)
-                        .bearer_auth(&token.token)
-                        .send()
-                        .await?,
-                )
-                .await?
-            }
-            None => {
-                handle_errors_json(client.post(client.url.join("/auth")?).send().await?).await?
-            }
-        };
-        debug!("got auth result: {:#?}", token);
-        keep_token_alive_auth(token.ttl.clone());
-        client.token = Some(token);
-    }
+    let client = Client::get()?;
+    trace!("sending auth request");
+    let mut token_guard = client.token.lock().await;
+    let token: Token = match token_guard.as_ref() {
+        Some(token) => {
+            handle_errors_json(
+                client
+                    .post(client.url.join("/auth")?)
+                    .bearer_auth(&token.token)
+                    .send()
+                    .await?,
+            )
+            .await?
+        }
+        None => handle_errors_json(client.post(client.url.join("/auth")?).send().await?).await?,
+    };
+    debug!("got auth result: {:#?}", token);
+    keep_token_alive_auth(token.ttl.clone());
+    *token_guard = Some(token);
     Ok(())
 }
 
@@ -216,29 +217,26 @@ async fn leave(_: ()) -> Result<Option<Action>, NetworkError> {
         debug!("cancelling listen_worker");
         listen_worker.cancellation_token.cancel();
         listen_worker.listen_task.await??;
-        if let Some(client_mutex) = CLIENT.get() {
-            let mut client = client_mutex.lock().await;
-            client.room = None;
-        }
+        let client = Client::get()?;
+        let mut room = client.room.lock().await;
+        *room = None;
     }
     Ok(None)
 }
 
 async fn join_room(room: String) -> Result<Option<Action>, NetworkError> {
-    if let Some(client_lock) = CLIENT.get() {
-        let mut client = client_lock.lock().await;
-        match client.room {
-            Some(_) => return Err(NetworkError::GenericError("Already in a room".to_string())),
-            None => {
-                client.room = Some(room);
-                let mut listen_worker_mutex = LISTEN_WORKER.lock().await;
-                match listen_worker_mutex.take() {
-                    Some(listen_worker) => listen_worker.abort(),
-                    None => {
-                        let worker_client = client.clone();
-                        *listen_worker_mutex = Some(ListenHandler::from(listen));
-                        debug!("Started Listen Worker");
-                    }
+    let client = Client::get()?;
+    let mut room_guard = client.room.lock().await;
+    match *room_guard {
+        Some(_) => return Err(NetworkError::GenericError("Already in a room".to_string())),
+        None => {
+            *room_guard = Some(room);
+            let mut listen_worker_mutex = LISTEN_WORKER.lock().await;
+            match listen_worker_mutex.take() {
+                Some(listen_worker) => listen_worker.abort(),
+                None => {
+                    *listen_worker_mutex = Some(ListenHandler::from(listen));
+                    debug!("Started Listen Worker");
                 }
             }
         }
@@ -247,49 +245,53 @@ async fn join_room(room: String) -> Result<Option<Action>, NetworkError> {
 }
 
 pub async fn login(credentials: (String, String)) -> Result<Option<Action>, NetworkError> {
+    let client = Client::get()?;
+
     use std::collections::HashMap;
     let (username, password) = credentials;
-    if let Some(client_lock) = CLIENT.get() {
-        let mut client = client_lock.lock().await;
-        let body = HashMap::from([("username", username), ("password", password)]);
-        let mut request = client.post(client.url.join("auth")?).json(&body);
-        if let Some(token) = client.token.as_ref() {
-            request = request.bearer_auth(token.token.clone());
-        }
-        let responce: Token = handle_errors_json(request.send().await?).await?;
-        debug!("{responce:#?}");
-        client.token = Some(responce);
+
+    let body = HashMap::from([("username", username), ("password", password)]);
+
+    let mut request = client.post(client.url.join("auth")?).json(&body);
+
+    let mut token_guard = client.token.lock().await;
+    if let Some(token) = token_guard.as_ref() {
+        request = request.bearer_auth(token.token.clone());
     }
+    let responce: Token = handle_errors_json(request.send().await?).await?;
+
+    debug!("{responce:#?}");
+    *token_guard = Some(responce);
     Ok(None)
 }
 
 pub async fn send_txt(msg: String) -> Result<Option<Action>, NetworkError> {
-    if let Some(client_lock) = CLIENT.get() {
-        let client = client_lock.lock().await;
-        if let Some(room) = client.room.as_ref() {
-            trace!("Sending Message...");
-            let msg: Result<messages::ClientMessage, NetworkError> = {
-                let key_guard = client.symetric_key.lock().await;
-                key_guard
-                    .as_ref()
-                    .map_or(Ok(messages::ClientMessage::new(&msg)), |key| {
-                        trace!("{key:#?}");
-                        let encrypted = encryption::encrypt(&msg, &key)?;
-                        Ok(messages::ClientMessage::encrypted(encrypted))
-                    })
-            };
-            let url = client.url.join(&format!("room/{room}"))?;
-            let token = client.token.as_ref().expect("No Token Given");
-            let body = serde_json::json!(msg?);
-            let resp = client
-                .post(url)
-                .json(&body)
-                .bearer_auth(token.token.clone())
-                .send()
-                .await?;
-            let message: messages::ServerMessage = handle_errors_json(resp).await?;
-            debug!("{:?}", message);
-        }
+    let client = Client::get()?;
+    if let Some(room) = client.room.lock().await.as_ref() {
+        trace!("Sending Message...");
+        let msg: Result<messages::ClientMessage, NetworkError> = {
+            let key_guard = client.symetric_key.lock().await;
+            key_guard
+                .as_ref()
+                .map_or(Ok(messages::ClientMessage::new(&msg)), |key| {
+                    trace!("{key:#?}");
+                    let encrypted = encryption::encrypt(&msg, &key)?;
+                    Ok(messages::ClientMessage::encrypted(encrypted))
+                })
+        };
+        let url = client.url.join(&format!("room/{room}"))?;
+        let token_guard = client.token.lock().await;
+        let token = token_guard.as_ref().ok_or(NetworkError::MissingAuthToken)?;
+
+        let body = serde_json::json!(msg?);
+        let resp = client
+            .post(url)
+            .json(&body)
+            .bearer_auth(token.token.clone())
+            .send()
+            .await?;
+        let message: messages::ServerMessage = handle_errors_json(resp).await?;
+        debug!("{:?}", message);
     }
     Ok(None)
 }

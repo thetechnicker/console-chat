@@ -71,7 +71,8 @@ impl App {
     }
 
     pub async fn run(&mut self) -> Result<()> {
-        crate::network::init(self.config.network.host.clone(), self.action_tx.clone()).await?;
+        crate::network::Client::init(self.config.network.host.clone(), self.action_tx.clone())
+            .await?;
         let mut tui = Tui::new()?
             .mouse(true) // uncomment this line to enable mouse support
             .tick_rate(self.tick_rate)
