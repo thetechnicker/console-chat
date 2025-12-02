@@ -143,7 +143,7 @@ where
     R: Future<Output = Result<Option<Action>, NetworkError>> + Sync + Send + 'static,
     T: Sync + Send + 'static,
 {
-    let _: JoinHandle<Result<()>> = tokio::spawn(async {
+    tokio::spawn(async {
         let res = (func)(data).await;
         let client = Client::get()?;
         let _ = match res {
@@ -154,7 +154,7 @@ where
             }
             Ok(None) => Ok(()),
         };
-        Ok(())
+        Ok::<(), color_eyre::Report>(())
     });
     Ok(())
 }
@@ -350,7 +350,7 @@ pub async fn handle_errors_raw(resp: reqwest::Response) -> Result<reqwest::Respo
     }
 }
 
-pub async fn handle_errors_json<'a, T>(resp: reqwest::Response) -> Result<T, NetworkError>
+pub async fn handle_errors_json<T>(resp: reqwest::Response) -> Result<T, NetworkError>
 where
     T: serde::de::DeserializeOwned,
 {

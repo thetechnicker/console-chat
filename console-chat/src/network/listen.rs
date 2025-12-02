@@ -50,6 +50,7 @@ pub async fn listen(cancellation_token: CancellationToken) -> Result<(), Network
             )
             .await
             .inspect_err(|e| {
+                let _ = client.action_tx.send(Action::Error(e.clone().into()));
                 let _ = client.action_tx.send(Action::OpenHome);
             })?;
 
@@ -207,61 +208,54 @@ pub async fn handle_message(
         messages::MessageType::System => {
             if let Some(data) = msg.base.data
                 && data.contains_key("online")
-                    && let Some(online) = data.get("online").unwrap().as_number()
-                        && let Some(num_online) = online.as_u64() {
-                            if num_online == 1 {
-                                debug!("INITIALIZING KEY");
-                                set_new_sym_key().await?;
-                            } else if client.symetric_key.lock().await.is_none() {
-                                debug!("REQUESTING KEY");
-                                request_key().await?;
-                            }
-                        }
+                && let Some(online) = data.get("online").unwrap().as_number()
+                && let Some(num_online) = online.as_u64()
+            {
+                if num_online == 1 {
+                    debug!("INITIALIZING KEY");
+                    set_new_sym_key().await?;
+                } else if client.symetric_key.lock().await.is_none() {
+                    debug!("REQUESTING KEY");
+                    request_key().await?;
+                }
+            }
         }
         messages::MessageType::KeyRequest => {
             if !msg.base.is_mine() {
                 if let Some(data) = msg.base.data
                     && data.contains_key("key")
-                        && let Some(key) = data.get("key").unwrap().as_str() {
-                            let received_key = encryption::from_base64(key)?;
-                            let mut pub_key = encryption::PublicKey::default();
-                            for i in 0..pub_key.len() {
-                                //debug!("BAD INDEX: {i}");
-                                pub_key[i] = received_key[i];
-                            }
+                    && let Some(key) = data.get("key").unwrap().as_str()
+                {
+                    let received_key = encryption::from_base64(key)?;
+                    let mut pub_key = encryption::PublicKey::default();
+                    pub_key.copy_from_slice(received_key.as_slice());
 
-                            let room = client.room.lock().await.clone().unwrap();
-                            let url = client.url.join(&format!("room/{room}"))?;
+                    let room = client.room.lock().await.clone().unwrap();
+                    let url = client.url.join(&format!("room/{room}"))?;
 
-                            let asym_key_guard = client.asymetric_key.lock().await;
-                            let sym_key_guard = client.symetric_key.lock().await;
-                            match *sym_key_guard {
-                                None => return Err(NetworkError::from("No Symetic key")),
-                                Some(ref key) => {
-                                    let msg = messages::ClientMessage::send_key(
-                                        key,
-                                        &asym_key_guard,
-                                        pub_key,
-                                    )?;
+                    let asym_key_guard = client.asymetric_key.lock().await;
+                    let sym_key_guard = client.symetric_key.lock().await;
+                    match *sym_key_guard {
+                        None => return Err(NetworkError::from("No Symetic key")),
+                        Some(ref key) => {
+                            let msg =
+                                messages::ClientMessage::send_key(key, &asym_key_guard, pub_key)?;
 
-                                    let body = serde_json::json!(msg);
-                                    let resp = client
-                                        .post(url)
-                                        .json(&body)
-                                        .bearer_auth(
-                                            client.token.lock().await.clone().unwrap().token,
-                                        )
-                                        .send()
-                                        .await?;
+                            let body = serde_json::json!(msg);
+                            let resp = client
+                                .post(url)
+                                .json(&body)
+                                .bearer_auth(client.token.lock().await.clone().unwrap().token)
+                                .send()
+                                .await?;
 
-                                    let message: messages::ServerMessage =
-                                        handle_errors_json(resp).await?;
-                                    debug!("{:?}", message);
-                                }
-                            }
-
-                            return Ok(());
+                            let message: messages::ServerMessage = handle_errors_json(resp).await?;
+                            debug!("{:?}", message);
                         }
+                    }
+
+                    return Ok(());
+                }
                 return Err("No Data given".into());
             }
         }
@@ -286,9 +280,7 @@ pub async fn handle_message(
                 let mut new_sym_key: encryption::SymetricKey =
                     encryption::SymetricKey::new_empty()?;
 
-                for i in 0..new_sym_key.len() {
-                    new_sym_key[i] = decrypted_key[i];
-                }
+                new_sym_key.copy_from_slice(decrypted_key.as_slice());
 
                 let mut sym_key_guard = client.symetric_key.lock().await;
                 *sym_key_guard = Some(new_sym_key);
@@ -312,9 +304,7 @@ pub async fn handle_message(
                 if let Some(nonce_json) = msg.base.data.as_ref().and_then(|h| h.get("nonce")) {
                     let mut nonce: encryption::Nonce = encryption::Nonce::default();
                     let nonce_ref_v = encryption::from_base64(nonce_json.as_str().unwrap())?;
-                    for i in 0..nonce.len() {
-                        nonce[i] = nonce_ref_v[i];
-                    }
+                    nonce.copy_from_slice(nonce_ref_v.as_slice());
                     match encryption::decrypt((text, nonce), key) {
                         Err(e) => {
                             error!("{e}");

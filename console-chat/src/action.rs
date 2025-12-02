@@ -55,25 +55,13 @@ impl PartialEq for AppError {
                 Self::MissingPasswordAndUsername => false,
             },
             Self::MissingPassword => {
-                if let Self::MissingPassword = other {
-                    true
-                } else {
-                    false
-                }
+                matches!(other, Self::MissingPassword)
             }
             Self::MissingUsername => {
-                if let Self::MissingUsername = other {
-                    true
-                } else {
-                    false
-                }
+                matches!(other, Self::MissingUsername)
             }
             Self::MissingPasswordAndUsername => {
-                if let Self::MissingPasswordAndUsername = other {
-                    true
-                } else {
-                    false
-                }
+                matches!(other, Self::MissingPasswordAndUsername)
             }
         }
     }

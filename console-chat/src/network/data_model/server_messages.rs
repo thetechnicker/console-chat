@@ -41,19 +41,13 @@ impl ServerMessage {
         }?;
 
         let mut public_key: encryption::PublicKey = encryption::PublicKey::default();
-        for i in 0..public_key.len() {
-            public_key[i] = public_key_vec[i];
-        }
+        public_key.copy_from_slice(public_key_vec.as_slice());
 
         let mut nonce: encryption::Nonce = encryption::Nonce::default();
-        for i in 0..nonce.len() {
-            nonce[i] = nonce_vec[i];
-        }
+        nonce.copy_from_slice(nonce_vec.as_slice());
 
         let mut key_nonce: encryption::Nonce = encryption::Nonce::default();
-        for i in 0..key_nonce.len() {
-            key_nonce[i] = sym_key_nonce_vec[i];
-        }
+        key_nonce.copy_from_slice(sym_key_nonce_vec.as_slice());
 
         let sym_key = if let Some(str) = self.base.get_data_str("key") {
             Ok(str)
