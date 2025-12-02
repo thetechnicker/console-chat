@@ -158,11 +158,11 @@ impl<'de> Deserialize<'de> for Theme {
 mod test {
     use super::*;
     use color_eyre::Result;
-    use std::collections::HashMap;
+    use std::collections::BTreeMap;
 
     #[test]
     fn example_theme() -> Result<()> {
-        let map = HashMap::from([
+        let map = BTreeMap::from([
             ("a", GREEN),
             ("b", RED),
             ("c", BLUE),
@@ -178,13 +178,11 @@ mod test {
                 },
             ),
         ]);
-        let content = serde_json::to_string_pretty(&map)?;
-        let path = crate::config::get_data_dir();
-        if !path.exists() {
-            let _ = std::fs::create_dir(&path);
-        }
-        let res = std::fs::write(path.join("test.json"), content);
-        assert!(res.is_ok(), "{res:?}");
+        let content = serde_json::to_string(&map)?;
+        assert_eq!(
+            content,
+            "{\"a\":\"GREEN\",\"b\":\"RED\",\"c\":\"BLUE\",\"d\":\"GRAY\",\"e\":\"DARK_GRAY\",\"f\":{\"text\":\"Black\",\"background\":\"White\",\"highlight\":\"Yellow\",\"shadow\":\"Red\"}}"
+        );
         Ok(())
     }
 }
