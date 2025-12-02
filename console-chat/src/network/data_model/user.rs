@@ -38,10 +38,12 @@ impl Deref for Token {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BetterUser {
+    pub id: Option<usize>,
     pub username: String,
-    /// Will always be None
-    pub password_hash: Option<String>,
+    // Will always be None
+    //pub password_hash: Option<String>,
     pub private: bool,
+    pub public_data_id: Option<usize>,
     pub public_data: PublicUser,
 }
 

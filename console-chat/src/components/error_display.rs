@@ -1,5 +1,4 @@
 use std::time::Instant;
-use tokio::sync::mpsc::UnboundedSender;
 
 use color_eyre::Result;
 use ratatui::{prelude::*, widgets::*};
@@ -15,7 +14,6 @@ pub struct ErrorDisplay {
     last_error: Instant,
     errors: Vec<AppError>,
     current_error: Option<AppError>,
-    command_tx: Option<UnboundedSender<Action>>,
 }
 
 impl Default for ErrorDisplay {
@@ -30,22 +28,18 @@ impl ErrorDisplay {
             last_error: Instant::now(),
             errors: Vec::new(),
             current_error: None,
-            command_tx: None,
         }
     }
 
-    fn app_tick(&mut self) -> Result<()> {
+    fn app_tick(&mut self) {
         let now = Instant::now();
         let elapsed = (now - self.last_error).as_secs_f64();
         if elapsed >= ERROR_TIMEOUT || self.current_error.is_none() {
             self.current_error = self.errors.pop();
-            if self.current_error.is_none()
-                && let Some(command_tx) = self.command_tx.as_mut()
-            {
-                command_tx.send(Action::Normal)?;
+            if self.current_error.is_some() {
+                self.last_error = Instant::now();
             }
         }
-        Ok(())
     }
 }
 
@@ -53,8 +47,10 @@ impl Component for ErrorDisplay {
     fn hide(&mut self) {}
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
-            Action::Error(msg) => self.errors.push(msg),
-            Action::Tick => self.app_tick()?,
+            Action::Error(msg) => {
+                self.errors.push(msg);
+            }
+            Action::Tick => self.app_tick(),
             _ => {}
         };
         Ok(None)

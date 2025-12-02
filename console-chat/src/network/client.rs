@@ -15,9 +15,9 @@ use std::sync::OnceLock;
 use tokio::sync::Mutex;
 use tokio::{sync::mpsc::UnboundedSender, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
-use tracing::instrument;
 use tracing::{debug, error, trace};
 use url::Url;
+//use tracing::instrument;
 
 lazy_static! {
     static ref LISTEN_WORKER: Mutex<Option<ListenHandler>> = Mutex::new(None);
@@ -58,7 +58,7 @@ impl Client {
         };
         let client = client_builder.build()?;
         let asymetric_key = Arc::new(Mutex::new(encryption::get_asym_key_pair()?));
-        CLIENT.set(Arc::new(Client {
+        let _ = CLIENT.set(Arc::new(Client {
             url,
             client: client,
             token: Arc::new(Mutex::new(None)),
@@ -83,21 +83,6 @@ impl Deref for Client {
     type Target = reqwest::Client;
     fn deref(&self) -> &Self::Target {
         &self.client
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Keys {
-    pub symetric_key: Arc<Mutex<Option<encryption::SymetricKey>>>,
-    pub asymetric_key: Arc<Mutex<encryption::KeyPair>>,
-}
-
-impl Keys {
-    fn new() -> Result<Self, NetworkError> {
-        Ok(Self {
-            symetric_key: Arc::new(Mutex::new(None)),
-            asymetric_key: Arc::new(Mutex::new(encryption::get_asym_key_pair()?)),
-        })
     }
 }
 
@@ -132,7 +117,8 @@ pub fn handle_network(action: Action) -> Result<Option<Action>> {
     Ok(match action {
         Action::PerformJoin(room) => {
             run_async_sync(join_room, room)?;
-            Some(Action::OpenChat)
+            //Some(Action::OpenChat)
+            None
         }
         Action::PerformLogin(username, password) => {
             run_async_sync(login, (username, password))?;
@@ -193,7 +179,18 @@ async fn auth() -> Result<()> {
     };
     debug!("got auth result: {:#?}", token);
     keep_token_alive_auth(token.ttl.clone());
-    *token_guard = Some(token);
+    *token_guard = Some(token.clone());
+
+    let user: BetterUser = handle_errors_json(
+        client
+            .get(client.url.join("/users/status")?)
+            .bearer_auth(&token.token)
+            .send()
+            .await?,
+    )
+    .await?;
+    debug!("user: {:#?}", user);
+
     Ok(())
 }
 
@@ -235,6 +232,7 @@ async fn join_room(room: String) -> Result<Option<Action>, NetworkError> {
             match listen_worker_mutex.take() {
                 Some(listen_worker) => listen_worker.abort(),
                 None => {
+                    //request_key().await?;
                     *listen_worker_mutex = Some(ListenHandler::from(listen));
                     debug!("Started Listen Worker");
                 }

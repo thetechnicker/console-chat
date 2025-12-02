@@ -2,7 +2,7 @@ use crate::network::{data_model::messages::ServerMessage, error::NetworkError};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use strum::Display;
 
-#[derive(Debug, Clone, Display)]
+#[derive(Debug, Clone)]
 pub enum AppError {
     MissingActionTX,
     MissingPassword,
@@ -11,6 +11,20 @@ pub enum AppError {
     NetworkError(NetworkError),
     Error(String),
 }
+
+impl std::fmt::Display for AppError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::MissingActionTX => write!(f, "MissingActionTX"),
+            Self::MissingPassword => write!(f, "MissingPassword"),
+            Self::MissingUsername => write!(f, "MissingUsername"),
+            Self::MissingPasswordAndUsername => write!(f, "MissingPasswordAndUsername"),
+            Self::NetworkError(e) => write!(f, "Network Error: {e}"),
+            Self::Error(s) => write!(f, "Error: {s}"),
+        }
+    }
+}
+
 impl std::error::Error for AppError {}
 
 impl PartialEq for AppError {
@@ -118,7 +132,6 @@ pub enum Action {
     Quit,
     ClearScreen,
     Error(AppError),
-    ErrorDone,
     Help,
 
     Insert,

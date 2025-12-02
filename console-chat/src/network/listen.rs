@@ -4,9 +4,9 @@ use super::encryption;
 use super::error::*;
 use crate::action::Action;
 use color_eyre::Result;
-use futures::StreamExt;
 use reqwest;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
+use tokio_stream::{self, StreamExt};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, trace};
 use url::Url;
@@ -20,68 +20,90 @@ pub async fn listen(cancellation_token: CancellationToken) -> Result<(), Network
         .lock()
         .await
         .clone()
-        .ok_or(NetworkError::NoRoom)?
-        .clone();
+        .ok_or(NetworkError::NoRoom)?;
     let token = client
         .token
         .lock()
         .await
         .clone()
         .ok_or(NetworkError::MissingAuthToken)?;
+
     let (msg_tx, msg_rx) = unbounded_channel();
     let task_msg_tx = msg_tx.clone();
     let task_cancellation_token = cancellation_token.clone();
+
     let msg_handler = tokio::spawn(async move {
         handle_messages_async(task_cancellation_token, msg_rx, task_msg_tx).await
     });
 
+    let mut send_new_listen_request = true;
+    let mut first = true;
+    let mut stream = None;
+
     loop {
-        trace!("sending listen Request");
-        let responce = send_listen_request(
-            client.client.clone(),
-            client.url.join(&format!("room/{room}"))?,
-            token.clone(),
-        )
-        .await?;
-        trace!("got responce, starting stream");
-        let mut stream = responce.bytes_stream();
-        tokio::select! {
-            _ = cancellation_token.cancelled() => {
-                debug!("listen worker cancelled");
-                break;
+        if send_new_listen_request || stream.is_none() {
+            trace!("Sending listen request for room: {room}");
+            let response = send_listen_request(
+                client.client.clone(),
+                client.url.join(&format!("room/{room}"))?,
+                token.clone(),
+            )
+            .await
+            .map_err(|e| {
+                let _ = client.action_tx.send(Action::OpenHome);
+                e
+            })?;
+
+            if first {
+                let _ = client.action_tx.send(Action::OpenChat);
+                first = false;
             }
-            Some(chunk)=stream.next()=>{
-                debug!("Received Chunk {chunk:?}");
-                let chunk = match chunk {
-                    Err(e) => {
-                        error!("Error Receiving chunk: {e:#?}");
+
+            trace!("Got response for listen request, starting stream.");
+            stream = Some(response.bytes_stream().fuse());
+            send_new_listen_request = false;
+        }
+
+        if let Some(stream) = stream.as_mut() {
+            tokio::select! {
+                _ = cancellation_token.cancelled() => {
+                    debug!("Listen worker cancelled.");
+                    break;
+                }
+                Some(chunk) = stream.next() => {
+                    debug!("Received chunk: {chunk:?}");
+                    let data = match chunk {
+                        Err(e) => {
+                            error!("Error receiving chunk: {e:#?}");
+                            send_new_listen_request = true;
+                            continue;
+                        }
+                        Ok(data) => data,
+                    };
+
+                    let s = str::from_utf8(&data)?;
+                    debug!("Chunk as string: {s}");
+
+                    if s == "END" {
+                        send_new_listen_request = true;
                         continue;
                     }
-                    Ok(data) => data,
-                };
 
-                let s = str::from_utf8(&chunk)?;
-
-                debug!("chunk as string: {s}");
-
-                if s == "END" {
-                    continue;
-                }
-
-                let msg = match serde_json::from_str::<messages::ServerMessage>(s) {
-                    Ok(msg) => Ok(msg),
-                    Err(e) => Err(NetworkError::from((e, s))),
-                };
-                match msg{
-                    Ok(msg)=>{
-                        debug!("Got message: {msg:#?}\n{}", if msg.base.is_mine(){"is mine"}else{"from someone else"});
-                        let _=msg_tx.send(msg);
+                    match serde_json::from_str::<messages::ServerMessage>(s) {
+                        Ok(msg) => {
+                            debug!("Got message: {msg:#?}");
+                            let _ = msg_tx.send(msg);
+                        }
+                        Err(e) => {
+                            error!("JSON deserialization error: {e}");
+                            let _ = client.action_tx.send(Action::Error(NetworkError::from((e,s)).into()));
+                        }
                     }
-                    Err(e)=>{error!("{e}");continue},
                 }
             }
         }
     }
+
     msg_handler.await??;
     Ok(())
 }
@@ -99,13 +121,15 @@ async fn handle_messages_async(
                 }
                 Some(msg) = msg_rx.recv()=>{
                     trace!("computing message async");
+                    // Error must be propagated, they originate from comunication with main thread
                     handle_message_intermediat(msg,msg_tx.clone()).await?;
             }
-        }
+        };
     }
     Ok(())
 }
 
+/// Needs to be seperate for better autoformatting.
 async fn handle_message_intermediat(
     msg: messages::ServerMessage,
     msg_tx: UnboundedSender<messages::ServerMessage>,
@@ -118,7 +142,7 @@ async fn handle_message_intermediat(
     Ok(())
 }
 
-async fn request_key() -> Result<(), NetworkError> {
+pub async fn request_key() -> Result<(), NetworkError> {
     let client = Client::get()?;
     let room = client
         .room
@@ -187,31 +211,68 @@ pub async fn handle_message(
                     if let Some(online) = data.get("online").unwrap().as_number() {
                         if let Some(num_online) = online.as_u64() {
                             if num_online == 1 {
+                                debug!("INITIALIZING KEY");
                                 set_new_sym_key().await?;
+                            } else if client.symetric_key.lock().await.is_none() {
+                                debug!("REQUESTING KEY");
+                                request_key().await?;
                             }
                         }
                     }
-                    request_key().await?;
                 }
             }
         }
         messages::MessageType::KeyRequest => {
-            if let Some(data) = msg.base.data {
-                if data.contains_key("key") {
-                    if let Some(key) = data.get("key").unwrap().as_str() {
-                        let received_key = encryption::from_base64(key)?;
-                        let mut key = encryption::PublicKey::default();
-                        for i in 0..key.len() {
-                            key[i] = received_key[i];
+            if !msg.base.is_mine() {
+                if let Some(data) = msg.base.data {
+                    if data.contains_key("key") {
+                        if let Some(key) = data.get("key").unwrap().as_str() {
+                            let received_key = encryption::from_base64(key)?;
+                            let mut pub_key = encryption::PublicKey::default();
+                            for i in 0..pub_key.len() {
+                                //debug!("BAD INDEX: {i}");
+                                pub_key[i] = received_key[i];
+                            }
+
+                            let room = client.room.lock().await.clone().unwrap();
+                            let url = client.url.join(&format!("room/{room}"))?;
+
+                            let asym_key_guard = client.asymetric_key.lock().await;
+                            let sym_key_guard = client.symetric_key.lock().await;
+                            match *sym_key_guard {
+                                None => return Err(NetworkError::from("No Symetic key")),
+                                Some(ref key) => {
+                                    let msg = messages::ClientMessage::send_key(
+                                        key,
+                                        &asym_key_guard,
+                                        pub_key,
+                                    )?;
+
+                                    let body = serde_json::json!(msg);
+                                    let resp = client
+                                        .post(url)
+                                        .json(&body)
+                                        .bearer_auth(
+                                            client.token.lock().await.clone().unwrap().token,
+                                        )
+                                        .send()
+                                        .await?;
+
+                                    let message: messages::ServerMessage =
+                                        handle_errors_json(resp).await?;
+                                    debug!("{:?}", message);
+                                }
+                            }
+
+                            return Ok(());
                         }
-                        return Ok(());
                     }
                 }
+                return Err("No Data given".into());
             }
-            return Err("No Data given".into());
         }
         messages::MessageType::Key => {
-            if client.symetric_key.lock().await.as_ref().is_some() {
+            if msg.base.is_mine() || client.symetric_key.lock().await.as_ref().is_some() {
                 return Ok(());
             }
             let (public_key, nonce, sym_key, key_nonce) = msg.get_key_exchange_data()?;
@@ -249,6 +310,7 @@ pub async fn handle_message(
         }
         messages::MessageType::EncryptedText => match client.symetric_key.lock().await.as_ref() {
             None => {
+                let _ = msg_tx.send(msg);
                 request_key().await?;
             }
             Some(ref key) => {
@@ -260,10 +322,12 @@ pub async fn handle_message(
                         nonce[i] = nonce_ref_v[i];
                     }
                     match encryption::decrypt((text, nonce), key) {
-                        Err(_) => {
+                        Err(e) => {
+                            error!("{e}");
                             let mut sym_key_guard = client.symetric_key.lock().await;
                             *sym_key_guard = None;
                             request_key().await?;
+                            let _ = msg_tx.send(msg);
                         }
                         Ok(txt) => {
                             msg.base.text = txt;

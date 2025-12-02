@@ -8,7 +8,7 @@ use base64::{Engine as _, engine::general_purpose};
 pub type SymetricKey = symetric_cipher::Key<mem::FullAccess>;
 pub type EncryptedMessage = (String, cipher::Nonce);
 pub type Nonce = cipher::Nonce;
-pub type PrivateKey = cipher::PrivateKey<mem::FullAccess>;
+//pub type PrivateKey = cipher::PrivateKey<mem::FullAccess>;
 pub type PublicKey = cipher::PublicKey;
 
 pub struct KeyPair(cipher::Keypair);
@@ -47,12 +47,12 @@ pub fn get_asym_key_pair() -> Result<KeyPair, NetworkError> {
     Ok(KeyPair(cipher::Keypair::generate()?))
 }
 
-pub fn get_new_keys() -> Result<(SymetricKey, KeyPair), NetworkError> {
-    Ok((
-        symetric_cipher::Key::generate()?,
-        KeyPair(cipher::Keypair::generate()?),
-    ))
-}
+//pub fn get_new_keys() -> Result<(SymetricKey, KeyPair), NetworkError> {
+//    Ok((
+//        symetric_cipher::Key::generate()?,
+//        KeyPair(cipher::Keypair::generate()?),
+//    ))
+//}
 
 pub fn get_new_symetric_key() -> Result<SymetricKey, NetworkError> {
     Ok(symetric_cipher::Key::generate()?)
@@ -78,9 +78,7 @@ pub fn decrypt_asym(
     let nonce = msg.1;
     let ciphertext = general_purpose::STANDARD.decode(text)?;
     let mut plaintext = vec![0u8; ciphertext.len() - cipher::MAC_LENGTH];
-    receiver_keypair
-        .decrypt(&ciphertext, &sender_key, &nonce, &mut plaintext)
-        .unwrap();
+    receiver_keypair.decrypt(&ciphertext, &sender_key, &nonce, &mut plaintext)?;
     let string = str::from_utf8(&plaintext)?;
     Ok(String::from(string))
 }
@@ -96,7 +94,7 @@ pub fn decrypt(msg: EncryptedMessage, key: &SymetricKey) -> Result<String, Netwo
     let nonce = msg.1;
     let ciphertext = general_purpose::STANDARD.decode(text)?;
     let mut plaintext = vec![0u8; ciphertext.len() - cipher::MAC_LENGTH];
-    symetric_cipher::decrypt(&ciphertext, key, &nonce, &mut plaintext).unwrap();
+    symetric_cipher::decrypt(&ciphertext, key, &nonce, &mut plaintext)?;
     let string = str::from_utf8(&plaintext)?;
     Ok(String::from(string))
 }

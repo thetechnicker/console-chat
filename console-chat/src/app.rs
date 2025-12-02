@@ -3,7 +3,7 @@ use crossterm::event::KeyEvent;
 use ratatui::prelude::Rect;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 use crate::{
     action::Action,
@@ -40,7 +40,6 @@ pub enum Mode {
     Settings,
     RawSettings,
     Insert,
-    Error,
 }
 
 impl App {
@@ -135,9 +134,9 @@ impl App {
             Mode::Chat => self.action_tx.send(Action::OpenChat),
             Mode::Settings => self.action_tx.send(Action::OpenSettings),
             Mode::RawSettings => self.action_tx.send(Action::OpenRawSettings),
-            Mode::Error | Mode::Insert => {
+            Mode::Insert => {
                 self.restore_prev_mode()?;
-                if self.mode == Mode::Insert || self.mode == Mode::Error {
+                if self.mode == Mode::Insert {
                     self.action_tx
                         .send(Action::Error("Restoring Mode failed".into()))?;
                     self.mode = Mode::Home;
@@ -208,7 +207,7 @@ impl App {
     }
 
     fn set_mode(&mut self, mode: Mode) -> Result<()> {
-        if self.mode == Mode::Insert || self.mode == Mode::Error {
+        if self.mode == Mode::Insert {
             self.restore_prev_mode()?;
         }
         self.hide_all();
@@ -224,7 +223,7 @@ impl App {
             if action != Action::Tick && action != Action::Render {
                 debug!("{action:?}");
             }
-            match action {
+            match action.clone() {
                 Action::Tick => {
                     self.last_tick_key_events.drain(..);
                 }
@@ -247,11 +246,8 @@ impl App {
                     self.last_mode = Some(self.mode);
                     self.mode = Mode::Insert;
                 }
-                Action::Error(_) => {
-                    self.last_mode = Some(self.mode);
-                    self.mode = Mode::Error;
-                }
                 Action::Normal => self.restore_prev_mode()?,
+                Action::Error(e) => error!("{e}"),
                 _ => {}
             }
             for component in self.components.iter_mut() {

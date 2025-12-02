@@ -22,8 +22,8 @@ from jwt import PyJWTError
 from pydantic import ValidationError
 from sqlmodel import Session, select
 
-BetterUser = DBUser
-PublicUser = DBPublicUser
+# DBUser = DBUser
+# DBPublicUser = DBPublicUser
 
 load_dotenv()
 
@@ -117,7 +117,7 @@ def create_access_token(
 async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Security(bearer_scheme),
     # context: Context = Depends(get_context),
-) -> BetterUser:
+) -> DBUser:
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing credentials"
@@ -125,9 +125,9 @@ async def get_current_user(
     token = credentials.credentials
     try:
         payload: dict[Any, Any] = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        # print(payload)
-        pub_user = PublicUser.model_validate(payload["public_data"])
-        user = BetterUser.model_validate(payload)
+        # return payload
+        pub_user = DBPublicUser.model_validate(payload["public_data"])
+        user = DBUser.model_validate(payload)
         user.public_data = pub_user
         # stmt = select(DBUser).where(DBUser.username == user.username)
         # db_user = context.p.execute(stmt).scalar_one_or_none()
@@ -177,16 +177,16 @@ async def login(
         db_user = context.psql_session.exec(stmt).one_or_none()
         if db_user:
             is_new = False
-            user = BetterUser.model_validate(db_user)
+            user = DBUser.model_validate(db_user)
         else:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Wrong Credentials"
             )
     elif username:
-        public = PublicUser(
+        public = DBPublicUser(
             display_name=username, color=deterministic_color_from_string(username)
         )
-        user = BetterUser(
+        user = DBUser(
             username=str(uuid4()),
             password_hash=None,
             private=True,
@@ -199,10 +199,10 @@ async def login(
         )
     else:
         username = str(uuid4())
-        public = PublicUser(
+        public = DBPublicUser(
             display_name="anonymos", color=deterministic_color_from_string(username)
         )
-        user = BetterUser(
+        user = DBUser(
             username=username,
             password_hash=None,
             private=True,
@@ -228,15 +228,15 @@ async def get_valkey_status(
     return {"status": "OK"}
 
 
-@app.get("/users/status", response_model=BetterUser)
-async def get_user_status(user: BetterUser = Depends(get_current_user)):
-    return user
+@app.get("/users/status")  # , response_model=DBUser)
+async def get_user_status(user: DBUser = Depends(get_current_user)):
+    return user.model_dump()
 
 
 @app.post("/users/register")
 async def register(
     password: str = Body(),
-    user: BetterUser = Depends(get_current_user),
+    user: DBUser = Depends(get_current_user),
     overwrite_username: Optional[str] = Body(None),
     context: DatabaseContext = Depends(get_db_context),
 ):
@@ -274,7 +274,7 @@ async def register(
 async def send(
     room: str,
     message: ClientMessage,  # Use the new Message model
-    user: BetterUser = Depends(get_current_user),
+    user: DBUser = Depends(get_current_user),
     context: DatabaseContext = Depends(get_db_context),
 ):
     msg = ServerMessage(
@@ -299,7 +299,7 @@ async def send(
 async def get(
     room: str,
     listen_seconds: int = Query(30, description="How long to listen in seconds"),
-    user: BetterUser = Depends(get_current_user),
+    user: DBUser = Depends(get_current_user),
     context: DatabaseContext = Depends(get_db_context),
 ):
     first_join = await context.valkey.exists(f"{room}:{user.username}") == 0
