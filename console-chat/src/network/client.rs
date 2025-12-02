@@ -1,338 +1,413 @@
-use crate::network::listen;
-use crate::{
-    event,
-    network::{ApiError, NetworkEvent, ResponseErrorData, encryption, messages, user},
-};
-use reqwest::{StatusCode, Url};
-use std::str;
+use super::data_model::{messages, user::*};
+use super::encryption;
+use super::error::*;
+use super::listen::*;
+use crate::action::Action;
+use color_eyre::Result;
+use color_eyre::eyre::OptionExt;
+use lazy_static::lazy_static;
+use reqwest;
+use reqwest::StatusCode;
+use std::convert::TryInto;
+use std::ops::Deref;
 use std::sync::Arc;
-use std::sync::Mutex;
-use tokio::sync::watch;
-use tokio::task::JoinHandle;
-use tracing::{debug, instrument, trace};
+use std::sync::OnceLock;
+use tokio::sync::Mutex;
+use tokio::{sync::mpsc::UnboundedSender, task::JoinHandle};
+use tokio_util::sync::CancellationToken;
+use tracing::{debug, error, trace};
+use url::Url;
+//use tracing::instrument;
 
-pub type NoResTokioHandles = JoinHandle<Result<(), ApiError>>;
-
-#[derive(Debug)]
-pub struct ApiClient {
-    base_url: Url,
-    client: reqwest::Client,
-    event_sender: event::NetworkEventSender,
-
-    //api_data: Arc<Mutex<ApiData>>,
-    api_key: Option<String>,
-    bearer_token: Option<String>,
-    current_room: Option<String>,
-
-    listen_task: Option<listen::ListenTask>,
-    listen_data: Option<listen::ListenData>,
-
-    listen_stop_flag: watch::Sender<bool>,
-
-    handle_messages_task: Option<listen::HandleMessagesTask>,
-
-    symetric_key: Arc<Mutex<Option<encryption::SymetricKey>>>,
-    asymetric_key: Arc<Mutex<encryption::KeyPair>>,
+lazy_static! {
+    static ref LISTEN_WORKER: Mutex<Option<ListenHandler>> = Mutex::new(None);
 }
 
-///Magic numbers
-pub const LISTEN_TIMEOUT: u64 = 30;
+pub static CLIENT: OnceLock<Arc<Client>> = OnceLock::new();
 
-impl Drop for ApiClient {
-    fn drop(&mut self) {
-        self.handle_messages_task.as_ref().map(|h| h.abort());
-    }
+#[derive(Debug, Clone)]
+pub struct Client {
+    pub url: Url,
+    pub client: reqwest::Client,
+    pub token: Arc<Mutex<Option<Token>>>,
+    pub action_tx: UnboundedSender<Action>,
+    pub room: Arc<Mutex<Option<String>>>,
+    pub symetric_key: Arc<Mutex<Option<encryption::SymetricKey>>>,
+    pub asymetric_key: Arc<Mutex<encryption::KeyPair>>,
 }
+impl Client {
+    pub async fn init<T>(url: T, action_tx: UnboundedSender<Action>) -> Result<()>
+    where
+        T: TryInto<Url> + std::fmt::Debug,
+        <T as TryInto<url::Url>>::Error: Sync + Send + std::error::Error + 'static,
+    {
+        debug!("Initializing network client");
+        let url = url.try_into()?;
+        //let key = Keys::new()?;
+        let is_localhost = url
+            .host_str()
+            .map(|host| host == "localhost" || host == "127.0.0.1" || host == "::1")
+            .unwrap_or(false);
 
-impl ApiClient {
-    pub fn new(base_url: &str, event_sender: event::NetworkEventSender) -> Result<Self, ApiError> {
-        let client = reqwest::Client::builder()
-            .danger_accept_invalid_certs(true)
-            .build()?;
+        let client_builder = reqwest::Client::builder();
 
-        let url = Url::parse(base_url)?;
-        let (msg_queue_sender, msg_queue_receiver) = tokio::sync::mpsc::unbounded_channel();
-        let (tx, rx) = watch::channel(false);
-        let listen_data = listen::ListenData::new(
-            client.clone(),
-            url.clone(),
-            String::new(),
-            rx,
-            msg_queue_sender.clone(),
-            event_sender.clone().into(),
-        );
-
-        let asym_key = encryption::get_asym_key_pair()?;
-        let symetric_key = Arc::new(Mutex::new(None));
-        let asymetric_key = Arc::new(Mutex::new(asym_key));
-        let handle_messages_data = listen::HandleMessagesData::new(
-            symetric_key.clone(),
-            asymetric_key.clone(),
-            event_sender.clone(),
-            msg_queue_sender.clone(),
-            msg_queue_receiver,
-        );
-
-        Ok(ApiClient {
-            base_url: url,
-            client,
-
-            event_sender: event_sender.clone(),
-
-            api_key: None,
-            bearer_token: None,
-            current_room: None,
-
-            listen_task: None,
-            listen_data: Some(listen_data),
-
-            //handle_messages_data: None,
-            handle_messages_task: Some(handle_messages_data.run()),
-
-            listen_stop_flag: tx,
-
-            symetric_key,
-            asymetric_key,
-        })
-    }
-
-    async fn handled_listen_task_results(&mut self) {
-        if let Some(task) = self.listen_task.as_mut().take() {
-            let _ = self.listen_stop_flag.send(true);
-            if let Ok(task_result) = task.await {
-                match task_result {
-                    Ok(data) => self.listen_data = Some(data),
-                    Err(e) => self.event_sender.send(e.into()),
-                }
-            }
-        }
-        let _ = self.listen_stop_flag.send(false);
-    }
-
-    pub async fn reset(&mut self) {
-        self.api_key = None;
-        self.bearer_token = None;
-        self.current_room = None;
-        self.handled_listen_task_results().await;
-    }
-
-    pub fn set_api_key(&mut self, key: String) {
-        self.api_key = Some(key);
-    }
-
-    pub fn set_bearer_token(&mut self, token: String) {
-        self.bearer_token = Some(token);
-    }
-
-    pub async fn auth(&mut self, args: Option<serde_json::Value>) -> Result<(), ApiError> {
-        let url = self.base_url.join("auth")?;
-        let resp = if let Some(body) = args {
-            self.client.post(url).json(&body)
+        let client_builder = if is_localhost {
+            client_builder.danger_accept_invalid_certs(true)
         } else {
-            self.client.post(url)
-        }
-        .send()
-        .await?;
-
-        let res: user::UserStatus = handle_errors_json(resp).await?;
-        self.bearer_token = Some(res.token);
+            client_builder
+        };
+        let client = client_builder.build()?;
+        let asymetric_key = Arc::new(Mutex::new(encryption::get_asym_key_pair()?));
+        let _ = CLIENT.set(Arc::new(Client {
+            url,
+            client,
+            token: Arc::new(Mutex::new(None)),
+            action_tx,
+            room: Arc::new(Mutex::new(None)),
+            symetric_key: Arc::new(Mutex::new(None)),
+            asymetric_key,
+        }));
+        auth().await?;
+        debug!("Initializing done");
         Ok(())
     }
 
-    #[instrument]
-    pub async fn handle_event(&mut self, event: NetworkEvent) -> Result<(), ApiError> {
-        match event {
-            NetworkEvent::CreateKey => {
-                let mut key_guard = self.symetric_key.lock().unwrap();
-                *key_guard = Some(encryption::get_new_symetric_key()?);
+    pub fn get() -> Result<Arc<Client>> {
+        Ok(CLIENT
+            .get()
+            .ok_or_eyre("Client hasnt been initialized")?
+            .clone())
+    }
+}
+impl Deref for Client {
+    type Target = reqwest::Client;
+    fn deref(&self) -> &Self::Target {
+        &self.client
+    }
+}
+
+pub struct ListenHandler {
+    pub listen_task: JoinHandle<Result<(), NetworkError>>,
+    pub cancellation_token: CancellationToken,
+}
+
+impl Deref for ListenHandler {
+    type Target = JoinHandle<Result<(), NetworkError>>;
+    fn deref(&self) -> &Self::Target {
+        &self.listen_task
+    }
+}
+
+impl<F, Oputput> From<F> for ListenHandler
+where
+    F: FnOnce(CancellationToken) -> Oputput + 'static + Sync + Send,
+    Oputput: Future<Output = Result<(), NetworkError>> + 'static + Sync + Send,
+{
+    fn from(value: F) -> ListenHandler {
+        let cancellation_token = CancellationToken::new();
+        let cancell_token = cancellation_token.clone();
+        ListenHandler {
+            listen_task: tokio::spawn(async move { (value)(cancell_token).await }),
+            cancellation_token,
+        }
+    }
+}
+
+pub fn handle_network(action: Action) -> Result<Option<Action>> {
+    Ok(match action {
+        Action::PerformJoin(room) => {
+            run_async_sync(join_room, room)?;
+            //Some(Action::OpenChat)
+            None
+        }
+        Action::PerformLogin(username, password) => {
+            run_async_sync(login, (username, password))?;
+            Some(Action::OpenHome)
+            //None
+        }
+        Action::SendMessage(message) => {
+            run_async_sync(send_txt, message)?;
+            None
+        }
+        Action::Leave => {
+            run_async_sync(leave, ())?;
+            None
+        }
+        _ => None,
+    })
+}
+
+pub fn run_async_sync<F, T, R>(func: F, data: T) -> Result<()>
+where
+    F: FnOnce(T) -> R + 'static + Sync + Send,
+    R: Future<Output = Result<Option<Action>, NetworkError>> + Sync + Send + 'static,
+    T: Sync + Send + 'static,
+{
+    tokio::spawn(async {
+        let res = (func)(data).await;
+        let client = Client::get()?;
+        let _ = match res {
+            Ok(Some(action)) => client.action_tx.send(action),
+            Err(error) => {
+                error!("{error}");
+                client.action_tx.send(Action::Error(error.into()))
             }
-            NetworkEvent::RequestKeyExchange => {
-                let room = self.get_room()?;
-                let url = self.base_url.join(&format!("room/{room}"))?;
+            Ok(None) => Ok(()),
+        };
+        Ok::<(), color_eyre::Report>(())
+    });
+    Ok(())
+}
 
-                let key_guard = self.asymetric_key.lock().unwrap();
-                let msg = messages::ClientMessage::key_request(key_guard.public_key());
-                let body = serde_json::json!(msg);
-
-                let resp = self
-                    .client
-                    .post(url)
-                    .json(&body)
-                    .bearer_auth(self.bearer_token.clone().expect("No Token Given"))
+async fn auth() -> Result<()> {
+    trace!("Getting client lock");
+    let client = Client::get()?;
+    trace!("sending auth request");
+    let mut token_guard = client.token.lock().await;
+    let token: Token = match token_guard.as_ref() {
+        Some(token) => {
+            handle_errors_json(
+                client
+                    .post(client.url.join("/auth")?)
+                    .bearer_auth(&token.token)
                     .send()
-                    .await?;
+                    .await?,
+            )
+            .await?
+        }
+        None => handle_errors_json(client.post(client.url.join("/auth")?).send().await?).await?,
+    };
+    debug!("got auth result: {:#?}", token);
+    keep_token_alive_auth(token.ttl);
+    *token_guard = Some(token.clone());
 
-                let message: messages::ServerMessage = handle_errors_json(resp).await?;
-                debug!("{:?}", message);
-            }
-            NetworkEvent::SendKey(pub_key) => {
-                let room = self.get_room()?;
-                let url = self.base_url.join(&format!("room/{room}"))?;
+    let user: BetterUser = handle_errors_json(
+        client
+            .get(client.url.join("/users/status")?)
+            .bearer_auth(&token.token)
+            .send()
+            .await?,
+    )
+    .await?;
+    debug!("user: {:#?}", user);
 
-                let asym_key_guard = self.asymetric_key.lock().unwrap();
-                let sym_key_guard = self.symetric_key.lock().unwrap();
-                match *sym_key_guard {
-                    None => return Err(ApiError::from("No Symetic key")),
-                    Some(ref key) => {
-                        let msg = messages::ClientMessage::send_key(key, &asym_key_guard, pub_key)?;
+    Ok(())
+}
 
-                        let body = serde_json::json!(msg);
-                        let resp = self
-                            .client
-                            .post(url)
-                            .json(&body)
-                            .bearer_auth(self.bearer_token.clone().expect("No Token Given"))
-                            .send()
-                            .await?;
+fn keep_token_alive_auth(ttl: std::time::Duration) {
+    let timeout = ttl - std::time::Duration::from_secs(3);
+    debug!("Scheduling Auth to run againin in: {timeout:?}");
+    tokio::spawn(async move {
+        trace!("Sleeping");
+        tokio::time::sleep(timeout).await;
+        trace!("calling auth");
+        match auth().await {
+            Ok(_) => debug!("Successfully reauthed"),
+            Err(e) => error!("got error: {e}"),
+        }
+    });
+}
 
-                        let message: messages::ServerMessage = handle_errors_json(resp).await?;
-                        debug!("{:?}", message);
-                    }
+async fn leave(_: ()) -> Result<Option<Action>, NetworkError> {
+    let mut listen_worker_guard = LISTEN_WORKER.lock().await;
+    if let Some(listen_worker) = listen_worker_guard.take() {
+        debug!("cancelling listen_worker");
+        listen_worker.cancellation_token.cancel();
+        listen_worker.listen_task.await??;
+        let client = Client::get()?;
+        let mut room = client.room.lock().await;
+        *room = None;
+    }
+    Ok(None)
+}
+
+async fn join_room(room: String) -> Result<Option<Action>, NetworkError> {
+    let client = Client::get()?;
+    let mut room_guard = client.room.lock().await;
+    match *room_guard {
+        Some(_) => return Err(NetworkError::GenericError("Already in a room".to_string())),
+        None => {
+            *room_guard = Some(room);
+            let mut listen_worker_mutex = LISTEN_WORKER.lock().await;
+            match listen_worker_mutex.take() {
+                Some(listen_worker) => listen_worker.abort(),
+                None => {
+                    //request_key().await?;
+                    *listen_worker_mutex = Some(ListenHandler::from(listen));
+                    debug!("Started Listen Worker");
                 }
             }
-            NetworkEvent::Leaf => {
-                let _ = self.listen_stop_flag.send(true);
-                //self.handled_listen_task_results().await;
-            }
-            _ => {}
         }
-        Ok(())
     }
+    Ok(None)
+}
 
-    fn get_room(&self) -> Result<String, ApiError> {
-        self.current_room
-            .as_ref()
-            .map_or_else(
-                || {
-                    Err(ApiError::GenericError(
-                        "You haven't joined a room yet".to_owned(),
-                    ))
-                },
-                Ok,
-            )
-            .cloned()
+pub async fn login(credentials: (String, String)) -> Result<Option<Action>, NetworkError> {
+    let client = Client::get()?;
+
+    use std::collections::HashMap;
+    let (username, password) = credentials;
+
+    let body = HashMap::from([("username", username), ("password", password)]);
+
+    let mut request = client.post(client.url.join("auth")?).json(&body);
+
+    let mut token_guard = client.token.lock().await;
+    if let Some(token) = token_guard.as_ref() {
+        request = request.bearer_auth(token.token.clone());
     }
+    let responce: Token = handle_errors_json(request.send().await?).await?;
 
-    #[instrument]
-    pub async fn send_txt(&mut self, msg: &str) -> Result<(), ApiError> {
-        if self.symetric_key.is_poisoned() {
-            let mut lock = self.symetric_key.lock().unwrap_or_else(|e| e.into_inner());
-            *lock = None;
-        }
-        let key_guard = self.symetric_key.lock().unwrap();
-        let args = match *key_guard {
-            Some(ref key) => messages::ClientMessage::encrypted(encryption::encrypt(msg, key)?),
-            None => messages::ClientMessage::new(msg),
-        };
+    debug!("{responce:#?}");
+    *token_guard = Some(responce);
+    Ok(None)
+}
+
+pub async fn send_txt(msg: String) -> Result<Option<Action>, NetworkError> {
+    let client = Client::get()?;
+    if let Some(room) = client.room.lock().await.as_ref() {
         trace!("Sending Message...");
-        let room = self.get_room()?;
-        let url = self.base_url.join(&format!("room/{room}"))?;
-        let body = serde_json::json!(args);
-        debug!("Sending: {body}");
-        let resp = self
-            .client
+        let msg: Result<messages::ClientMessage, NetworkError> = {
+            let key_guard = client.symetric_key.lock().await;
+            key_guard
+                .as_ref()
+                .map_or(Ok(messages::ClientMessage::new(&msg)), |key| {
+                    trace!("{key:#?}");
+                    let encrypted = encryption::encrypt(&msg, key)?;
+                    Ok(messages::ClientMessage::encrypted(encrypted))
+                })
+        };
+        let url = client.url.join(&format!("room/{room}"))?;
+        let token_guard = client.token.lock().await;
+        let token = token_guard.as_ref().ok_or(NetworkError::MissingAuthToken)?;
+
+        let body = serde_json::json!(msg?);
+        let resp = client
             .post(url)
             .json(&body)
-            .bearer_auth(self.bearer_token.clone().expect("No Token Given"))
+            .bearer_auth(token.token.clone())
             .send()
             .await?;
         let message: messages::ServerMessage = handle_errors_json(resp).await?;
         debug!("{:?}", message);
-        Ok(())
     }
-
-    fn restart_handle_message(&mut self) {
-        match self.handle_messages_task.take() {
-            None => self.event_sender.send(ApiError::CriticalFailure.into()),
-            Some(task) => self.handle_messages_task = Some(task),
-        }
-    }
-
-    #[instrument(level = "trace")]
-    pub async fn listen(&mut self, room: &str) -> Result<(), ApiError> {
-        if room.trim() == "" {
-            return Err("Room Cant be emtpy".into());
-        }
-
-        if let Some(t) = self.handle_messages_task.as_ref() {
-            if t.is_finished() {
-                panic!();
-            }
-        }
-        self.restart_handle_message();
-        {
-            let mut lock = self.symetric_key.lock().unwrap_or_else(|e| e.into_inner());
-            *lock = None;
-        }
-
-        self.current_room = Some(room.to_string());
-        let url = self.base_url.join(&format!("room/{room}"))?;
-        let token = self.bearer_token.clone().expect("No Token Given");
-
-        if self.listen_task.is_some() {
-            //return Err("Already Joined a room".into());
-            self.handled_listen_task_results().await;
-        }
-        let _ = self.listen_stop_flag.send(false);
-
-        match self.listen_data.take() {
-            None => return Err("This is very BAD".into()),
-            Some(mut data) => {
-                data.update(url, token);
-                self.listen_task = Some(data.run());
-            }
-        }
-        Ok(())
-    }
+    Ok(None)
 }
 
-#[inline]
-pub async fn handle_errors_raw(resp: reqwest::Response) -> Result<reqwest::Response, ApiError> {
+pub async fn handle_errors_raw(resp: reqwest::Response) -> Result<reqwest::Response, NetworkError> {
+    trace!(
+        "handle_errors_raw: received response with status {}",
+        resp.status()
+    );
     if resp.status().is_success() {
+        debug!(
+            "handle_errors_raw: success status {}, returning response",
+            resp.status()
+        );
         return Ok(resp);
     }
+
     let status = resp.status();
     let url = resp.url().to_owned();
-    let msg = resp
-        .text()
-        .await
-        .unwrap_or_else(|_| "Failed to read error message.".to_string());
+    debug!(
+        "handle_errors_raw: non-success status {} for URL {}",
+        status, url
+    );
+
+    let msg = resp.text().await.unwrap_or_else(|_| {
+        debug!("handle_errors_raw: failed to read error body, using fallback message");
+        "Failed to read error message.".to_string()
+    });
+
+    debug!("handle_errors_raw: response body for error: {}", msg);
 
     let error_data = ResponseErrorData { msg, status, url };
 
     match status {
-        StatusCode::NOT_FOUND => Err(ApiError::NotFound(error_data)),
-        StatusCode::UNAUTHORIZED => Err(ApiError::Unauthorized(error_data)),
-        status if status.is_client_error() => Err(ApiError::ClientError(error_data)),
-        status if status.is_server_error() => Err(ApiError::ServerError(error_data)),
-        _ => Err(format!("Unexpected status: {}", status).into()),
+        StatusCode::NOT_FOUND => {
+            debug!("handle_errors_raw: mapping to NetworkError::NotFound");
+            Err(NetworkError::NotFound(error_data))
+        }
+        StatusCode::UNAUTHORIZED => {
+            debug!("handle_errors_raw: mapping to NetworkError::Unauthorized");
+            Err(NetworkError::Unauthorized(error_data))
+        }
+        status if status.is_client_error() => {
+            debug!("handle_errors_raw: mapping to NetworkError::ClientError");
+            Err(NetworkError::ClientError(error_data))
+        }
+        status if status.is_server_error() => {
+            debug!("handle_errors_raw: mapping to NetworkError::ServerError");
+            Err(NetworkError::ServerError(error_data))
+        }
+        _ => {
+            debug!(
+                "handle_errors_raw: mapping to generic NetworkError for status {}",
+                status
+            );
+            Err(format!("Unexpected status: {}", status).into())
+        }
     }
 }
 
-#[allow(unused_lifetimes)]
-#[inline]
-pub async fn handle_errors_json<'a, T>(resp: reqwest::Response) -> Result<T, ApiError>
+pub async fn handle_errors_json<T>(resp: reqwest::Response) -> Result<T, NetworkError>
 where
     T: serde::de::DeserializeOwned,
 {
+    trace!(
+        "handle_errors_json: received response with status {}",
+        resp.status()
+    );
+
     if resp.status().is_success() {
+        debug!(
+            "handle_errors_json: success status {}, attempting to deserialize JSON",
+            resp.status()
+        );
         let data = resp.json::<T>().await?;
+        debug!("handle_errors_json: JSON deserialization succeeded");
         return Ok(data);
     }
+
     let status = resp.status();
     let url = resp.url().to_owned();
-    let msg = resp
-        .text()
-        .await
-        .unwrap_or_else(|_| "Failed to read error message.".to_string());
+    debug!(
+        "handle_errors_json: non-success status {} for URL {}",
+        status, url
+    );
+
+    let msg = resp.text().await.unwrap_or_else(|_| {
+        debug!("handle_errors_json: failed to read error body, using fallback message");
+        "Failed to read error message.".to_string()
+    });
+
+    debug!("handle_errors_json: response body for error: {}", msg);
 
     let error_data = ResponseErrorData { msg, status, url };
 
     match status {
-        StatusCode::NOT_FOUND => Err(ApiError::NotFound(error_data)),
-        StatusCode::UNAUTHORIZED => Err(ApiError::Unauthorized(error_data)),
-        status if status.is_client_error() => Err(ApiError::ClientError(error_data)),
-        status if status.is_server_error() => Err(ApiError::ServerError(error_data)),
-        _ => Err(format!("Unexpected status: {}", status).into()),
+        StatusCode::NOT_FOUND => {
+            debug!("handle_errors_json: mapping to NetworkError::NotFound");
+            Err(NetworkError::NotFound(error_data))
+        }
+        StatusCode::UNAUTHORIZED => {
+            debug!("handle_errors_json: mapping to NetworkError::Unauthorized");
+            Err(NetworkError::Unauthorized(error_data))
+        }
+        status if status.is_client_error() => {
+            debug!("handle_errors_json: mapping to NetworkError::ClientError");
+            Err(NetworkError::ClientError(error_data))
+        }
+        status if status.is_server_error() => {
+            debug!("handle_errors_json: mapping to NetworkError::ServerError");
+            Err(NetworkError::ServerError(error_data))
+        }
+        _ => {
+            debug!(
+                "handle_errors_json: mapping to generic NetworkError for status {}",
+                status
+            );
+            Err(format!("Unexpected status: {}", status).into())
+        }
     }
 }

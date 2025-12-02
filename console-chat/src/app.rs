@@ -1,366 +1,283 @@
-use crate::DEFAULT_BORDER;
-use crate::event::{AppEvent, Event, EventHandler};
-use crate::network::{self, ApiError};
-use crate::screens::{self, Screen};
-use crossterm::event::{Event as CrosstermEvent, KeyCode};
-use ratatui::DefaultTerminal;
-use ratatui::{
-    Frame,
-    layout::{Alignment, Constraint, Layout},
-    style::{Color, Modifier, Style},
-    widgets::{Block, BorderType, Clear, Padding, Paragraph, Wrap},
+use color_eyre::Result;
+use crossterm::event::KeyEvent;
+use ratatui::prelude::Rect;
+use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc;
+use tracing::{debug, error, info};
+
+use crate::{
+    action::Action,
+    components::{
+        Component, chat::Chat, editor::Editor, error_display::ErrorDisplay, fps::FpsCounter,
+        home::Home, join::Join, login::Login, settings::Settings, sorted_components,
+    },
+    config::Config,
+    network::handle_network,
+    tui::{Event, Tui},
 };
-use tracing::{debug, error, trace};
 
-#[derive(Debug)]
-struct Popup {
-    pub content: ApiError,
-    pub timeout: std::time::Duration,
-    pub creation: std::time::Instant,
-}
-
-#[derive(Debug)]
 pub struct App {
-    running: bool,
-    events: EventHandler,
-
-    current_screen: screens::CurrentScreen,
-
-    login_screen: screens::LoginScreen,
-    home_screen: screens::HomeScreen,
-    chat_screen: screens::ChatScreen,
-    exit_time: Option<std::time::Instant>,
-    api: network::client::ApiClient,
-
-    error_box: Option<Popup>,
-    error_qeue: Vec<ApiError>,
+    config: Config,
+    tick_rate: f64,
+    frame_rate: f64,
+    components: Vec<Box<dyn Component>>,
+    should_quit: bool,
+    should_suspend: bool,
+    mode: Mode,
+    last_mode: Option<Mode>,
+    last_tick_key_events: Vec<KeyEvent>,
+    action_tx: mpsc::UnboundedSender<Action>,
+    action_rx: mpsc::UnboundedReceiver<Action>,
 }
 
-impl Default for App {
-    fn default() -> Self {
-        Self::new(None, None)
-    }
+#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum Mode {
+    #[default]
+    Home,
+    Login,
+    Join,
+    Chat,
+    Settings,
+    RawSettings,
+    Insert,
 }
 
 impl App {
-    /// Constructs a new instance of [`App`].
-    pub fn new(server_url: Option<&str>, _max_api_failure_count: Option<u32>) -> Self {
-        let url = server_url.unwrap_or("https://localhost");
+    pub fn new(tick_rate: f64, frame_rate: f64) -> Result<Self> {
+        let (action_tx, action_rx) = mpsc::unbounded_channel();
+        Ok(Self {
+            tick_rate,
+            frame_rate,
+            components: sorted_components(vec![
+                Box::new(Home::new()),
+                Box::new(Chat::new()),
+                Box::new(Join::new()),
+                Box::new(Editor::new()),
+                Box::new(Settings::new()),
+                Box::new(Login::new()),
+                Box::new(ErrorDisplay::new()),
+                Box::new(FpsCounter::default()),
+            ]),
+            should_quit: false,
+            should_suspend: false,
+            config: Config::new()?,
+            mode: Mode::Home,
+            last_mode: None,
+            last_tick_key_events: Vec::new(),
+            action_tx,
+            action_rx,
+        })
+    }
 
-        let event_handler = EventHandler::new();
-        let event_sender = event_handler.get_event_sender();
-        let api =
-            network::client::ApiClient::new(url, event_sender.clone().into()).unwrap_or_else(|e| {
-                error!("ApiClient initialization failed: {e}");
-                panic!("ApiClient initialization failed: {e}");
-            });
+    pub async fn run(&mut self) -> Result<()> {
+        crate::network::Client::init(self.config.network.host.clone(), self.action_tx.clone())
+            .await?;
+        let mut tui = Tui::new()?
+            .mouse(true) // uncomment this line to enable mouse support
+            .tick_rate(self.tick_rate)
+            .frame_rate(self.frame_rate);
+        tui.enter()?;
 
-        Self {
-            running: true,
-            events: event_handler,
-            current_screen: screens::CurrentScreen::default(),
-            login_screen: screens::LoginScreen::new(event_sender.clone().into()),
-            home_screen: screens::HomeScreen::new(event_sender.clone().into()),
-            chat_screen: screens::ChatScreen::new(event_sender.clone().into()),
-            exit_time: None,
-            api,
-            error_box: None,
-            error_qeue: Vec::new(),
+        for component in self.components.iter_mut() {
+            component.register_action_handler(self.action_tx.clone())?;
+        }
+        for component in self.components.iter_mut() {
+            component.register_config_handler(self.config.clone())?;
+        }
+        for component in self.components.iter_mut() {
+            component.init(tui.size()?)?;
+        }
+
+        let action_tx = self.action_tx.clone();
+        loop {
+            self.handle_events(&mut tui).await?;
+            self.handle_actions(&mut tui)?;
+            if self.should_suspend {
+                tui.suspend()?;
+                action_tx.send(Action::Resume)?;
+                action_tx.send(Action::ClearScreen)?;
+                // tui.mouse(true);
+                tui.enter()?;
+            } else if self.should_quit {
+                tui.stop()?;
+                break;
+            }
+        }
+        tui.exit()?;
+        Ok(())
+    }
+
+    fn hide_all(&mut self) {
+        for component in self.components.iter_mut() {
+            component.hide();
         }
     }
 
-    pub fn with_api_url(url: &str) -> Self {
-        Self::new(Some(url), None)
+    fn reload_config(&mut self, tui: &mut Tui) -> Result<()> {
+        self.config = Config::new()?;
+        for component in self.components.iter_mut() {
+            component.register_config_handler(self.config.clone())?;
+        }
+        for component in self.components.iter_mut() {
+            component.init(tui.size()?)?;
+        }
+        self.hide_all();
+        self.mode_to_screen()?;
+        Ok(())
     }
 
-    pub fn with_max_error(max_api_failure_count: u32) -> Self {
-        Self::new(None, Some(max_api_failure_count))
-    }
-
-    /// Run the application's main loop.
-    pub async fn run(
-        mut self,
-        mut terminal: DefaultTerminal,
-    ) -> color_eyre::Result<Option<std::time::Duration>> {
-        while self.running {
-            terminal.draw(|frame| self.render(frame))?;
-
-            let event = self.events.next().await?;
-            match event {
-                Event::Tick => self.tick(),
-                Event::Crossterm(event) => {
-                    if let CrosstermEvent::Resize(_, _) = event {
-                        terminal.draw(|frame| self.render(frame))?;
-                    }
+    fn mode_to_screen(&mut self) -> Result<()> {
+        match self.mode {
+            Mode::Home => self.action_tx.send(Action::OpenHome),
+            Mode::Join => self.action_tx.send(Action::OpenJoin),
+            Mode::Login => self.action_tx.send(Action::OpenLogin),
+            Mode::Chat => self.action_tx.send(Action::OpenChat),
+            Mode::Settings => self.action_tx.send(Action::OpenSettings),
+            Mode::RawSettings => self.action_tx.send(Action::OpenRawSettings),
+            Mode::Insert => {
+                self.restore_prev_mode()?;
+                if self.mode == Mode::Insert {
+                    self.action_tx
+                        .send(Action::Error("Restoring Mode failed".into()))?;
+                    self.mode = Mode::Home;
                 }
-                Event::App(app_event) => {
-                    debug!("AppEvent: {app_event:?}");
-                    match app_event {
-                        AppEvent::Quit => self.quit(),
-                        AppEvent::SwitchScreen(new_screen) => {
-                            self.current_screen = new_screen;
-                            self.events.send(AppEvent::Clear(true));
-                        }
-                        AppEvent::NetworkEvent(network::NetworkEvent::Error(e)) => {
-                            self.handle_network_error(e);
-                        }
-                        AppEvent::NetworkEvent(network_event) => {
-                            if let network::NetworkEvent::Message(msg) = network_event {
-                                self.send_to_current_screen(AppEvent::NetworkEvent(
-                                    network::NetworkEvent::Message(msg),
-                                ));
-                            } else {
-                                if let Err(e) = self.api.handle_event(network_event).await {
-                                    self.handle_network_error(e);
-                                }
-                            }
-                        }
-                        AppEvent::OnWidgetEnter(id_str, content) => {
-                            match id_str.to_uppercase().as_str() {
-                                _ if id_str.starts_with("LOGIN") => {
-                                    let login = if id_str == "LOGIN_ANONYM" {
-                                        None
-                                    } else {
-                                        Some(self.login_screen.get_data())
-                                    };
-                                    match self.api.auth(login).await {
-                                        Ok(()) => self.events.send(AppEvent::SwitchScreen(
-                                            screens::CurrentScreen::Home,
-                                        )),
+                self.mode_to_screen()?;
+                Ok(())
+            }
+        }?;
+        Ok(())
+    }
 
-                                        Err(e) => {
-                                            error!("Error when logging in: {e}");
-                                            self.events.send(AppEvent::NetworkEvent(
-                                                network::NetworkEvent::Error(e),
-                                            ));
-                                        }
-                                    }
-                                }
-                                "LOGOUT" => {
-                                    self.api.reset().await;
-                                    self.events.send(AppEvent::SwitchScreen(
-                                        screens::CurrentScreen::Login,
-                                    ));
-                                }
-                                "JOIN" => {
-                                    let room_val = self.home_screen.get_data();
-                                    if let Some(room) = room_val.as_str() {
-                                        if room == "" {
-                                            self.events.send(AppEvent::NetworkEvent(
-                                                ApiError::from("Room cant be empty").into(),
-                                            ));
-                                        }
-                                        if let Err(e) = self.api.listen(room).await {
-                                            self.handle_network_error(e);
-                                        } else {
-                                            self.events.send(AppEvent::SwitchScreen(
-                                                screens::CurrentScreen::Chat,
-                                            ));
-                                        }
-                                    }
-                                }
-                                "QUIT" => {
-                                    self.events.send(AppEvent::Quit);
-                                }
-                                "SEND_MSG" => {
-                                    if let Some(msg) = content {
-                                        debug!("Sending: {:?}", msg);
-                                        if let Err(e) = self.api.send_txt(&msg[0]).await {
-                                            self.handle_network_error(e)
-                                        }
-                                    }
-                                }
-                                str => {
-                                    self.send_to_current_screen(AppEvent::OnWidgetEnter(
-                                        str.to_string(),
-                                        content,
-                                    ));
-                                }
-                            }
-                        }
-                        AppEvent::KeyEvent(k) if self.error_box.is_none() => {
-                            if !self.send_to_current_screen(AppEvent::KeyEvent(k)) {
-                                if let KeyCode::Char(c) = k.code {
-                                    if c.is_numeric() {
-                                        let id = (c as u8) - ('0' as u8);
-                                        self.send_to_current_screen(AppEvent::FocusItem(
-                                            id as usize,
-                                        ));
-                                    }
-                                }
-                            }
-                        }
-                        AppEvent::KeyEvent(k) if self.error_box.is_some() => {
-                            if k.is_press() {
-                                let mut reset_err_box = false;
-                                if let Some(err) = self.error_box.as_ref()
-                                    && err.creation.elapsed() > std::time::Duration::from_millis(20)
-                                {
-                                    reset_err_box = true;
-                                }
-                                if reset_err_box {
-                                    self.error_box = None
-                                }
-                            }
-                        }
-                        _ => {
-                            //debug!("Unhandled Event: {app_event:#?}");
-                            self.send_to_current_screen(app_event);
-                        }
-                    };
+    fn restore_prev_mode(&mut self) -> Result<()> {
+        if let Some(mode) = self.last_mode.take() {
+            self.mode = mode;
+        } else {
+            self.action_tx.send(Action::Error(
+                "received Normal action but last mode wasn't set.".into(),
+            ))?;
+            self.set_mode(Mode::Home)?;
+        }
+        Ok(())
+    }
+
+    async fn handle_events(&mut self, tui: &mut Tui) -> Result<()> {
+        let Some(event) = tui.next_event().await else {
+            return Ok(());
+        };
+        let action_tx = self.action_tx.clone();
+        match event {
+            Event::Quit => action_tx.send(Action::Quit)?,
+            Event::Tick => action_tx.send(Action::Tick)?,
+            Event::Render => action_tx.send(Action::Render)?,
+            Event::Resize(x, y) => action_tx.send(Action::Resize(x, y))?,
+            Event::Key(key) => self.handle_key_event(key)?,
+            _ => {}
+        }
+        for component in self.components.iter_mut() {
+            if let Some(action) = component.handle_events(Some(event.clone()))? {
+                action_tx.send(action)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn handle_key_event(&mut self, key: KeyEvent) -> Result<()> {
+        let action_tx = self.action_tx.clone();
+        let Some(keymap) = self.config.keybindings.get(&self.mode) else {
+            return Ok(());
+        };
+        match keymap.get(&vec![key]) {
+            Some(action) => {
+                info!("Got action: {action:?}");
+                action_tx.send(action.clone())?;
+            }
+            _ => {
+                // If the key was not handled as a single key action,
+                // then consider it for multi-key combinations.
+                self.last_tick_key_events.push(key);
+
+                // Check for multi-key combinations
+                if let Some(action) = keymap.get(&self.last_tick_key_events) {
+                    info!("Got action: {action:?}");
+                    action_tx.send(action.clone())?;
                 }
             }
         }
-        if let Some(exit) = self.exit_time {
-            return Ok(Some(exit.elapsed()));
-        }
-        Ok(None)
+        Ok(())
     }
 
-    fn handle_network_error(&mut self, e: ApiError) {
-        error!("Network Error: {e}");
-        if let ApiError::CriticalFailure = e {
-            self.events.send(AppEvent::Quit);
+    fn set_mode(&mut self, mode: Mode) -> Result<()> {
+        if self.mode == Mode::Insert {
+            self.restore_prev_mode()?;
         }
-        if self.error_box.is_some() {
-            self.error_qeue.push(e);
-            return;
+        self.hide_all();
+        if self.mode != mode && self.mode == Mode::Chat {
+            let _ = self.action_tx.send(Action::Leave);
         }
-        self.error_box = Some(Popup {
-            content: e,
-            timeout: std::time::Duration::from_secs(5),
-            creation: std::time::Instant::now(),
-        });
-        self.events.send(AppEvent::Clear(false));
+        self.mode = mode;
+        Ok(())
     }
 
-    fn render(&self, frame: &mut Frame) {
-        let area = frame.area();
-        let outer_block = Block::bordered()
-            .border_type(BorderType::Double)
-            .title("Console-CHAT")
-            .title_alignment(Alignment::Center);
-        let inner = outer_block.inner(area);
-
-        frame.render_widget(outer_block, area);
-
-        let [left, main, right] = Layout::horizontal([
-            Constraint::Fill(1),
-            Constraint::Percentage(60),
-            Constraint::Fill(1),
-        ])
-        .areas(inner);
-
-        // LEFT
-
-        let left_block = Block::bordered().border_type(DEFAULT_BORDER);
-        let _left_inner = left_block.inner(left);
-        frame.render_widget(left_block, left);
-
-        // RIGHT
-
-        let right_block = Block::bordered().border_type(DEFAULT_BORDER);
-        let _right_inner = right_block.inner(right);
-        frame.render_widget(right_block, right);
-
-        // Render Main Screen
-        let mut cursor = None;
-        if let Some(screen) = self.get_current_screen() {
-            let buf = frame.buffer_mut();
-            cursor = screen.draw(main, buf);
-        }
-        trace!("{cursor:?}");
-        if let Some(cursor) = cursor {
-            frame.set_cursor_position((cursor.x, cursor.y));
-        }
-
-        // Debug Popup
-        if let Some(e) = self.error_box.as_ref() {
-            let [_, center, _] =
-                Layout::vertical([Constraint::Fill(1), Constraint::Min(5), Constraint::Fill(1)])
-                    .areas(
-                        Layout::horizontal([
-                            Constraint::Fill(1),
-                            Constraint::Percentage(60),
-                            Constraint::Fill(1),
-                        ])
-                        .split(main)[1],
-                    );
-            frame.render_widget(Clear, center);
-            let error_text = format!("⚠️  {}", e.content);
-            let e_box = Paragraph::new(error_text)
-                .style(
-                    Style::default()
-                        .fg(Color::Red)
-                        .bg(Color::Black)
-                        .add_modifier(Modifier::BOLD),
-                )
-                .alignment(Alignment::Center)
-                .wrap(Wrap { trim: true })
-                .block(
-                    Block::bordered()
-                        .border_type(BorderType::Double)
-                        .title("Error")
-                        .title_alignment(Alignment::Center)
-                        .border_style(Style::default().fg(Color::Red))
-                        .padding(Padding::new(1, 1, 1, 1)),
-                );
-
-            frame.render_widget(e_box, center);
-        }
-    }
-
-    fn send_to_current_screen(&mut self, event: AppEvent) -> bool {
-        if let Some(screen) = self.get_current_screen_mut() {
-            return screen.handle_event(event);
-        }
-        false
-    }
-    pub fn get_current_screen(&self) -> Option<&dyn screens::Screen> {
-        match self.current_screen {
-            screens::CurrentScreen::Login => Some(&self.login_screen as &dyn screens::Screen),
-            screens::CurrentScreen::Home => Some(&self.home_screen as &dyn screens::Screen),
-            screens::CurrentScreen::Chat => Some(&self.chat_screen as &dyn screens::Screen),
-            //_ => None,
-        }
-    }
-    pub fn get_current_screen_mut(&mut self) -> Option<&mut dyn screens::Screen> {
-        match self.current_screen {
-            screens::CurrentScreen::Login => {
-                Some(&mut self.login_screen as &mut dyn screens::Screen)
+    fn handle_actions(&mut self, tui: &mut Tui) -> Result<()> {
+        while let Ok(action) = self.action_rx.try_recv() {
+            if action != Action::Tick && action != Action::Render {
+                debug!("{action:?}");
             }
-            screens::CurrentScreen::Home => Some(&mut self.home_screen as &mut dyn screens::Screen),
-            screens::CurrentScreen::Chat => Some(&mut self.chat_screen as &mut dyn screens::Screen),
-            //_ => None,
-        }
-    }
-
-    /// Handles the tick event of the terminal.
-    ///
-    /// The tick event is where you can update the state of your application with any logic that
-    /// needs to be updated at a fixed frame rate. E.g. polling a server, updating an animation.
-    pub fn tick(&mut self) {
-        // Popup
-        {
-            let mut del_error_box = false;
-            if let Some(e) = self.error_box.as_mut()
-                && e.creation.elapsed() > e.timeout
-            {
-                del_error_box = true;
+            match action.clone() {
+                Action::Tick => {
+                    self.last_tick_key_events.drain(..);
+                }
+                Action::Quit => self.should_quit = true,
+                Action::Suspend => self.should_suspend = true,
+                Action::Resume => self.should_suspend = false,
+                Action::ClearScreen => tui.terminal.clear()?,
+                Action::Resize(w, h) => self.handle_resize(tui, w, h)?,
+                Action::Render => self.render(tui)?,
+                Action::ReloadConfig => self.reload_config(tui)?,
+                //open
+                Action::OpenJoin => self.set_mode(Mode::Join)?,
+                Action::OpenSettings => self.set_mode(Mode::Settings)?,
+                Action::OpenLogin => self.set_mode(Mode::Login)?,
+                Action::OpenHome => self.set_mode(Mode::Home)?,
+                Action::OpenChat => self.set_mode(Mode::Chat)?,
+                Action::OpenRawSettings => self.set_mode(Mode::RawSettings)?,
+                Action::Hide => self.hide_all(),
+                Action::Insert => {
+                    self.last_mode = Some(self.mode);
+                    self.mode = Mode::Insert;
+                }
+                Action::Normal => self.restore_prev_mode()?,
+                Action::Error(e) => error!("{e}"),
+                _ => {}
             }
-            if del_error_box {
-                self.error_box = None;
-                if let Some(e) = self.error_qeue.pop() {
-                    self.handle_network_error(e)
+            for component in self.components.iter_mut() {
+                if let Some(action) = component.update(action.clone())? {
+                    self.action_tx.send(action)?
                 }
             }
+            if let Some(action) = handle_network(action.clone())? {
+                self.action_tx.send(action)?
+            };
         }
+        Ok(())
     }
 
-    /// Set running to false to quit the application.
-    pub fn quit(&mut self) {
-        self.exit_time = Some(std::time::Instant::now());
-        self.events.stop();
-        self.running = false;
+    fn handle_resize(&mut self, tui: &mut Tui, w: u16, h: u16) -> Result<()> {
+        tui.resize(Rect::new(0, 0, w, h))?;
+        self.render(tui)?;
+        Ok(())
+    }
+
+    fn render(&mut self, tui: &mut Tui) -> Result<()> {
+        tui.draw(|frame| {
+            for component in self.components.iter_mut() {
+                if let Err(err) = component.draw(frame, frame.area()) {
+                    let _ = self
+                        .action_tx
+                        .send(Action::Error(format!("Failed to draw: {:?}", err).into()));
+                }
+            }
+        })?;
+        Ok(())
     }
 }

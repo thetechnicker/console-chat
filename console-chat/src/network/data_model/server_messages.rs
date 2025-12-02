@@ -1,8 +1,8 @@
 use super::messages::*;
-use crate::network::{ApiError, encryption, user::PublicUser};
+use crate::network::{data_model::user::PublicUser, encryption, error::NetworkError};
 use serde::{self, Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ServerMessage {
     #[serde(flatten)]
     pub base: BaseMessage,
@@ -19,7 +19,7 @@ impl ServerMessage {
             String,
             encryption::Nonce,
         ),
-        ApiError,
+        NetworkError,
     > {
         if self.base.message_type != MessageType::Key {
             return Err(format!("ServerMessage ({self:?}) doesnt have key exchange data").into());
@@ -27,38 +27,32 @@ impl ServerMessage {
         let public_key_vec = if let Some(key) = self.base.get_data_str("public_key") {
             Ok(encryption::from_base64(&key)?)
         } else {
-            Err(ApiError::from("public_key not given"))
+            Err(NetworkError::from("public_key not given"))
         }?;
         let nonce_vec = if let Some(str) = self.base.get_data_str("nonce") {
             Ok(encryption::from_base64(&str)?)
         } else {
-            Err(ApiError::from("nonce not given"))
+            Err(NetworkError::from("nonce not given"))
         }?;
         let sym_key_nonce_vec = if let Some(str) = self.base.get_data_str("key_nonce") {
             Ok(encryption::from_base64(&str)?)
         } else {
-            Err(ApiError::from("key_nonce not given"))
+            Err(NetworkError::from("key_nonce not given"))
         }?;
 
         let mut public_key: encryption::PublicKey = encryption::PublicKey::default();
-        for i in 0..public_key.len() {
-            public_key[i] = public_key_vec[i];
-        }
+        public_key.copy_from_slice(public_key_vec.as_slice());
 
         let mut nonce: encryption::Nonce = encryption::Nonce::default();
-        for i in 0..nonce.len() {
-            nonce[i] = nonce_vec[i];
-        }
+        nonce.copy_from_slice(nonce_vec.as_slice());
 
         let mut key_nonce: encryption::Nonce = encryption::Nonce::default();
-        for i in 0..key_nonce.len() {
-            key_nonce[i] = sym_key_nonce_vec[i];
-        }
+        key_nonce.copy_from_slice(sym_key_nonce_vec.as_slice());
 
         let sym_key = if let Some(str) = self.base.get_data_str("key") {
             Ok(str)
         } else {
-            Err(ApiError::from("key not given"))
+            Err(NetworkError::from("key not given"))
         }?;
 
         Ok((public_key, nonce, sym_key, key_nonce))

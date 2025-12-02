@@ -1,10 +1,17 @@
 use super::messages::*;
-use crate::network::ApiError;
 use crate::network::encryption;
+use crate::network::error::NetworkError;
+use lazy_static::lazy_static;
 use serde::{self, Deserialize, Serialize};
 use std::collections::HashMap;
+use uuid::Uuid;
 
-pub const ASYM_KEY_CHECK: &'static str = "sending-key";
+pub const ASYM_KEY_CHECK: &str = "sending-key";
+pub const ID_FIELD: &str = "current-id";
+
+lazy_static! {
+    pub static ref ID: Uuid = Uuid::new_v4();
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ClientMessage {
@@ -18,7 +25,10 @@ impl ClientMessage {
             base: BaseMessage {
                 message_type: MessageType::PlainText,
                 text: String::from(msg),
-                data: None,
+                data: Some(HashMap::from([(
+                    ID_FIELD.to_string(),
+                    serde_json::json!(ID.clone()),
+                )])),
             },
         }
     }
@@ -26,11 +36,14 @@ impl ClientMessage {
         Self {
             base: BaseMessage {
                 message_type: MessageType::EncryptedText,
-                text: String::from(msg.0),
-                data: Some(HashMap::from([(
-                    "nonce".to_owned(),
-                    serde_json::Value::from(encryption::to_base64(&msg.1)),
-                )])),
+                text: msg.0,
+                data: Some(HashMap::from([
+                    (
+                        "nonce".to_owned(),
+                        serde_json::Value::from(encryption::to_base64(&msg.1)),
+                    ),
+                    (ID_FIELD.to_string(), serde_json::json!(ID.clone())),
+                ])),
             },
         }
     }
@@ -39,10 +52,13 @@ impl ClientMessage {
             base: BaseMessage {
                 message_type: MessageType::KeyRequest,
                 text: "requesting Key".to_owned(),
-                data: Some(HashMap::from([(
-                    "key".to_owned(),
-                    serde_json::Value::from(encryption::to_base64(&publickey)),
-                )])),
+                data: Some(HashMap::from([
+                    (
+                        "key".to_owned(),
+                        serde_json::Value::from(encryption::to_base64(&publickey)),
+                    ),
+                    (ID_FIELD.to_string(), serde_json::json!(ID.clone())),
+                ])),
             },
         }
     }
@@ -51,7 +67,7 @@ impl ClientMessage {
         symetric_key: &encryption::SymetricKey,
         key_pair: &encryption::KeyPair,
         public_key: encryption::PublicKey,
-    ) -> Result<Self, ApiError> {
+    ) -> Result<Self, NetworkError> {
         let key_str = encryption::to_base64(&symetric_key.to_vec());
         let self_public_key = encryption::to_base64(&key_pair.public_key());
         let encrypted_key = encryption::encrypt_asym(&key_str, key_pair, public_key)?;
@@ -74,6 +90,7 @@ impl ClientMessage {
                         "key_nonce".to_owned(),
                         serde_json::Value::from(encryption::to_base64(&encrypted_key.1)),
                     ),
+                    (ID_FIELD.to_string(), serde_json::json!(ID.clone())),
                 ])),
             },
         })

@@ -1,9 +1,10 @@
-use crate::network::NetworkEvent;
 use alkali::AlkaliError;
+use color_eyre::Report;
 use std::error::Error;
 use std::sync::Arc;
+use tokio::task::JoinError;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ResponseErrorData {
     pub msg: String,
     pub status: reqwest::StatusCode,
@@ -17,8 +18,10 @@ impl std::fmt::Display for ResponseErrorData {
 }
 
 #[derive(Debug, Clone)]
-pub enum ApiError {
-    CriticalFailure,
+pub enum NetworkError {
+    NoRoom,
+    MissingAuthToken,
+
     GenericError(String),
     UrlParseError(url::ParseError),
 
@@ -33,65 +36,81 @@ pub enum ApiError {
     Base64DecodeError(base64::DecodeError),
     SerdeError(Arc<serde_json::Error>),
     AlkaliError(AlkaliError),
-    CompositError(Arc<ApiError>, String),
+    CompositError(Arc<NetworkError>, String),
+
+    JoinError(Arc<JoinError>),
+    Eyre(Arc<Report>),
 }
 
-impl std::fmt::Display for ApiError {
+impl std::fmt::Display for NetworkError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            ApiError::GenericError(msg) => write!(f, "Error: {}", msg),
-            ApiError::UrlParseError(e) => write!(f, "URL Parse Error: {}", e),
-            ApiError::ReqwestError(e) => write!(f, "Request Error: {}", e),
-            ApiError::ClientError(data) => write!(f, "Client Error: HTTP {}", data),
-            ApiError::ServerError(data) => write!(f, "Server Error: HTTP {}", data),
-            ApiError::Unauthorized(data) => write!(f, "Unauthorized: {}", data),
-            ApiError::NotFound(data) => write!(f, "Not Found: {}", data),
-            ApiError::Utf8Error(error) => write!(f, "Utf8Error: {}", error),
-            ApiError::SerdeError(error) => write!(f, "SerdeError: {}", error),
-            ApiError::AlkaliError(error) => write!(f, "AlkaliError: {}", error),
-            ApiError::Base64DecodeError(error) => write!(f, "Base64Error: {}", error),
-            ApiError::CompositError(error, str) => {
+            NetworkError::NoRoom => write!(f, "You haven't Joined a room"),
+            NetworkError::MissingAuthToken => write!(f, "The authentication token isnt set"),
+            NetworkError::GenericError(msg) => write!(f, "Error: {}", msg),
+            NetworkError::UrlParseError(e) => write!(f, "URL Parse Error: {}", e),
+            NetworkError::ReqwestError(e) => write!(f, "Request Error: {}", e),
+            NetworkError::ClientError(data) => write!(f, "Client Error: HTTP {}", data),
+            NetworkError::ServerError(data) => write!(f, "Server Error: HTTP {}", data),
+            NetworkError::Unauthorized(data) => write!(f, "Unauthorized: {}", data),
+            NetworkError::NotFound(data) => write!(f, "Not Found: {}", data),
+            NetworkError::Utf8Error(error) => write!(f, "Utf8Error: {}", error),
+            NetworkError::SerdeError(error) => write!(f, "SerdeError: {}", error),
+            NetworkError::AlkaliError(error) => write!(f, "AlkaliError: {}", error),
+            NetworkError::Base64DecodeError(error) => write!(f, "Base64Error: {}", error),
+            NetworkError::JoinError(error) => write!(f, "Tokio Join Error: {}", error),
+            NetworkError::CompositError(error, str) => {
                 write!(f, "CompositError: {}, \"{}\"", error, str)
             }
-            ApiError::CriticalFailure => {
-                write!(f, "A Unexpected Error Happend")
+            NetworkError::Eyre(e) => {
+                write!(f, "{e}")
             }
         }
     }
 }
 
-impl From<url::ParseError> for ApiError {
+impl From<url::ParseError> for NetworkError {
     fn from(value: url::ParseError) -> Self {
         Self::UrlParseError(value)
     }
 }
-impl From<reqwest::Error> for ApiError {
+impl From<reqwest::Error> for NetworkError {
     fn from(value: reqwest::Error) -> Self {
         Self::ReqwestError(Arc::new(value))
     }
 }
 
-impl From<std::str::Utf8Error> for ApiError {
+impl From<std::str::Utf8Error> for NetworkError {
     fn from(value: std::str::Utf8Error) -> Self {
         Self::Utf8Error(value)
     }
 }
 
-impl From<serde_json::Error> for ApiError {
+impl From<serde_json::Error> for NetworkError {
     fn from(value: serde_json::Error) -> Self {
         Self::SerdeError(Arc::new(value))
     }
 }
 
-impl From<base64::DecodeError> for ApiError {
+impl From<base64::DecodeError> for NetworkError {
     fn from(value: base64::DecodeError) -> Self {
         Self::Base64DecodeError(value)
     }
 }
 
-impl From<AlkaliError> for ApiError {
+impl From<AlkaliError> for NetworkError {
     fn from(value: AlkaliError) -> Self {
         Self::AlkaliError(value)
+    }
+}
+impl From<JoinError> for NetworkError {
+    fn from(value: JoinError) -> Self {
+        Self::JoinError(Arc::new(value))
+    }
+}
+impl From<Report> for NetworkError {
+    fn from(value: Report) -> Self {
+        Self::Eyre(Arc::new(value))
     }
 }
 
@@ -101,7 +120,7 @@ trait StringError: Into<String> {}
 impl StringError for String {}
 impl StringError for &str {}
 
-impl<T> From<T> for ApiError
+impl<T> From<T> for NetworkError
 where
     T: StringError,
 {
@@ -110,9 +129,9 @@ where
     }
 }
 
-impl<E, S> From<(E, S)> for ApiError
+impl<E, S> From<(E, S)> for NetworkError
 where
-    E: Into<ApiError>,
+    E: Into<NetworkError>,
     S: Into<String>,
 {
     fn from(value: (E, S)) -> Self {
@@ -120,10 +139,4 @@ where
     }
 }
 
-impl Error for ApiError {}
-
-impl Into<NetworkEvent> for ApiError {
-    fn into(self) -> NetworkEvent {
-        NetworkEvent::Error(self)
-    }
-}
+impl Error for NetworkError {}

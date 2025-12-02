@@ -1,25 +1,9 @@
-//pub mod api;
 pub mod client;
-pub mod data_model;
-pub use data_model::*;
+pub use client::*;
+//pub mod encryption;
+//pub use encryption::*;
 pub mod error;
-pub use error::*;
-pub mod listen;
-
-#[allow(dead_code)]
+//pub use error::*;
+pub mod data_model;
 pub mod encryption;
-
-#[derive(Clone, Debug)]
-pub enum NetworkEvent {
-    None,
-    RequestReconnect,
-
-    RequestKeyExchange,
-    CreateKey,
-    SendKey(encryption::PublicKey),
-
-    StrMessage(String),
-    Message(messages::ServerMessage),
-    Error(ApiError),
-    Leaf,
-}
+pub mod listen;

@@ -18,7 +18,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY --chown=app:app . /app
 
 # Expose the port on which FastAPI will run
-#EXPOSE 8000
+ARG PORT=8000
+ENV PORT=${PORT}
+EXPOSE ${PORT}
 
 # Command to run the FastAPI application
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+#, "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0"]
