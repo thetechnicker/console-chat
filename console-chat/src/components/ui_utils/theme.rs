@@ -180,8 +180,11 @@ mod test {
         ]);
         let content = serde_json::to_string_pretty(&map)?;
         let path = crate::config::get_data_dir();
-        let _ = std::fs::create_dir(&path);
-        std::fs::write(path.join("./test.json"), content)?;
+        if !path.exists() {
+            let _ = std::fs::create_dir(&path);
+        }
+        let res = std::fs::write(path.join("test.json"), content);
+        assert!(res.is_ok(), "{res:?}");
         Ok(())
     }
 }
