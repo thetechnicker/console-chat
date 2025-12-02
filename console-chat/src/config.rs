@@ -728,7 +728,7 @@ mod tests {
     fn test_save() -> Result<()> {
         let c = Config::new()?;
         let x = c.save();
-        assert!(x.is_ok());
-        Ok(c.save()?)
+        assert!(x.is_ok(), "Config: {c:#?}\n\n Error:{x:#?}");
+        Ok(())
     }
 }
