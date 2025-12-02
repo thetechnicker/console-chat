@@ -49,9 +49,8 @@ pub async fn listen(cancellation_token: CancellationToken) -> Result<(), Network
                 token.clone(),
             )
             .await
-            .map_err(|e| {
+            .inspect_err(|e| {
                 let _ = client.action_tx.send(Action::OpenHome);
-                e
             })?;
 
             if first {
@@ -195,7 +194,7 @@ pub async fn send_listen_request(
         .send()
         .await?;
 
-    Ok(handle_errors_raw(resp).await?)
+    handle_errors_raw(resp).await
 }
 
 pub async fn handle_message(
@@ -206,10 +205,10 @@ pub async fn handle_message(
     let client = Client::get()?;
     match msg.base.message_type {
         messages::MessageType::System => {
-            if let Some(data) = msg.base.data {
-                if data.contains_key("online") {
-                    if let Some(online) = data.get("online").unwrap().as_number() {
-                        if let Some(num_online) = online.as_u64() {
+            if let Some(data) = msg.base.data
+                && data.contains_key("online")
+                    && let Some(online) = data.get("online").unwrap().as_number()
+                        && let Some(num_online) = online.as_u64() {
                             if num_online == 1 {
                                 debug!("INITIALIZING KEY");
                                 set_new_sym_key().await?;
@@ -218,15 +217,12 @@ pub async fn handle_message(
                                 request_key().await?;
                             }
                         }
-                    }
-                }
-            }
         }
         messages::MessageType::KeyRequest => {
             if !msg.base.is_mine() {
-                if let Some(data) = msg.base.data {
-                    if data.contains_key("key") {
-                        if let Some(key) = data.get("key").unwrap().as_str() {
+                if let Some(data) = msg.base.data
+                    && data.contains_key("key")
+                        && let Some(key) = data.get("key").unwrap().as_str() {
                             let received_key = encryption::from_base64(key)?;
                             let mut pub_key = encryption::PublicKey::default();
                             for i in 0..pub_key.len() {
@@ -266,8 +262,6 @@ pub async fn handle_message(
 
                             return Ok(());
                         }
-                    }
-                }
                 return Err("No Data given".into());
             }
         }
@@ -276,7 +270,7 @@ pub async fn handle_message(
                 return Ok(());
             }
             let (public_key, nonce, sym_key, key_nonce) = msg.get_key_exchange_data()?;
-            let ref asym_key_guard = client.asymetric_key.lock().await;
+            let asym_key_guard = &(client.asymetric_key.lock().await);
             if public_key == asym_key_guard.public_key() {
                 return Ok(());
             }
@@ -313,9 +307,9 @@ pub async fn handle_message(
                 let _ = msg_tx.send(msg);
                 request_key().await?;
             }
-            Some(ref key) => {
+            Some(key) => {
                 let text = msg.base.text.clone();
-                if let Some(nonce_json) = msg.base.data.as_ref().map_or(None, |h| h.get("nonce")) {
+                if let Some(nonce_json) = msg.base.data.as_ref().and_then(|h| h.get("nonce")) {
                     let mut nonce: encryption::Nonce = encryption::Nonce::default();
                     let nonce_ref_v = encryption::from_base64(nonce_json.as_str().unwrap())?;
                     for i in 0..nonce.len() {

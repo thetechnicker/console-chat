@@ -63,7 +63,7 @@ pub fn encrypt_asym(
     sender_keypair: &KeyPair,
     receiver_key: PublicKey,
 ) -> Result<EncryptedMessage, NetworkError> {
-    let mut ciphertext = vec![0u8; text.as_bytes().len() + cipher::MAC_LENGTH];
+    let mut ciphertext = vec![0u8; text.len() + cipher::MAC_LENGTH];
     let (_, nonce) =
         sender_keypair.encrypt(text.as_bytes(), &receiver_key, None, &mut ciphertext)?;
     Ok((general_purpose::STANDARD.encode(ciphertext), nonce))
@@ -84,7 +84,7 @@ pub fn decrypt_asym(
 }
 
 pub fn encrypt(text: &str, key: &SymetricKey) -> Result<EncryptedMessage, NetworkError> {
-    let mut ciphertext = vec![0u8; text.as_bytes().len() + symetric_cipher::MAC_LENGTH];
+    let mut ciphertext = vec![0u8; text.len() + symetric_cipher::MAC_LENGTH];
     let (_, nonce) = symetric_cipher::encrypt(text.as_bytes(), key, None, &mut ciphertext)?;
     Ok((general_purpose::STANDARD.encode(ciphertext), nonce))
 }
@@ -131,7 +131,7 @@ mod dummy_crypto {
         let key_len = key.len();
         // TODO: Replace with actual encryption
         for (i, b) in bytes.iter_mut().enumerate() {
-            *b = *b ^ key.get(i % key_len).unwrap_or(&(0xff as u8));
+            *b ^= key.get(i % key_len).unwrap_or(&0xff_u8);
         }
         general_purpose::STANDARD.encode(bytes)
     }
@@ -141,7 +141,7 @@ mod dummy_crypto {
         let key_len = key.len();
         // TODO: Replace with actual decryption
         for (i, b) in bytes.iter_mut().enumerate() {
-            *b = *b ^ key.get(i % key_len).unwrap_or(&(0xff as u8));
+            *b ^= key.get(i % key_len).unwrap_or(&0xff_u8);
         }
         let string = str::from_utf8(&bytes)?;
         Ok(String::from(string))

@@ -37,14 +37,10 @@ impl Eq for BaseMessage {}
 impl BaseMessage {
     pub fn get_data_str(&self, key: impl Into<String>) -> Option<String> {
         if let Some(ref data) = self.data {
-            match data.get(&key.into()).clone() {
+            match data.get(&key.into()) {
                 None => None,
                 Some(elem) => {
-                    if let Some(str) = elem.as_str() {
-                        Some(str.to_string())
-                    } else {
-                        None
-                    }
+                    elem.as_str().map(|str| str.to_string())
                 }
             }
         } else {
@@ -57,7 +53,7 @@ impl BaseMessage {
         T: serde::de::DeserializeOwned,
     {
         Ok(if let Some(ref data) = self.data {
-            match data.get(&key.into()).clone() {
+            match data.get(&key.into()) {
                 None => None,
                 Some(elem) => Some(serde_json::from_value(elem.to_owned())?),
             }

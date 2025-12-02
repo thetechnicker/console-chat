@@ -72,7 +72,7 @@ impl Component for ErrorDisplay {
                 .split(area)[1],
             )[1];
 
-            frame.render_widget(Clear::default(), center);
+            frame.render_widget(Clear, center);
 
             let display = Paragraph::new(format!("{error}"))
                 .centered()

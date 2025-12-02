@@ -60,7 +60,7 @@ impl Client {
         let asymetric_key = Arc::new(Mutex::new(encryption::get_asym_key_pair()?));
         let _ = CLIENT.set(Arc::new(Client {
             url,
-            client: client,
+            client,
             token: Arc::new(Mutex::new(None)),
             action_tx,
             room: Arc::new(Mutex::new(None)),
@@ -178,7 +178,7 @@ async fn auth() -> Result<()> {
         None => handle_errors_json(client.post(client.url.join("/auth")?).send().await?).await?,
     };
     debug!("got auth result: {:#?}", token);
-    keep_token_alive_auth(token.ttl.clone());
+    keep_token_alive_auth(token.ttl);
     *token_guard = Some(token.clone());
 
     let user: BetterUser = handle_errors_json(
@@ -273,7 +273,7 @@ pub async fn send_txt(msg: String) -> Result<Option<Action>, NetworkError> {
                 .as_ref()
                 .map_or(Ok(messages::ClientMessage::new(&msg)), |key| {
                     trace!("{key:#?}");
-                    let encrypted = encryption::encrypt(&msg, &key)?;
+                    let encrypted = encryption::encrypt(&msg, key)?;
                     Ok(messages::ClientMessage::encrypted(encrypted))
                 })
         };

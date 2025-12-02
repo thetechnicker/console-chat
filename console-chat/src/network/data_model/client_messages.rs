@@ -6,8 +6,8 @@ use serde::{self, Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
-pub const ASYM_KEY_CHECK: &'static str = "sending-key";
-pub const ID_FIELD: &'static str = "current-id";
+pub const ASYM_KEY_CHECK: &str = "sending-key";
+pub const ID_FIELD: &str = "current-id";
 
 lazy_static! {
     pub static ref ID: Uuid = Uuid::new_v4();
@@ -36,7 +36,7 @@ impl ClientMessage {
         Self {
             base: BaseMessage {
                 message_type: MessageType::EncryptedText,
-                text: String::from(msg.0),
+                text: msg.0,
                 data: Some(HashMap::from([
                     (
                         "nonce".to_owned(),
