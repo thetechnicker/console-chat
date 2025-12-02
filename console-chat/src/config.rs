@@ -728,7 +728,7 @@ mod tests {
     fn test_save() -> Result<()> {
         let c = Config::new()?;
         let x = c.save();
-        assert!(matches!(x, Ok(_)));
+        assert!(x.is_ok());
         Ok(c.save()?)
     }
 }

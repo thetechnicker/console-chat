@@ -179,7 +179,7 @@ mod test {
             ),
         ]);
         let content = serde_json::to_string_pretty(&map)?;
-        std::fs::write("./test.json", content)?;
+        std::fs::write(crate::config::get_data_dir().join("./test.json"), content)?;
         Ok(())
     }
 }
