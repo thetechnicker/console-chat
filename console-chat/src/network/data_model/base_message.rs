@@ -39,9 +39,7 @@ impl BaseMessage {
         if let Some(ref data) = self.data {
             match data.get(&key.into()) {
                 None => None,
-                Some(elem) => {
-                    elem.as_str().map(|str| str.to_string())
-                }
+                Some(elem) => elem.as_str().map(|str| str.to_string()),
             }
         } else {
             None

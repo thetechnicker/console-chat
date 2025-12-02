@@ -77,7 +77,7 @@ impl Join<'_> {
     fn send(&mut self, action: Action) -> Result<()> {
         trace!("sending action: {action}");
         let action_tx = self.command_tx.as_ref().ok_or(AppError::MissingActionTX)?;
-        
+
         Ok(action_tx.send(action)?)
     }
 }
