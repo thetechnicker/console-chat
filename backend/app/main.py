@@ -83,19 +83,19 @@ SessionDep = Annotated[DatabaseContext, Depends(get_db_context)]
 
 app = FastAPI(lifespan=lifespan)
 
-origins = [
-    "http://localhost",
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
-]
+# origins = [
+#    "http://localhost",
+#    "http://localhost:8000",
+#    "http://127.0.0.1:8000",
+# ]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# app.add_middleware(
+#    CORSMiddleware,
+#    allow_origins=origins,
+#    allow_credentials=True,
+#    allow_methods=["*"],
+#    allow_headers=["*"],
+# )
 
 
 def hash_password(password: str) -> str:
