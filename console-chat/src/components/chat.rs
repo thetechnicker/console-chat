@@ -151,8 +151,14 @@ impl Component for Chat<'_> {
                     }
                     Transition::Store | Transition::Nop | Transition::Mode(_) => this_vim,
                     Transition::Pending(input) => this_vim.with_pending(input),
-                    Transition::Up => this_vim,
-                    Transition::Down => this_vim,
+                    Transition::Up => {
+                        self.up();
+                        this_vim
+                    }
+                    Transition::Down => {
+                        self.down();
+                        this_vim
+                    }
                     Transition::Enter(content) => {
                         debug!("{}", content);
                         self.command_tx
