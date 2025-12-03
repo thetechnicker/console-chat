@@ -1,7 +1,3 @@
-#![allow(dead_code)] // Remove this once you start using the code
-
-use std::{collections::HashMap, env, path::PathBuf};
-
 use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use derive_deref::{Deref, DerefMut};
@@ -9,6 +5,7 @@ use directories::ProjectDirs;
 use lazy_static::lazy_static;
 use ratatui::style::{Color, Modifier, Style};
 use serde::{Deserialize, Serialize, Serializer, de::Deserializer};
+use std::{collections::HashMap, env, path::PathBuf};
 use tracing::error;
 use url::Url;
 
@@ -122,7 +119,7 @@ impl Config {
     pub fn save(&self) -> std::io::Result<()> {
         let x = serde_json::to_string_pretty(self)?;
         if !self.config.config_dir.exists() {
-            std::fs::create_dir(self.config.config_dir.clone())?;
+            std::fs::create_dir_all(self.config.config_dir.clone())?;
         }
         let path = self.config.config_dir.join("config.json");
         std::fs::write(path, x)
@@ -481,6 +478,8 @@ fn parse_color(s: &str) -> Option<Color> {
 #[derive(Clone, Serialize, Debug, Default, Deserialize, Deref, DerefMut)]
 pub struct Themes(pub HashMap<Mode, HashMap<String, crate::components::theme::Theme>>);
 
+/// Might  be use full when adding key shortcut hints to buttons
+#[allow(dead_code)]
 pub fn get_key_from_value<'a, K, V>(map: &'a HashMap<K, V>, value: &V) -> Option<&'a K>
 where
     K: std::hash::Hash + Eq,
@@ -726,7 +725,10 @@ mod tests {
 
     #[test]
     fn test_save() -> Result<()> {
-        let c = Config::new()?;
+        use tempfile;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let mut c = Config::new()?;
+        c.config.data_dir = temp_dir.path().into();
         let x = c.save();
         assert!(x.is_ok(), "Config: {c:#?}\n\n Error:{x:#?}");
         Ok(())

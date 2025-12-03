@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use crate::components::vim::*;
 use crate::network::data_model::messages::ServerMessage;
 use color_eyre::Result;

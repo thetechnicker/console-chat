@@ -506,6 +506,7 @@ dependencies = [
  "signal-hook",
  "strip-ansi-escapes",
  "strum",
+ "tempfile",
  "tokio",
  "tokio-stream",
  "tokio-util",
