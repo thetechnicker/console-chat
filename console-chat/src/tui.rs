@@ -1,5 +1,3 @@
-#![allow(dead_code)] // Remove this once you start using the code
-
 use std::{
     io::{Stdout, stdout},
     ops::{Deref, DerefMut},
@@ -85,10 +83,10 @@ impl Tui {
         self
     }
 
-    pub fn paste(mut self, paste: bool) -> Self {
-        self.paste = paste;
-        self
-    }
+    //pub fn paste(mut self, paste: bool) -> Self {
+    //    self.paste = paste;
+    //    self
+    //}
 
     pub fn start(&mut self) {
         self.cancel(); // Cancel any existing task
@@ -204,10 +202,10 @@ impl Tui {
         Ok(())
     }
 
-    pub fn resume(&mut self) -> Result<()> {
-        self.enter()?;
-        Ok(())
-    }
+    //pub fn resume(&mut self) -> Result<()> {
+    //    self.enter()?;
+    //    Ok(())
+    //}
 
     pub async fn next_event(&mut self) -> Option<Event> {
         self.event_rx.recv().await
