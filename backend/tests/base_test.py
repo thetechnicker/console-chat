@@ -79,6 +79,8 @@ async def test_auth(setup_test_db: DatabaseContext):
         response3 = await ac.post(
             "/auth", json={"username": "test", "password": "test"}
         )
+        response4 = await ac.post("/auth", json={"password": "test"})
     assert response1.status_code == 200, response1.text
     assert response2.status_code == 200, response2.text
     assert response3.status_code == 401, response3.text
+    assert response4.status_code == 400, response3.text
