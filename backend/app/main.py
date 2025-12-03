@@ -9,21 +9,19 @@ from uuid import uuid4
 
 import jwt
 import valkey.asyncio as valkey
-from app.database import DBPublicUser, DBUser, init_postgesql_connection
-from app.datamodel import ClientMessage, MessageType, ServerMessage, UserStatus
 from dotenv import load_dotenv
 from fastapi import Body, Depends, FastAPI, HTTPException, Query, Security, status
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from jwt import PyJWTError
-
-# import sqlmodel
 from pydantic import ValidationError
 from sqlmodel import Session, select
 
-# DBUser = DBUser
-# DBPublicUser = DBPublicUser
+from app.database import DBPublicUser, DBUser, init_postgesql_connection
+from app.datamodel import ClientMessage, MessageType, ServerMessage, UserStatus
+
+# from fastapi.middleware.cors import CORSMiddleware
+
 
 load_dotenv()
 
@@ -83,19 +81,19 @@ SessionDep = Annotated[DatabaseContext, Depends(get_db_context)]
 
 app = FastAPI(lifespan=lifespan)
 
-origins = [
-    "http://localhost",
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
-]
+# origins = [
+#    "http://localhost",
+#    "http://localhost:8000",
+#    "http://127.0.0.1:8000",
+# ]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# app.add_middleware(
+#    CORSMiddleware,
+#    allow_origins=origins,
+#    allow_credentials=True,
+#    allow_methods=["*"],
+#    allow_headers=["*"],
+# )
 
 
 def hash_password(password: str) -> str:

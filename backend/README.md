@@ -8,6 +8,13 @@ This directory contains the backend logic and services for **ConsoleChat**.
 - **tests/** – Unit and integration tests for the backend  
 - **experiments/** – Experimental scripts and prototypes for exploring new functionality or understanding existing components
 
+## Python Requirements
+
+There are three requirement files:
+- `requirements.txt`: Basic requirements for this application.
+- requirements-dev.txt: Additional dependencies for development and testing.
+- requirements-frozen.txt: Combines the other two requirement files and adds version restrictions to ensure consistency.
+
 ## Setup Instructions
 
 Follow these steps to run the backend locally with Docker.

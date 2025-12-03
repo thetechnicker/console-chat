@@ -1,0 +1,15 @@
+fastapi==0.118.3
+pydantic==2.12.0
+pwdlib==0.2.1
+PyJWT==2.10.1
+python-dotenv==1.1.1
+psycopg2-binary==2.9.11
+sqlmodel==0.0.27
+SQLAlchemy==2.0.44
+uvicorn==0.37.0
+valkey==6.1.1
+pytest==8.4.2
+pytest-asyncio==1.2.0
+httpx==0.28.1
+fakeredis==2.32.0
+
