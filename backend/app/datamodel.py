@@ -2,9 +2,10 @@
 from enum import Enum  # , auto
 from typing import Any, Optional
 
-from app.database import DBPublicUser as PublicUser
 from pydantic import BaseModel, model_validator
 from typing_extensions import Self
+
+from app.database import DBPublicUser as PublicUser
 
 
 class UserStatus(BaseModel):

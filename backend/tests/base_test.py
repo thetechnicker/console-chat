@@ -6,11 +6,12 @@ import os
 
 import fakeredis
 import pytest
-from app.main import app  # type:ignore
-from app.main import DatabaseContext, get_db_context  # type:ignore
 from dotenv import load_dotenv
 from httpx import ASGITransport, AsyncClient
 from sqlmodel import Session, SQLModel, StaticPool, create_engine
+
+from app.main import app  # type:ignore
+from app.main import DatabaseContext, get_db_context  # type:ignore
 
 load_dotenv()
 debug_key = os.environ.get("DEV_API_KEY")

@@ -9,21 +9,21 @@ from uuid import uuid4
 
 import jwt
 import valkey.asyncio as valkey
-from app.database import DBPublicUser, DBUser, init_postgesql_connection
-from app.datamodel import ClientMessage, MessageType, ServerMessage, UserStatus
 from dotenv import load_dotenv
-from fastapi import Body, Depends, FastAPI, HTTPException, Query, Security, status
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import (Body, Depends, FastAPI, HTTPException, Query, Security,
+                     status)
 from fastapi.responses import JSONResponse, StreamingResponse
-from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.security import (APIKeyHeader, HTTPAuthorizationCredentials,
+                              HTTPBearer)
 from jwt import PyJWTError
-
-# import sqlmodel
 from pydantic import ValidationError
 from sqlmodel import Session, select
 
-# DBUser = DBUser
-# DBPublicUser = DBPublicUser
+from app.database import DBPublicUser, DBUser, init_postgesql_connection
+from app.datamodel import ClientMessage, MessageType, ServerMessage, UserStatus
+
+# from fastapi.middleware.cors import CORSMiddleware
+
 
 load_dotenv()
 

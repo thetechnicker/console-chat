@@ -1,10 +1,10 @@
 fastapi
-uvicorn
-valkey
 pydantic
 pwdlib
-pyjwt
+PyJWT
 python-dotenv
 psycopg2-binary
 sqlmodel
 sqlalchemy 
+uvicorn
+valkey
