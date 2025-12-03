@@ -20,7 +20,7 @@ impl EncryptedKeyMessageData {
         receiver_key: PublicKey,
     ) -> Result<Self> {
         let (encrypted_check_str, nonce) = encrypt_base64(check_str, sym_key)?;
-        let (key, key_nonce) = encrypt_asym(sym_key.as_slice(), key_pair, receiver_key.clone())?;
+        let (key, key_nonce) = encrypt_asym(sym_key.as_slice(), key_pair, receiver_key)?;
         Ok(Self {
             nonce: nonce.into(),
             key: key.into(),
@@ -35,7 +35,7 @@ impl EncryptedKeyMessageData {
         let sym_key_raw = decrypt_asym(
             (self.key.deref().clone(), self.key_nonce.into()),
             key_pair,
-            public_key.clone(),
+            public_key,
         )?;
         let mut sym_key = SymetricKey::new_empty()?;
         sym_key.copy_from_slice(&sym_key_raw);
@@ -68,17 +68,17 @@ impl EncryptedMessageData {
 #[derive(Debug, PartialEq)]
 pub struct HexVec(Vec<u8>);
 
-impl Into<Nonce> for HexVec {
-    fn into(self) -> Nonce {
+impl From<HexVec> for Nonce {
+    fn from(val: HexVec) -> Self {
         let mut nonce = Nonce::default();
-        nonce.copy_from_slice(self.as_slice());
+        nonce.copy_from_slice(val.as_slice());
         nonce
     }
 }
-impl Into<PublicKey> for HexVec {
-    fn into(self) -> PublicKey {
+impl From<HexVec> for PublicKey {
+    fn from(val: HexVec) -> Self {
         let mut nonce = PublicKey::default();
-        nonce.copy_from_slice(self.as_slice());
+        nonce.copy_from_slice(val.as_slice());
         nonce
     }
 }

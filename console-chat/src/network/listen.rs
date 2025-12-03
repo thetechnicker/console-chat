@@ -225,7 +225,7 @@ pub async fn handle_message(
         _ => {
             let key_pair = client.asymetric_key.lock().await;
             let mut symetric = client.symetric_key.lock().await;
-            let msg = msg.decrypt(&*key_pair, symetric.as_ref())?;
+            let msg = msg.decrypt(&key_pair, symetric.as_ref())?;
             match msg {
                 DecryptedMessage::NoKey(msg) => {
                     request_key().await?;
@@ -247,7 +247,7 @@ pub async fn handle_message(
                         match symetric.as_ref() {
                             None => return Err(NetworkError::from("No Symetic key")),
                             Some(key) => {
-                                let msg = messages::Message::send_key(key, &*key_pair, public)?;
+                                let msg = messages::Message::send_key(key, &key_pair, public)?;
 
                                 let body = serde_json::json!(msg);
                                 let resp = client

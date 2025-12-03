@@ -71,17 +71,6 @@ impl Message {
         }
     }
 
-    pub fn get_data_str(&self, key: impl Into<String>) -> Option<String> {
-        if let Some(ref data) = self.data {
-            match data.get(&key.into()) {
-                None => None,
-                Some(elem) => elem.as_str().map(|str| str.to_string()),
-            }
-        } else {
-            None
-        }
-    }
-
     pub fn get_data<T>(&self, key: impl Into<String>) -> Result<Option<T>>
     where
         T: serde::de::DeserializeOwned,
