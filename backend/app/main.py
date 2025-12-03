@@ -10,11 +10,9 @@ from uuid import uuid4
 import jwt
 import valkey.asyncio as valkey
 from dotenv import load_dotenv
-from fastapi import (Body, Depends, FastAPI, HTTPException, Query, Security,
-                     status)
+from fastapi import Body, Depends, FastAPI, HTTPException, Query, Security, status
 from fastapi.responses import JSONResponse, StreamingResponse
-from fastapi.security import (APIKeyHeader, HTTPAuthorizationCredentials,
-                              HTTPBearer)
+from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from jwt import PyJWTError
 from pydantic import ValidationError
 from sqlmodel import Session, select
