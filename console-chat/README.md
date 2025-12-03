@@ -1,7 +1,9 @@
 # console-chat-3
 
 
-## Init
+## Api Interaction
+
+### Init
 
 ```mermaid
 sequenceDiagram
@@ -19,7 +21,7 @@ RestApi ->> Client: Token for anonym User
 
 ```
 
-## Login
+### Login
 
 ```mermaid
 sequenceDiagram
@@ -62,7 +64,7 @@ Client ->>- UI: Display Login status
 
 ```
 
-## Chatting
+### Chatting
 
 ```mermaid
 sequenceDiagram
