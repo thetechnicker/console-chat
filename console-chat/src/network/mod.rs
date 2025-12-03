@@ -7,3 +7,4 @@ pub mod error;
 pub mod data_model;
 pub mod encryption;
 pub mod listen;
+pub type Result<T, E = error::NetworkError> = std::result::Result<T, E>;

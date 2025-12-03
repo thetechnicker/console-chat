@@ -21,6 +21,8 @@ impl std::fmt::Display for ResponseErrorData {
 pub enum NetworkError {
     NoRoom,
     MissingAuthToken,
+    BadKeyVerification,
+    MissingEncryptionData,
 
     GenericError(String),
     UrlParseError(url::ParseError),
@@ -45,25 +47,42 @@ pub enum NetworkError {
 impl std::fmt::Display for NetworkError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            NetworkError::NoRoom => write!(f, "You haven't Joined a room"),
-            NetworkError::MissingAuthToken => write!(f, "The authentication token isnt set"),
+            NetworkError::NoRoom => write!(f, "Error: You haven't joined a room."),
+            NetworkError::MissingAuthToken => {
+                write!(f, "Error: The authentication token isn't set.")
+            }
+            NetworkError::BadKeyVerification => {
+                write!(
+                    f,
+                    "Error: The received key verification message didn't match."
+                )
+            }
+            NetworkError::MissingEncryptionData => {
+                write!(
+                    f,
+                    "Error: Message is marked as containing encrypted data, but essential components are missing. \
+                     Expected nonce, encrypted symmetric key, or other required data were not found."
+                )
+            }
             NetworkError::GenericError(msg) => write!(f, "Error: {}", msg),
-            NetworkError::UrlParseError(e) => write!(f, "URL Parse Error: {}", e),
-            NetworkError::ReqwestError(e) => write!(f, "Request Error: {}", e),
-            NetworkError::ClientError(data) => write!(f, "Client Error: HTTP {}", data),
-            NetworkError::ServerError(data) => write!(f, "Server Error: HTTP {}", data),
-            NetworkError::Unauthorized(data) => write!(f, "Unauthorized: {}", data),
-            NetworkError::NotFound(data) => write!(f, "Not Found: {}", data),
-            NetworkError::Utf8Error(error) => write!(f, "Utf8Error: {}", error),
-            NetworkError::SerdeError(error) => write!(f, "SerdeError: {}", error),
-            NetworkError::AlkaliError(error) => write!(f, "AlkaliError: {}", error),
-            NetworkError::Base64DecodeError(error) => write!(f, "Base64Error: {}", error),
-            NetworkError::JoinError(error) => write!(f, "Tokio Join Error: {}", error),
+            NetworkError::UrlParseError(e) => write!(f, "Error: URL parse error - {}", e),
+            NetworkError::ReqwestError(e) => write!(f, "Error: Request error - {}", e),
+            NetworkError::ClientError(data) => write!(f, "Error: Client error - HTTP {}", data),
+            NetworkError::ServerError(data) => write!(f, "Error: Server error - HTTP {}", data),
+            NetworkError::Unauthorized(data) => write!(f, "Error: Unauthorized - {}", data),
+            NetworkError::NotFound(data) => write!(f, "Error: Not found - {}", data),
+            NetworkError::Utf8Error(error) => write!(f, "Error: UTF-8 error - {}", error),
+            NetworkError::SerdeError(error) => write!(f, "Error: Serde error - {}", error),
+            NetworkError::AlkaliError(error) => write!(f, "Error: Alkali error - {}", error),
+            NetworkError::Base64DecodeError(error) => {
+                write!(f, "Error: Base64 decode error - {}", error)
+            }
+            NetworkError::JoinError(error) => write!(f, "Error: Tokio join error - {}", error),
             NetworkError::CompositError(error, str) => {
-                write!(f, "CompositError: {}, \"{}\"", error, str)
+                write!(f, "Error: Composite error - {}, \"{}\"", error, str)
             }
             NetworkError::Eyre(e) => {
-                write!(f, "{e}")
+                write!(f, "Error: {}", e)
             }
         }
     }

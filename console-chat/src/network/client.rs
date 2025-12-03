@@ -267,14 +267,14 @@ pub async fn send_txt(msg: String) -> Result<Option<Action>, NetworkError> {
     let client = Client::get()?;
     if let Some(room) = client.room.lock().await.as_ref() {
         trace!("Sending Message...");
-        let msg: Result<messages::ClientMessage, NetworkError> = {
+        let msg: Result<messages::Message, NetworkError> = {
             let key_guard = client.symetric_key.lock().await;
             key_guard
                 .as_ref()
-                .map_or(Ok(messages::ClientMessage::new(&msg)), |key| {
+                .map_or(Ok(messages::Message::new(&msg)), |key| {
                     trace!("{key:#?}");
-                    let encrypted = encryption::encrypt(&msg, key)?;
-                    Ok(messages::ClientMessage::encrypted(encrypted))
+                    let encrypted = encryption::encrypt_base64(&msg, key)?;
+                    Ok(messages::Message::encrypted(encrypted))
                 })
         };
         let url = client.url.join(&format!("room/{room}"))?;
@@ -288,7 +288,7 @@ pub async fn send_txt(msg: String) -> Result<Option<Action>, NetworkError> {
             .bearer_auth(token.token.clone())
             .send()
             .await?;
-        let message: messages::ServerMessage = handle_errors_json(resp).await?;
+        let message: messages::Message = handle_errors_json(resp).await?;
         debug!("{:?}", message);
     }
     Ok(None)

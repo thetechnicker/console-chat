@@ -1,5 +1,5 @@
 use crate::components::vim::*;
-use crate::network::data_model::messages::ServerMessage;
+use crate::network::data_model::messages::Message;
 use color_eyre::Result;
 use crossterm::event::KeyEvent;
 use ratatui::{prelude::*, widgets::*};
@@ -11,11 +11,11 @@ use super::Component;
 use crate::{action::Action, config::Config};
 
 struct MessageComponent {
-    content: ServerMessage,
+    content: Message,
     selected: bool,
 }
 impl MessageComponent {
-    fn new(content: ServerMessage) -> Self {
+    fn new(content: Message) -> Self {
         Self {
             content,
             selected: false,
@@ -35,12 +35,12 @@ impl Widget for &MessageComponent {
         let color = user
             .color
             .map_or(Color::Gray, |c| c.parse().unwrap_or(Color::Gray));
-        let alignment = if self.content.base.is_mine() {
+        let alignment = if self.content.is_mine() {
             Alignment::Right
         } else {
             Alignment::Left
         };
-        Paragraph::new(self.content.base.text.clone())
+        Paragraph::new(self.content.text.clone())
             .block(
                 Block::bordered()
                     .border_type(BorderType::Rounded)
@@ -52,8 +52,8 @@ impl Widget for &MessageComponent {
             .render(area, buf);
     }
 }
-impl From<ServerMessage> for MessageComponent {
-    fn from(msg: ServerMessage) -> Self {
+impl From<Message> for MessageComponent {
+    fn from(msg: Message) -> Self {
         Self::new(msg)
     }
 }

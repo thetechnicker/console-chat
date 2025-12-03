@@ -32,7 +32,7 @@ impl ClientMessage {
             },
         }
     }
-    pub fn encrypted(msg: encryption::EncryptedMessage) -> Self {
+    pub fn encrypted(msg: encryption::EncryptedMessageBase64) -> Self {
         Self {
             base: BaseMessage {
                 message_type: MessageType::EncryptedText,
@@ -70,8 +70,8 @@ impl ClientMessage {
     ) -> Result<Self, NetworkError> {
         let key_str = encryption::to_base64(&symetric_key.to_vec());
         let self_public_key = encryption::to_base64(&key_pair.public_key());
-        let encrypted_key = encryption::encrypt_asym(&key_str, key_pair, public_key)?;
-        let check_msg = encryption::encrypt_asym(ASYM_KEY_CHECK, key_pair, public_key)?;
+        let encrypted_key = encryption::encrypt_asym_base64(&key_str, key_pair, public_key)?;
+        let check_msg = encryption::encrypt_asym_base64(ASYM_KEY_CHECK, key_pair, public_key)?;
         Ok(Self {
             base: BaseMessage {
                 message_type: MessageType::Key,

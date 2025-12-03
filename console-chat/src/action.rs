@@ -1,4 +1,4 @@
-use crate::network::{data_model::messages::ServerMessage, error::NetworkError};
+use crate::network::{data_model::messages::Message, error::NetworkError};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use strum::Display;
 
@@ -139,7 +139,7 @@ pub enum Action {
     TriggerJoin,
     PerformJoin(String),
     SendMessage(String),
-    ReceivedMessage(ServerMessage),
+    ReceivedMessage(Message),
     Leave,
 
     SyncProfile,

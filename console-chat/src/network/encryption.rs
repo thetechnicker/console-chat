@@ -6,7 +6,8 @@ use alkali::symmetric::cipher as symetric_cipher;
 use base64::{Engine as _, engine::general_purpose};
 
 pub type SymetricKey = symetric_cipher::Key<mem::FullAccess>;
-pub type EncryptedMessage = (String, cipher::Nonce);
+pub type EncryptedMessageBase64 = (String, cipher::Nonce);
+pub type EncryptedMessage = (Vec<u8>, cipher::Nonce);
 pub type Nonce = cipher::Nonce;
 //pub type PrivateKey = cipher::PrivateKey<mem::FullAccess>;
 pub type PublicKey = cipher::PublicKey;
@@ -47,49 +48,68 @@ pub fn get_asym_key_pair() -> Result<KeyPair, NetworkError> {
     Ok(KeyPair(cipher::Keypair::generate()?))
 }
 
-//pub fn get_new_keys() -> Result<(SymetricKey, KeyPair), NetworkError> {
-//    Ok((
-//        symetric_cipher::Key::generate()?,
-//        KeyPair(cipher::Keypair::generate()?),
-//    ))
-//}
-
 pub fn get_new_symetric_key() -> Result<SymetricKey, NetworkError> {
     Ok(symetric_cipher::Key::generate()?)
 }
-
 pub fn encrypt_asym(
-    text: &str,
+    text: &[u8],
     sender_keypair: &KeyPair,
     receiver_key: PublicKey,
 ) -> Result<EncryptedMessage, NetworkError> {
     let mut ciphertext = vec![0u8; text.len() + cipher::MAC_LENGTH];
-    let (_, nonce) =
-        sender_keypair.encrypt(text.as_bytes(), &receiver_key, None, &mut ciphertext)?;
-    Ok((general_purpose::STANDARD.encode(ciphertext), nonce))
+    let (_, nonce) = sender_keypair.encrypt(text, &receiver_key, None, &mut ciphertext)?;
+    Ok((ciphertext, nonce))
 }
 
 pub fn decrypt_asym(
     msg: EncryptedMessage,
     receiver_keypair: &KeyPair,
     sender_key: PublicKey,
+) -> Result<Vec<u8>, NetworkError> {
+    let ciphertext = msg.0;
+    let nonce = msg.1;
+    let mut plaintext = vec![0u8; ciphertext.len() - cipher::MAC_LENGTH];
+    receiver_keypair.decrypt(&ciphertext, &sender_key, &nonce, &mut plaintext)?;
+    //let string = str::from_utf8(&plaintext)?;
+    //Ok(String::from(string))
+    Ok(plaintext)
+}
+
+pub fn encrypt_asym_base64(
+    text: &str,
+    sender_keypair: &KeyPair,
+    receiver_key: PublicKey,
+) -> Result<EncryptedMessageBase64, NetworkError> {
+    let (ciphertext, nonce) = encrypt_asym(text.as_bytes(), sender_keypair, receiver_key)?;
+    Ok((general_purpose::STANDARD.encode(ciphertext), nonce))
+}
+
+pub fn decrypt_asym_base64(
+    msg: EncryptedMessageBase64,
+    receiver_keypair: &KeyPair,
+    sender_key: PublicKey,
 ) -> Result<String, NetworkError> {
     let text = msg.0;
     let nonce = msg.1;
     let ciphertext = general_purpose::STANDARD.decode(text)?;
-    let mut plaintext = vec![0u8; ciphertext.len() - cipher::MAC_LENGTH];
-    receiver_keypair.decrypt(&ciphertext, &sender_key, &nonce, &mut plaintext)?;
+    let plaintext = decrypt_asym((ciphertext, nonce), receiver_keypair, sender_key)?;
     let string = str::from_utf8(&plaintext)?;
     Ok(String::from(string))
 }
 
-pub fn encrypt(text: &str, key: &SymetricKey) -> Result<EncryptedMessage, NetworkError> {
+pub fn encrypt_base64(
+    text: &str,
+    key: &SymetricKey,
+) -> Result<EncryptedMessageBase64, NetworkError> {
     let mut ciphertext = vec![0u8; text.len() + symetric_cipher::MAC_LENGTH];
     let (_, nonce) = symetric_cipher::encrypt(text.as_bytes(), key, None, &mut ciphertext)?;
     Ok((general_purpose::STANDARD.encode(ciphertext), nonce))
 }
 
-pub fn decrypt(msg: EncryptedMessage, key: &SymetricKey) -> Result<String, NetworkError> {
+pub fn decrypt_base64(
+    msg: EncryptedMessageBase64,
+    key: &SymetricKey,
+) -> Result<String, NetworkError> {
     let text = msg.0;
     let nonce = msg.1;
     let ciphertext = general_purpose::STANDARD.decode(text)?;
