@@ -1,0 +1,10 @@
+fastapi[standard]
+pydantic
+pwdlib
+PyJWT
+python-dotenv
+psycopg2-binary
+sqlmodel
+sqlalchemy 
+uvicorn
+valkey
