@@ -1,5 +1,7 @@
 import hashlib
+import json
 import os
+import uuid
 import warnings
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
@@ -7,12 +9,36 @@ from typing import Annotated, Any, NamedTuple, Optional
 
 import jwt
 import valkey.asyncio as valkey
+from argon2 import PasswordHasher
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, status
-from fastapi.security import APIKeyHeader, HTTPBearer
+from fastapi import Body, Depends, FastAPI, HTTPException, Security, status
+from fastapi.exceptions import HTTPException
+from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import BaseModel
 from sqlmodel import Session, select
 
-from app.database import Message, init_postgesql_connection
+from app.database import *
+
+# from fastapi.responses import JSONResponse, StreamingResponse
+
+
+class Token(BaseModel):
+    token: str
+    ttl: int
+    is_new: bool
+
+
+class OnlineResponce(BaseModel):
+    token: Token
+    user: User
+
+
+class UUIDEncoder(json.JSONEncoder):
+    def default(self, o: Any):
+        if isinstance(o, uuid.UUID):
+            return str(o)  # Convert UUID to string
+        return super().default(o)
+
 
 load_dotenv()
 
@@ -72,21 +98,57 @@ SessionDep = Annotated[DatabaseContext, Depends(get_db_context)]
 
 app = FastAPI(lifespan=lifespan)
 
+ph = PasswordHasher()
 
-def hash_password(password: str) -> str:
-    return hashlib.sha256(
-        password.encode()
-    ).hexdigest()  # Simple hash, consider stronger methods
+
+def secure_hash_argon2(username: str, password: str):
+    # Combine username and password
+    combined = username + password
+    # Create the hash
+    hash_pw = ph.hash(combined)
+    return hash_pw
+
+
+def verify_password(hashed: str, username: str, password: str) -> bool:
+    combined = username + password
+    try:
+        return ph.verify(
+            hashed, combined
+        )  # Will raise an exception if the hash does not match
+    except Exception:
+        return False
 
 
 def create_access_token(
-    data: dict[Any, Any], expires_delta: Optional[int] = None
-) -> str:
-    to_encode = data.copy()
+    user: User, expires_delta: int = TOKEN_TTL, is_new: bool = True
+) -> Token:
     expire = datetime.now(timezone.utc) + timedelta(seconds=expires_delta or TOKEN_TTL)
-    to_encode.update({"exp": expire, "iss": "http://localhost:8000/auth"})
-    token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)  # type:ignore
+    to_encode = {
+        "exp": expire,
+        "iss": "http://localhost:8000/auth",
+        "user": {
+            "id": str(user.id),  # Convert UUID to string
+            "username": user.username,
+        },
+    }
+    token_str = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    token = Token(token=token_str, ttl=expires_delta, is_new=is_new)
     return token
+
+
+def get_user_from_token(token: str) -> User:
+    try:
+        # Decode the JWT token
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return User.model_validate(payload.get("user"))  # Adjust as needed
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired"
+        )
+    except jwt.PyJWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
+        )
 
 
 def validate_api_key(key: str = Depends(api_key)):
@@ -99,7 +161,45 @@ def validate_api_key(key: str = Depends(api_key)):
 API_KEY_AUTH = Annotated[None, Depends(validate_api_key)]
 
 
-@app.get("/message")
-def send(db_session: SessionDep):
-    messages = db_session.psql_session.exec(select(Message)).all()
-    return messages
+@app.get("/online", response_model=OnlineResponce)
+def online(
+    credentials: Optional[HTTPAuthorizationCredentials] = Security(bearer_scheme),
+    username: Optional[str] = Body(None),
+    password: Optional[str] = Body(None),
+    db_context: DatabaseContext = Depends(get_db_context),
+):
+    # Check for mixed authentication methods
+    if credentials and (username or password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot use token and username/password simultaneously.",
+        )
+
+    # Handle Bearer Token Authentication
+    if credentials:
+        user = get_user_from_token(credentials.credentials)
+        if user:
+            # TODO: maybe set a flag online
+            token = create_access_token(user, TOKEN_TTL)
+            return OnlineResponce(token=token, user=user)
+    # Handle Username and Password Authentication
+    if username and password:
+        stmt = select(User).where(User.username == username)
+        user = db_context.psql_session.exec(stmt).one_or_none()
+        if (
+            user
+            and user.password
+            and verify_password(user.password, username, password)
+        ):
+            token = create_access_token(user, TOKEN_TTL, True)
+            return OnlineResponce(token=token, user=user)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
+            )
+
+    user = User(appearance_id=-1)
+    color = deterministic_color_from_string(str(user.id))
+    user.appearance = Appearance(color=color)
+    token = create_access_token(user, TOKEN_TTL, True)
+    return OnlineResponce(token=token, user=user)

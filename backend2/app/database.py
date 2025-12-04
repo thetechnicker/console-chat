@@ -43,7 +43,7 @@ class User(SQLModel, table=True):
 
 
 class Appearance(SQLModel, table=True):
-    id: int = Field(primary_key=True, index=True)
+    id: Optional[int] = Field(primary_key=True, index=True, default=None)
     # user_id: uuid.UUID = Field(default=None, foreign_key="user.id")
     user: User = Relationship(back_populates="appearance")
     color: Optional[str] = Field(default=None)
