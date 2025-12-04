@@ -126,6 +126,94 @@ pub fn from_base64(arg: &str) -> Result<Vec<u8>, NetworkError> {
     Ok(general_purpose::STANDARD.decode(arg)?)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_asymmetric_key_pair_generation() {
+        let keypair_result = get_asym_key_pair();
+        assert!(keypair_result.is_ok());
+
+        let keypair = keypair_result.unwrap();
+        assert!(keypair.public_key().len() > 0); // Check that the public key is generated
+    }
+
+    #[test]
+    fn test_symmetric_key_generation() {
+        let symmetric_key_result = get_new_symetric_key();
+        assert!(symmetric_key_result.is_ok());
+
+        let symmetric_key = symmetric_key_result.unwrap();
+        assert!(symmetric_key.len() > 0); // Check that the symmetric key is generated
+    }
+
+    #[test]
+    fn test_asymmetric_encryption_decryption() {
+        let sender_keypair = get_asym_key_pair().unwrap();
+        let receiver_keypair = get_asym_key_pair().unwrap();
+
+        let plaintext = b"Secret Message";
+        let encrypted_message =
+            encrypt_asym(plaintext, &sender_keypair, receiver_keypair.public_key()).unwrap();
+
+        let decrypted_message = decrypt_asym(
+            encrypted_message,
+            &receiver_keypair,
+            sender_keypair.public_key(),
+        )
+        .unwrap();
+
+        assert_eq!(plaintext.to_vec(), decrypted_message);
+    }
+
+    #[test]
+    fn test_asymmetric_encryption_decryption_error_handling() {
+        let sender_keypair = get_asym_key_pair().unwrap();
+        let receiver_keypair = KeyPair(cipher::Keypair::generate().unwrap()); // Create a different keypair
+        let invalid_receiver_keypair = KeyPair(cipher::Keypair::generate().unwrap()); // Create a different keypair
+
+        let plaintext = b"Secret Message";
+        let encrypted_message =
+            encrypt_asym(plaintext, &sender_keypair, receiver_keypair.public_key()).unwrap();
+
+        // Attempt decryption with the wrong keypair
+        let decryption_result = decrypt_asym(
+            encrypted_message,
+            &invalid_receiver_keypair,
+            sender_keypair.public_key(),
+        );
+        assert!(decryption_result.is_err());
+    }
+
+    #[test]
+    fn test_symmetric_encryption_decryption() {
+        let symmetric_key = get_new_symetric_key().unwrap();
+        let message = "Hello, Symmetric Encryption!";
+
+        let encrypted_message = encrypt_base64(message, &symmetric_key).unwrap();
+        let decrypted_message = decrypt_base64(encrypted_message, &symmetric_key).unwrap();
+
+        assert_eq!(message, decrypted_message);
+    }
+
+    #[test]
+    fn test_base64_conversion() {
+        let original_data = b"Test Data";
+        let base64_encoded = to_base64(original_data);
+        let decoded_data = from_base64(&base64_encoded).unwrap();
+
+        assert_eq!(original_data.to_vec(), decoded_data);
+    }
+
+    #[test]
+    fn test_base64_decoding_error_handling() {
+        let bad_base64 = "Invalid Base64 String!";
+        let decoding_result = from_base64(bad_base64);
+        assert!(decoding_result.is_err());
+    }
+}
+
 #[allow(dead_code)]
 mod dummy_crypto {
     use super::*;
