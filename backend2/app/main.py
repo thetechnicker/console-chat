@@ -17,9 +17,9 @@ from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBea
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
-from app.database import *
-
-# from fastapi.responses import JSONResponse, StreamingResponse
+from app.datamodel import init_postgesql_connection
+from app.datamodel.message import Message, MessagePublic, StaticRoom, StaticRoomPublic
+from app.datamodel.user import AppearancePublic, User, UserPrivate, UserPublic
 
 
 class Token(BaseModel):
@@ -30,7 +30,12 @@ class Token(BaseModel):
 
 class OnlineResponce(BaseModel):
     token: Token
-    user: User
+    user: UserPrivate
+
+
+class LoginData(BaseModel):
+    username: str
+    password: str
 
 
 class UUIDEncoder(json.JSONEncoder):
@@ -120,27 +125,26 @@ def verify_password(hashed: str, username: str, password: str) -> bool:
 
 
 def create_access_token(
-    user: User, expires_delta: int = TOKEN_TTL, is_new: bool = True
+    user: User | UserPrivate, expires_delta: int = TOKEN_TTL, is_new: bool = True
 ) -> Token:
     expire = datetime.now(timezone.utc) + timedelta(seconds=expires_delta or TOKEN_TTL)
+    user_dict = user.model_dump()
+    user_dict["id"] = str(user_dict["id"])
     to_encode = {
         "exp": expire,
         "iss": "http://localhost:8000/auth",
-        "user": {
-            "id": str(user.id),  # Convert UUID to string
-            "username": user.username,
-        },
+        "user": user_dict,
     }
     token_str = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     token = Token(token=token_str, ttl=expires_delta, is_new=is_new)
     return token
 
 
-def get_user_from_token(token: str) -> User:
+def get_user_from_token(token: str) -> UserPrivate:
     try:
         # Decode the JWT token
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return User.model_validate(payload.get("user"))  # Adjust as needed
+        return UserPrivate.model_validate(payload.get("user"))  # Adjust as needed
     except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired"
@@ -149,6 +153,12 @@ def get_user_from_token(token: str) -> User:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
         )
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Security(bearer_scheme),
+) -> UserPrivate:
+    return get_user_from_token(credentials.credentials)
 
 
 def validate_api_key(key: str = Depends(api_key)):
@@ -164,42 +174,51 @@ API_KEY_AUTH = Annotated[None, Depends(validate_api_key)]
 @app.get("/online", response_model=OnlineResponce)
 def online(
     credentials: Optional[HTTPAuthorizationCredentials] = Security(bearer_scheme),
-    username: Optional[str] = Body(None),
-    password: Optional[str] = Body(None),
     db_context: DatabaseContext = Depends(get_db_context),
 ):
-    # Check for mixed authentication methods
-    if credentials and (username or password):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot use token and username/password simultaneously.",
-        )
-
     # Handle Bearer Token Authentication
     if credentials:
         user = get_user_from_token(credentials.credentials)
         if user:
-            # TODO: maybe set a flag online
             token = create_access_token(user, TOKEN_TTL)
             return OnlineResponce(token=token, user=user)
-    # Handle Username and Password Authentication
-    if username and password:
-        stmt = select(User).where(User.username == username)
-        user = db_context.psql_session.exec(stmt).one_or_none()
-        if (
-            user
-            and user.password
-            and verify_password(user.password, username, password)
-        ):
-            token = create_access_token(user, TOKEN_TTL, True)
-            return OnlineResponce(token=token, user=user)
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
-            )
 
-    user = User(appearance_id=-1)
-    color = deterministic_color_from_string(str(user.id))
-    user.appearance = Appearance(color=color)
+    id = uuid.uuid4()
+    user = UserPrivate(
+        id=id,
+        appearance=AppearancePublic(color=deterministic_color_from_string(str(id))),
+        password=None,
+    )
     token = create_access_token(user, TOKEN_TTL, True)
     return OnlineResponce(token=token, user=user)
+
+
+@app.post("/login", response_model=OnlineResponce)
+def login(
+    login: Annotated[LoginData, Body()],
+    db_context: DatabaseContext = Depends(get_db_context),
+):
+    # Handle Username and Password Authentication
+    stmt = select(User).where(User.username == login.username)
+    user = db_context.psql_session.exec(stmt).one_or_none()
+    if (
+        user
+        and user.password
+        and verify_password(user.password, login.username, login.password)
+    ):
+        token = create_access_token(user, TOKEN_TTL, True)
+        return OnlineResponce(token=token, user=UserPrivate.model_validate(user))
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
+        )
+
+
+@app.post("/room/{room}")
+def send(
+    room: str,
+    message: Annotated[MessagePublic, Body()],
+    user: UserPrivate = Depends(get_current_user),
+    db_context: DatabaseContext = Depends(get_db_context),
+):
+    pass
