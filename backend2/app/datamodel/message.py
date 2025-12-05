@@ -18,6 +18,7 @@ class MessageType(IntEnum):
     KEY_RESPONSE = 4
     SYSTEM = 5
     JOIN = 6
+    LEAVE = 7
 
 
 class BaseMessage(BaseModel):
@@ -55,18 +56,15 @@ class JoinMessage(BaseMessage):
 MessageContent = Union[Encrypted, Plaintext, KeyRequest, KeyResponse, SystemMessage]
 
 
-class MessageBase(SQLModel):
+class MessageBase(BaseModel):
     type: MessageType = Field(default=MessageType.PLAINTEXT)
     content: Optional[MessageContent] = Field(default=None, sa_column=Column(JSON))
     send_at: datetime = Field(default_factory=datetime.now)
     data: Optional[Json] = Field(default=None, sa_column=Column(JSON))
 
 
-class Message(MessageBase, table=True):
-    id: int = Field(primary_key=True)
-    sender_id: Optional[uuid.UUID] = Field(default=None, foreign_key="user.id")
-    sender: Optional["User"] = Relationship()
-    room: Optional[str] = Field(default=None, foreign_key="staticroom.name")
+class MessageSend(MessageBase):
+    pass
 
 
 class MessagePublic(MessageBase):
@@ -76,13 +74,12 @@ class MessagePublic(MessageBase):
 class StaticRoomBase(SQLModel):
     name: str = Field(unique=True)
     key: str = Field()
-    owner_id: uuid.UUID = Field(default=None, foreign_key="user.id")
 
 
 class StaticRoom(StaticRoomBase, table=True):
     id: int = Field(primary_key=True)
+    owner_id: uuid.UUID = Field(default=None, foreign_key="user.id")
     owner: "User" = Relationship(back_populates="static_rooms")
-    messages: List[Message] = Relationship(back_populates="room")
     users: List["User"] = Relationship()
 
 
@@ -97,5 +94,4 @@ class StaticRoomUser(SQLModel, table=True):
 
 class StaticRoomPublic(StaticRoomBase):
     id: int
-    messages: List[Message]
     owner: "User"

@@ -30,7 +30,7 @@ class UserPublic(UserBase):
 
 class UserPrivate(UserPublic):
     id: uuid.UUID
-    password: Optional[str]
+    # password: Optional[str]
 
 
 class UserUpdate(UserBase):

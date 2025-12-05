@@ -12,7 +12,17 @@ import jwt
 import valkey.asyncio as valkey
 from argon2 import PasswordHasher
 from dotenv import load_dotenv
-from fastapi import Body, Depends, FastAPI, HTTPException, Query, Security, status
+from fastapi import (
+    Body,
+    Depends,
+    FastAPI,
+    HTTPException,
+    Query,
+    Security,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from fastapi.exceptions import HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
@@ -20,17 +30,11 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from app.datamodel import init_postgesql_connection
-from app.datamodel.message import (
-    Encrypted,
-    KeyRequest,
-    KeyResponse,
-    Message,
-    MessageContent,
+from app.datamodel.message import (  # Encrypted,; KeyRequest,; KeyResponse,; Message,; MessageContent,; StaticRoom,; StaticRoomPublic,
     MessagePublic,
+    MessageSend,
     MessageType,
     Plaintext,
-    StaticRoom,
-    StaticRoomPublic,
     SystemMessage,
 )
 from app.datamodel.user import AppearancePublic, User, UserPrivate, UserPublic
@@ -143,7 +147,7 @@ def create_access_token(
     user: User | UserPrivate, expires_delta: int = TOKEN_TTL, is_new: bool = True
 ) -> Token:
     expire = datetime.now(timezone.utc) + timedelta(seconds=expires_delta or TOKEN_TTL)
-    user_dict = user.model_dump()
+    user_dict = UserPrivate.model_validate(user).model_dump()
     user_dict["id"] = str(user_dict["id"])
     to_encode = {
         "exp": expire,
@@ -202,7 +206,6 @@ def online(
     user = UserPrivate(
         id=id,
         appearance=AppearancePublic(color=deterministic_color_from_string(str(id))),
-        password=None,
     )
     token = create_access_token(user, TOKEN_TTL, True)
     return OnlineResponce(token=token, user=user)
@@ -232,11 +235,14 @@ def login(
 @app.post("/room/{room}")
 async def send(
     room: str,
-    message: Annotated[MessagePublic, Body()],
+    message: Annotated[MessageSend, Body()],
     user: UserPrivate = Depends(get_current_user),
     db_context: DatabaseContext = Depends(get_db_context),
 ):
-    await db_context.valkey.publish(room, message.model_dump_json())
+    message_dict = message.model_dump()
+    message_dict["sender"] = UserPublic.model_validate(user)
+    public_message = MessagePublic.model_validate(message_dict)
+    await db_context.valkey.publish(room, public_message.model_dump_json())
 
     return MessagePublic(
         type=MessageType.SYSTEM,
@@ -248,8 +254,8 @@ async def send(
 @app.get("/room/{room}")
 async def listen(
     room: str,
-    user: UserPrivate = Depends(get_current_user),
     listen_seconds: int = Query(30, description="How long to listen in seconds"),
+    user: UserPrivate = Depends(get_current_user),
     db_context: DatabaseContext = Depends(get_db_context),
 ):
     first_join = await db_context.valkey.exists(f"{room}:{user.username}") == 0
@@ -310,3 +316,56 @@ async def get_message(
                 if not isinstance(data, str):
                     print(type(data))
                 yield data
+
+
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: dict[str, list[WebSocket]] = {}
+
+    async def connect(self, room: str, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.setdefault(room, [])
+        self.active_connections[room].append(websocket)
+
+    def disconnect(self, room: str, websocket: WebSocket):
+        if room in self.active_connections:
+            self.active_connections[room].remove(websocket)
+
+    async def send_personal_message(self, message: MessagePublic, websocket: WebSocket):
+        await websocket.send_json(message)
+
+    async def broadcast(self, room: str, message: MessagePublic):
+        for connection in self.active_connections.get(room, []):
+            await connection.send_json(message)
+
+
+manager = ConnectionManager()
+
+
+@app.websocket("/ws/room/{room}")
+async def websocket_endpoint(
+    websocket: WebSocket,
+    room: str,
+    user: UserPrivate = Depends(get_current_user),
+    db_context: DatabaseContext = Depends(get_db_context),
+):
+    await manager.connect(room, websocket)
+    public_user = UserPublic.model_validate(user)
+    try:
+        while True:
+            message_json = await websocket.receive_json()
+            message_json["sender"] = public_user
+            message = MessagePublic.model_validate(message_json)
+            # await db_context.valkey.publish(room, public_message.model_dump_json())
+            await manager.send_personal_message(message, websocket)
+            await manager.broadcast(room, message)
+    except WebSocketDisconnect:
+        manager.disconnect(room, websocket)
+        await manager.broadcast(
+            room,
+            MessagePublic(
+                type=MessageType.LEAVE,
+                content=Plaintext(content=f"User {public_user.username} left"),
+                sender=None,
+            ),
+        )
