@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import json
 import os
@@ -11,14 +12,27 @@ import jwt
 import valkey.asyncio as valkey
 from argon2 import PasswordHasher
 from dotenv import load_dotenv
-from fastapi import Body, Depends, FastAPI, HTTPException, Security, status
+from fastapi import Body, Depends, FastAPI, HTTPException, Query, Security, status
 from fastapi.exceptions import HTTPException
+from fastapi.responses import StreamingResponse
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from app.datamodel import init_postgesql_connection
-from app.datamodel.message import Message, MessagePublic, StaticRoom, StaticRoomPublic
+from app.datamodel.message import (
+    Encrypted,
+    KeyRequest,
+    KeyResponse,
+    Message,
+    MessageContent,
+    MessagePublic,
+    MessageType,
+    Plaintext,
+    StaticRoom,
+    StaticRoomPublic,
+    SystemMessage,
+)
 from app.datamodel.user import AppearancePublic, User, UserPrivate, UserPublic
 
 
@@ -81,7 +95,8 @@ DatabaseContext = NamedTuple(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global v_pool, engine
-    v_pool = valkey.ConnectionPool(host="valkey", port=6379, protocol=3)
+    valkey_host = os.getenv("VALKEY_HOST", "valkey")
+    v_pool = valkey.ConnectionPool(host=valkey_host, port=6379, protocol=3)
     engine = init_postgesql_connection()
     yield
 
@@ -215,10 +230,83 @@ def login(
 
 
 @app.post("/room/{room}")
-def send(
+async def send(
     room: str,
     message: Annotated[MessagePublic, Body()],
     user: UserPrivate = Depends(get_current_user),
     db_context: DatabaseContext = Depends(get_db_context),
 ):
-    pass
+    await db_context.valkey.publish(room, message.model_dump_json())
+
+    return MessagePublic(
+        type=MessageType.SYSTEM,
+        content=Plaintext(content=f"send successful by user {user.username}"),
+        sender=None,
+    )
+
+
+@app.get("/room/{room}")
+async def listen(
+    room: str,
+    user: UserPrivate = Depends(get_current_user),
+    listen_seconds: int = Query(30, description="How long to listen in seconds"),
+    db_context: DatabaseContext = Depends(get_db_context),
+):
+    first_join = await db_context.valkey.exists(f"{room}:{user.username}") == 0
+    if first_join:
+        # _, num_users = (await db_context.valkey.pubsub_numsub(room))[0]
+        await db_context.valkey.publish(
+            room,
+            MessagePublic(
+                type=MessageType.JOIN,
+                content=Plaintext(content=f"User {user.username} joined"),
+                sender=user,
+            ).model_dump_json(),
+        )
+        await db_context.valkey.set(
+            f"{room}:{user.username}", "1", ex=listen_seconds + LEAVE_DELAY
+        )
+    else:
+        await db_context.valkey.expire(
+            f"{room}:{user.username}", listen_seconds + LEAVE_DELAY
+        )
+    return StreamingResponse(
+        get_message(room, listen_seconds, db_context, first_join),
+        media_type="application/json",
+    )
+
+
+async def get_message(
+    room: str,
+    timeout: int,
+    context: DatabaseContext,
+    first_join: bool = False,
+):
+    async with context.valkey.pubsub() as pubsub:
+        await pubsub.subscribe(room)
+        if first_join:
+            _, num_users = (await context.valkey.pubsub_numsub(room))[0]
+            yield MessagePublic(
+                type=MessageType.SYSTEM,
+                content=SystemMessage(content="People Online", online_users=num_users),
+                sender=None,
+            ).model_dump_json().encode()
+
+        end_time = asyncio.get_event_loop().time() + timeout
+
+        while True:
+            remaining = end_time - asyncio.get_event_loop().time()
+            if remaining <= 0:
+                yield b"END"
+                break
+            try:
+                message = await pubsub.get_message(
+                    ignore_subscribe_messages=True, timeout=remaining
+                )
+            except Exception:
+                continue
+            if message is not None:
+                data: str | bytes | Any = message["data"]
+                if not isinstance(data, str):
+                    print(type(data))
+                yield data

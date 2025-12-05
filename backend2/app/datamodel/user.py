@@ -33,6 +33,12 @@ class UserPrivate(UserPublic):
     password: Optional[str]
 
 
+class UserUpdate(UserBase):
+    password: str
+    new_password: Optional[str]
+    appearance: Optional["AppearanceUpdate"]
+
+
 class AppearanceBase(SQLModel):
     color: Optional[str] = Field(default=None)
 
@@ -43,3 +49,7 @@ class Appearance(AppearanceBase, table=True):
 
 class AppearancePublic(AppearanceBase):
     pass
+
+
+class AppearanceUpdate(UserBase):
+    color: Optional[str]

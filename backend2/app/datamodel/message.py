@@ -6,7 +6,6 @@ from typing import List, Optional, Union
 from pydantic import BaseModel
 from sqlmodel import JSON, Column, Field, Relationship, SQLModel
 
-# if TYPE_CHECKING:
 from app.datamodel.user import User, UserPublic
 
 type Json = dict[str, Json] | list[Json] | str | int | float | bool | None
@@ -18,6 +17,7 @@ class MessageType(IntEnum):
     KEY_REQUEST = 3
     KEY_RESPONSE = 4
     SYSTEM = 5
+    JOIN = 6
 
 
 class BaseMessage(BaseModel):
@@ -48,7 +48,10 @@ class SystemMessage(BaseMessage):
     online_users: int
 
 
-# type MessageContent = Encrypted | Plaintext | KeyRequest | KeyResponse | SystemMessage
+class JoinMessage(BaseMessage):
+    content: str
+
+
 MessageContent = Union[Encrypted, Plaintext, KeyRequest, KeyResponse, SystemMessage]
 
 
@@ -80,6 +83,16 @@ class StaticRoom(StaticRoomBase, table=True):
     id: int = Field(primary_key=True)
     owner: "User" = Relationship(back_populates="static_rooms")
     messages: List[Message] = Relationship(back_populates="room")
+    users: List["User"] = Relationship()
+
+
+class StaticRoomUser(SQLModel, table=True):
+    user_id: uuid.UUID | None = Field(
+        default=None, foreign_key="user.id", primary_key=True
+    )
+    room_id: int | None = Field(
+        default=None, foreign_key="staticroom.id", primary_key=True
+    )
 
 
 class StaticRoomPublic(StaticRoomBase):
