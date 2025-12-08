@@ -1,4 +1,4 @@
-fastapi==0.118.3
+fastapi==0.124.0
 pydantic==2.12.0
 pwdlib==0.2.1
 PyJWT==2.10.1
