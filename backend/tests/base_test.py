@@ -66,7 +66,7 @@ async def test_root_no_key(setup_test_db: DatabaseContext):
         base_url="http://test",
     ) as ac:
         response = await ac.get("/")
-    assert response.status_code == 403
+    assert response.status_code == 401
 
 
 @pytest.mark.asyncio
