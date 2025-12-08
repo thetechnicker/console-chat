@@ -1,3 +1,5 @@
+import random
+import string
 import uuid
 from enum import IntEnum
 from typing import TYPE_CHECKING, List, Optional
@@ -6,6 +8,57 @@ from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
     from .message import StaticRoom
+
+
+def random_suffix(length: int = 5, rand: Optional[random.Random] = None):
+    """Generate a random alphanumeric string deterministically if rand is provided."""
+    if rand is None:
+        rand = random.Random()
+    return "".join(rand.choices(string.ascii_lowercase + string.digits, k=length))
+
+
+def generate_temp_username(id: Optional[str | uuid.UUID] = None):
+    prefixes = [
+        "TempUser",
+        "Guest",
+        "Anon",
+        "Visitor",
+        "Unreg",
+        "Phantom",
+        "Shadow",
+        "Ephemeral",
+    ]
+    adjectives = [
+        "Swift",
+        "Silent",
+        "Wandering",
+        "Hidden",
+        "Transient",
+        "Fleeting",
+        "Passing",
+        "Ghostly",
+    ]
+    nouns = [
+        "Nomad",
+        "Specter",
+        "Voyager",
+        "Traveler",
+        "Entity",
+        "Drifter",
+        "Stranger",
+        "Wisp",
+    ]
+    uuid_str = str(id) if id else None
+    if uuid_str is not None:
+        rand = random.Random(uuid_str)
+    else:
+        rand = random.Random()
+
+    prefix = rand.choice(prefixes)
+    adj = rand.choice(adjectives)
+    noun = rand.choice(nouns)
+    suffix = random_suffix(6, rand=rand)
+    return f"{prefix}_{adj}{noun}_{suffix}"
 
 
 class UserType(IntEnum):

@@ -2,11 +2,11 @@ version: 1
 disable_existing_loggers: false
 formatters:
   simple:
-    format: '[%(levelname)s|%(correlation_id)s|%(name)s] %(asctime)s: %(message)s'
+    format: '%(asctime)s [%(levelname)s|%(correlation_id)s|%(name)s]: %(message)s'
     datefmt: '%Y-%m-%dT%H:%M:%S%z'
   ansi:
     (): app.logger.ColorFormatter
-    format: '[%(levelname)s|%(correlation_id)s|%(name)s] %(asctime)s: %(message)s'
+    format: ' %(asctime)s [%(levelname)s|%(name)s|%(correlation_id)s]: %(message)s'
     datefmt: '%Y-%m-%dT%H:%M:%S%z'
   json:
     (): app.logger.MyJSONFormatter
@@ -55,10 +55,13 @@ handlers:
     handlers:
       - stderr
       - file_json
-      #- file_ansi
+      - file_ansi
     respect_handler_level: true
 loggers:
   root:
     level: DEBUG
     handlers:
-      - queue_handler
+      #- queue_handler
+      - stderr
+      - file_json
+      - file_ansi

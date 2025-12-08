@@ -15,8 +15,8 @@ from app.datamodel.user import UserPublic
 from app.dependencies import (
     LEAVE_DELAY,
     DatabaseContext,
-    DatabaseDependencie,
-    UserDependencie,
+    DatabaseDependency,
+    UserDependency,
 )
 
 router = APIRouter(
@@ -29,8 +29,8 @@ router = APIRouter(
 async def send(
     room: str,
     message: Annotated[MessageSend, Body()],
-    user: UserDependencie,
-    db_context: DatabaseDependencie,
+    user: UserDependency,
+    db_context: DatabaseDependency,
 ):
     message_dict = message.model_dump()
     message_dict["sender"] = UserPublic.model_validate(user)
@@ -47,8 +47,8 @@ async def send(
 @router.get("/{room}")
 async def listen(
     room: str,
-    user: UserDependencie,
-    db_context: DatabaseDependencie,
+    user: UserDependency,
+    db_context: DatabaseDependency,
     listen_seconds: int = Query(30, description="How long to listen in seconds"),
 ):
     first_join = await db_context.valkey.exists(f"{room}:{user.username}") == 0

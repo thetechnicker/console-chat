@@ -13,13 +13,8 @@ import valkey.asyncio as valkey
 from argon2 import PasswordHasher
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Security, status
-from fastapi.exceptions import HTTPException
-from fastapi.security import (
-    APIKeyHeader,
-    HTTPAuthorizationCredentials,
-    HTTPBearer,
-    OAuth2PasswordBearer,
-)
+from fastapi.security import APIKeyHeader  # OAuth2PasswordBearer,
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
@@ -28,15 +23,14 @@ from app.datamodel.user import AppearancePublic, User, UserPrivate, UserType
 
 load_dotenv()
 
-LEAVE_DELAY = 10  # How long between requests to `/room/{room_name}` before being marked as offline
-
-TOKEN_TTL = 60 * 60 * 24  # seconds
+LEAVE_DELAY = 10  # seconds before being marked offline
+TOKEN_TTL = 60 * 60 * 24  # Token Time-to-Live in seconds
 TOKEN_PREFIX = "session_token:"
-
 ALGORITHM = "HS256"
-SECRET_KEY = os.getenv("SECRET", "secret")  # Secure random key recommended
+SECRET_KEY = os.getenv("SECRET", "secret")  # Use a secure random key
+
 if SECRET_KEY == "secret":
-    warnings.warn("No secret given")
+    warnings.warn("No secret key provided! Please set a secure one.")
 
 DatabaseContext = NamedTuple(
     "Context", [("valkey", valkey.Valkey), ("psql_session", Session)]
@@ -46,10 +40,9 @@ DatabaseContext = NamedTuple(
 class Token(BaseModel):
     token: str
     ttl: int
-    # is_new: bool
 
 
-class OnlineResponce(BaseModel):
+class OnlineResponse(BaseModel):
     token: Token
     user: uuid.UUID
 
@@ -64,19 +57,21 @@ class RegisterData(BaseModel):
     password: str
 
 
-auth_bearer_scheme = HTTPBearer()  # Enforce auth
-optional_auth_bearer_scheme = HTTPBearer(auto_error=False)  # Optional auth
+# Authentication schemes
+auth_bearer_scheme = HTTPBearer()
+optional_auth_bearer_scheme = HTTPBearer(auto_error=False)
 api_key_scheme = APIKeyHeader(name="X-Api-Key")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="users/token")
+# oauth2_scheme = OAuth2PasswordBearer(tokenUrl="users/token")
 
 
 def validate_api_key(key: Annotated[str, Security(api_key_scheme)]):
-    dest_key = os.environ.get("DEV_API_KEY")
+    dest_key = os.getenv("DEV_API_KEY")
     if dest_key and dest_key == key:
         return
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
 
 
+# Global variables
 v_pool = None
 engine = None
 
@@ -94,7 +89,7 @@ def get_db_context():
     if v_pool is None or engine is None:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="The database connections whererent initialized correctly",
+            detail="Database connections weren't initialized correctly.",
         )
     with Session(engine) as session:
         yield DatabaseContext(
@@ -102,66 +97,62 @@ def get_db_context():
         )
 
 
-DatabaseDependencie = Annotated[DatabaseContext, Depends(get_db_context)]
-TokenDependencie = Annotated[HTTPAuthorizationCredentials, Security(auth_bearer_scheme)]
-OptionalTokenDependencie = Annotated[
+DatabaseDependency = Annotated[DatabaseContext, Depends(get_db_context)]
+TokenDependency = Annotated[HTTPAuthorizationCredentials, Security(auth_bearer_scheme)]
+OptionalTokenDependency = Annotated[
     Optional[HTTPAuthorizationCredentials], Security(optional_auth_bearer_scheme)
 ]
 ApiKeyAuth = Annotated[None, Security(validate_api_key)]
 
 
-async def get_user_from_token(token: str, db: DatabaseDependencie) -> UserPrivate:
+async def get_user_from_token(token: str, db: DatabaseDependency) -> UserPrivate:
     try:
-        # Decode the JWT token
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        id = payload.get("id")
+        id = payload.get("sub")
         if not payload.get("tmp", True):
             stmt = select(User).where(User.id == id)
-            res = db.psql_session.exec(stmt)
-            user = res.one_or_none()
+            user = db.psql_session.exec(stmt).one_or_none()
+            return UserPrivate.model_validate(user)
         else:
             res = await db.valkey.get(id)
-            logging.root.debug(f"{res}")
-            # user = User.model_validate_json(res)
+            logging.debug(f"Temporary user data: {res}")
             return UserPrivate(
                 appearance=AppearancePublic(color="#ffccff"), id=uuid.uuid4()
             )
-        return UserPrivate.model_validate(user)
     except jwt.ExpiredSignatureError:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired."
         )
     except jwt.PyJWTError:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token."
         )
 
 
 async def get_current_user(
-    credentials: TokenDependencie,
-    db: DatabaseDependencie,
+    credentials: TokenDependency, db: DatabaseDependency
 ) -> UserPrivate:
     return await get_user_from_token(credentials.credentials, db)
 
 
-async def get_current_user_oauth(
-    token: Annotated[str, Depends(oauth2_scheme)], db: DatabaseDependencie
-) -> UserPrivate:
-    user = await get_user_from_token(token, db)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return user
+# async def get_current_user_oauth(
+#    token: Annotated[str, Depends(oauth2_scheme)], db: DatabaseDependency
+# ) -> UserPrivate:
+#    user = await get_user_from_token(token, db)
+#    if not user:
+#        raise HTTPException(
+#            status_code=status.HTTP_401_UNAUTHORIZED,
+#            detail="Not authenticated.",
+#            headers={"WWW-Authenticate": "Bearer"},
+#        )
+#    return user
 
 
-UserDependencie = Annotated[UserPrivate, Depends(get_current_user_oauth)]
+UserDependency = Annotated[UserPrivate, Depends(get_current_user)]
 
 
 class UUIDEncoder(json.JSONEncoder):
-    def default(self, o: Any):
+    def default(self, o: Any) -> Any:
         if isinstance(o, uuid.UUID):
             return str(o)  # Convert UUID to string
         return super().default(o)
@@ -170,12 +161,9 @@ class UUIDEncoder(json.JSONEncoder):
 ph = PasswordHasher()
 
 
-def secure_hash_argon2(username: str, password: str):
-    # Combine username and password
-    combined = username + password
-    # Create the hash
-    hash_pw = ph.hash(combined)
-    return hash_pw
+def secure_hash_argon2(username: str, password: str) -> str:
+    combined = username + password  # Combine username and password
+    return ph.hash(combined)  # Create the hash
 
 
 def verify_password(hashed: str, username: str, password: str) -> bool:
@@ -194,18 +182,18 @@ def create_access_token(
     expire = datetime.now(timezone.utc) + timedelta(seconds=expires_delta or TOKEN_TTL)
     to_encode = {
         "exp": expire,
+        "iat": datetime.now(timezone.utc),
         "iss": "http://localhost:8000/auth",
-        "id": str(user.id),
-        "tmp": True if user.user_type == UserType.GUEST else False,
+        "sub": str(user.id),
+        "name": user.username,
+        "tmp": user.user_type == UserType.GUEST,
     }
     token_str = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    token = Token(token=token_str, ttl=expires_delta)
-    return token
+    return Token(token=token_str, ttl=expires_delta)
 
 
 def deterministic_color_from_string(input_string: str) -> str:
     # Hash the input string using SHA-256 to get a consistent fixed-length hash
     hash_bytes = hashlib.sha256(input_string.encode("utf-8")).hexdigest()
-    # Convert first three bytes of hash to integers for RGB
-    color = hash_bytes[0:6]
+    color = hash_bytes[0:6]  # Take first six characters for hex color code
     return f"#{color}"

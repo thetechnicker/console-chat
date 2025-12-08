@@ -1,9 +1,8 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from fastapi.exceptions import HTTPException
-from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import select
 
 from app.datamodel.user import (
@@ -13,16 +12,18 @@ from app.datamodel.user import (
     UserPrivate,
     UserPublic,
     UserType,
+    generate_temp_username,
 )
 from app.dependencies import (
     TOKEN_TTL,
     ApiKeyAuth,
     DatabaseContext,
-    DatabaseDependencie,
+    DatabaseDependency,
     LoginData,
-    OnlineResponce,
-    OptionalTokenDependencie,
+    OnlineResponse,
+    OptionalTokenDependency,
     RegisterData,
+    UserDependency,
     create_access_token,
     deterministic_color_from_string,
     get_db_context,
@@ -39,7 +40,7 @@ router = APIRouter(
 
 @router.get("/", response_model=list[UserPublic])
 async def users(
-    db_context: DatabaseDependencie,
+    db_context: DatabaseDependency,
     _: ApiKeyAuth,
 ):
     stmt = select(User)
@@ -47,30 +48,37 @@ async def users(
     return [UserPublic.model_validate(m) for m in result.all()]
 
 
-@router.get("/online", response_model=OnlineResponce)
+@router.get("/online", response_model=OnlineResponse)
 async def online(
-    db_context: DatabaseDependencie,
-    credentials: OptionalTokenDependencie,
+    db_context: DatabaseDependency,
+    credentials: OptionalTokenDependency,
+    username: Annotated[str | None, Query()] = None,
 ):
     # Handle Bearer Token Authentication
+    username = None
     if credentials:
         user = await get_user_from_token(credentials.credentials, db_context)
+        if username:
+            user.username
         if user:
             token = create_access_token(user, TOKEN_TTL)
-            return OnlineResponce(token=token, user=user.id)
+            return OnlineResponse(token=token, user=user.id)
 
     id = uuid.uuid4()
+    if username is None:
+        username = generate_temp_username(id)
     user = UserPrivate(
         id=id,
+        username=username,
         appearance=AppearancePublic(color=deterministic_color_from_string(str(id))),
     )
     user_complete = User.model_validate(user)
     db_context.valkey.set(str(user_complete.id), user_complete.model_dump_json())
     token = create_access_token(user, TOKEN_TTL)
-    return OnlineResponce(token=token, user=user_complete.id)
+    return OnlineResponse(token=token, user=user_complete.id)
 
 
-@router.post("/login", response_model=OnlineResponce)
+@router.post("/login", response_model=OnlineResponse)
 async def login(
     login: Annotated[LoginData, Body()],
     db_context: DatabaseContext = Depends(get_db_context),
@@ -85,18 +93,18 @@ async def login(
     ):
         token = create_access_token(user, TOKEN_TTL)
 
-        return OnlineResponce(token=token, user=user.id)
+        return OnlineResponse(token=token, user=user.id)
     else:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
         )
 
 
-@router.post("/register", response_model=OnlineResponce)
+@router.post("/register", response_model=OnlineResponse)
 async def register(
     login: Annotated[RegisterData, Body()],
-    db_context: DatabaseDependencie,
-    current_token: OptionalTokenDependencie,
+    db_context: DatabaseDependency,
+    current_token: OptionalTokenDependency,
 ):
     if login.username is None and (current_token is None):
         raise HTTPException(
@@ -132,25 +140,30 @@ async def register(
             db_context.psql_session.commit()
             db_context.psql_session.refresh(new_user)
             token = create_access_token(new_user, TOKEN_TTL)
-            return OnlineResponce(token=token, user=new_user.id)
+            return OnlineResponse(token=token, user=new_user.id)
 
 
-@router.post("/token")
-async def login_oauth(
-    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-    db_context: DatabaseDependencie,
-):
-    stmt = select(User).where(User.username == form_data.username)
-    user = db_context.psql_session.exec(stmt).one_or_none()
-    if (
-        user
-        and user.password
-        and verify_password(user.password, form_data.username, form_data.password)
-    ):
-        token = create_access_token(user, TOKEN_TTL)
+@router.get("/me")
+async def get_me(user: UserDependency):
+    return UserPrivate.model_validate(user)
 
-        return OnlineResponce(token=token, user=user.id)
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
-        )
+
+# @router.post("/token")
+# async def login_oauth(
+#    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+#    db_context: DatabaseDependency,
+# ):
+#    stmt = select(User).where(User.username == form_data.username)
+#    user = db_context.psql_session.exec(stmt).one_or_none()
+#    if (
+#        user
+#        and user.password
+#        and verify_password(user.password, form_data.username, form_data.password)
+#    ):
+#        token = create_access_token(user, TOKEN_TTL)
+#
+#        return OnlineResponse(token=token, user=user.id)
+#    else:
+#        raise HTTPException(
+#            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
+#        )

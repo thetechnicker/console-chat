@@ -2,7 +2,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.datamodel.message import MessagePublic, MessageType, Plaintext
 from app.datamodel.user import UserPublic
-from app.dependencies import DatabaseDependencie, UserDependencie
+from app.dependencies import DatabaseDependency, UserDependency
 
 router = APIRouter(
     prefix="/ws",
@@ -38,8 +38,8 @@ manager = ConnectionManager()
 async def websocket_endpoint(
     websocket: WebSocket,
     room: str,
-    user: UserDependencie,
-    db_context: DatabaseDependencie,
+    user: UserDependency,
+    db_context: DatabaseDependency,
 ):
     await manager.connect(room, websocket)
     public_user = UserPublic.model_validate(user)
