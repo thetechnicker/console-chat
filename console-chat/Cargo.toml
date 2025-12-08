@@ -27,7 +27,7 @@ color-eyre = "0.6.5"
 config = "0.14.1"
 crossterm = { version = "0.28.1", features = ["serde", "event-stream"] }
 derive_deref = "1.1.1"
-directories = "5.0.1"
+directories = "6.0.0"
 futures = "0.3.31"
 human-panic = "2.0.4"
 json5 = "1.3.0"
