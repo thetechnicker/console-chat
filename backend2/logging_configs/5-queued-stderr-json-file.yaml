@@ -1,0 +1,64 @@
+version: 1
+disable_existing_loggers: false
+formatters:
+  simple:
+    format: '[%(levelname)s|%(correlation_id)s|%(name)s] %(asctime)s: %(message)s'
+    datefmt: '%Y-%m-%dT%H:%M:%S%z'
+  ansi:
+    (): app.logger.ColorFormatter
+    format: '[%(levelname)s|%(correlation_id)s|%(name)s] %(asctime)s: %(message)s'
+    datefmt: '%Y-%m-%dT%H:%M:%S%z'
+  json:
+    (): app.logger.MyJSONFormatter
+    fmt_keys:
+      level: levelname
+      message: message
+      timestamp: timestamp
+      logger: name
+      module: module
+      function: funcName
+      line: lineno
+      thread_name: threadName
+filters:
+  correlation_id:
+    (): asgi_correlation_id.CorrelationIdFilter
+    uuid_length: 32
+    default_value: "-"
+handlers:
+  stderr:
+    class: logging.StreamHandler
+    level: WARNING
+    formatter: ansi
+    filters:
+      - correlation_id
+    stream: ext://sys.stderr
+  file_ansi:
+    filters:
+      - correlation_id
+    class: logging.handlers.RotatingFileHandler
+    level: DEBUG
+    formatter: ansi
+    filename: logs/console-chat-api.ansi.log
+    maxBytes: 10000
+    backupCount: 3
+  file_json:
+    filters:
+      - correlation_id
+    class: logging.handlers.RotatingFileHandler
+    level: DEBUG
+    formatter: json
+    filename: logs/console-chat-api.log.jsonl
+    maxBytes: 10000
+    backupCount: 3
+  queue_handler:
+    class: logging.handlers.QueueHandler
+    handlers:
+      - stderr
+      - file_json
+      #- file_ansi
+    respect_handler_level: true
+loggers:
+  root:
+    level: DEBUG
+    handlers:
+      - queue_handler

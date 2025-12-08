@@ -71,16 +71,9 @@ class MessagePublic(MessageBase):
     sender: Optional["UserPublic"]
 
 
-class StaticRoomBase(SQLModel):
+class RoomBase(SQLModel):
     name: str = Field(unique=True)
     key: str = Field()
-
-
-class StaticRoom(StaticRoomBase, table=True):
-    id: int = Field(primary_key=True)
-    owner_id: uuid.UUID = Field(default=None, foreign_key="user.id")
-    owner: "User" = Relationship(back_populates="static_rooms")
-    users: List["User"] = Relationship()
 
 
 class StaticRoomUser(SQLModel, table=True):
@@ -92,6 +85,13 @@ class StaticRoomUser(SQLModel, table=True):
     )
 
 
-class StaticRoomPublic(StaticRoomBase):
+class StaticRoom(RoomBase, table=True):
+    id: int = Field(primary_key=True)
+    owner_id: uuid.UUID = Field(default=None, foreign_key="user.id")
+    owner: "User" = Relationship(back_populates="static_rooms")
+    users: List["User"] = Relationship(link_model=StaticRoomUser)
+
+
+class StaticRoomPublic(RoomBase):
     id: int
     owner: "User"
