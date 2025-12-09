@@ -1,111 +1,134 @@
-import asyncio
-from typing import Annotated, Any
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlmodel import col, or_, select
 
-from fastapi import APIRouter, Body, Query
-from fastapi.responses import StreamingResponse
-
-from app.datamodel.message import (
-    MessagePublic,
-    MessageSend,
-    MessageType,
-    Plaintext,
-    SystemMessage,
-)
-from app.datamodel.user import UserPublic
+from app.datamodel.message import *
+from app.datamodel.user import *
 from app.dependencies import (
-    LEAVE_DELAY,
-    DatabaseContext,
     DatabaseDependency,
+    PermanentUserDependency,
     UserDependency,
+    get_current_user,
 )
 
 router = APIRouter(
     prefix="/rooms",
     tags=["rooms"],
+    dependencies=[Depends(get_current_user)],
 )
 
 
-@router.post("/{room}")
-async def send(
-    room: str,
-    message: Annotated[MessageSend, Body()],
-    user: UserDependency,
-    db_context: DatabaseDependency,
-):
-    message_dict = message.model_dump()
-    message_dict["sender"] = UserPublic.model_validate(user)
-    public_message = MessagePublic.model_validate(message_dict)
-    await db_context.valkey.publish(room, public_message.model_dump_json())
+@router.get("/", response_model=List[StaticRoomPublic])
+async def list_rooms(db: DatabaseDependency):
+    stmt = select(StaticRoom)
+    return db.psql_session.exec(stmt).all()
 
-    return MessagePublic(
-        type=MessageType.SYSTEM,
-        content=Plaintext(content=f"send successful by user {user.username}"),
-        sender=None,
+
+@router.get("/mine", response_model=List[StaticRoomPublic])
+async def get_my_rooms(user: PermanentUserDependency, db: DatabaseDependency):
+    stmt = select(StaticRoom).where(StaticRoom.owner_id == user.id)
+    rooms = db.psql_session.exec(stmt).all()
+    return rooms
+
+
+@router.put("/{room}")
+async def create_room(
+    room: str,
+    user: PermanentUserDependency,
+    db: DatabaseDependency,
+    room_data: CreateRoom,
+):
+    stmt = select(StaticRoom).where(StaticRoom.name == room)
+    db_room = db.psql_session.exec(stmt).one_or_none()
+    if db_room:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="room already exists")
+    users = []
+    if room_data.invite:
+        ids = [id for id in room_data.invite if isinstance(id, uuid.UUID)]
+        names = [name for name in room_data.invite if isinstance(name, str)]
+        stmt = select(User).where(
+            or_(col(User.id).in_(ids), col(User.username).in_(names))
+        )
+        users: List[User] = list(db.psql_session.exec(stmt).all())
+
+    new_room = StaticRoom(
+        name=room,
+        owner_id=user.id,
+        level=room_data.private_level,
+        users=users,
+        key=room_data.key,
     )
+
+    db.psql_session.add(new_room)
+    db.psql_session.commit()
+    db.psql_session.refresh(new_room)
+    return StaticRoomPublic.model_validate(new_room)
+
+
+@router.post("/{room}")
+async def update_room(
+    user: PermanentUserDependency,
+    db: DatabaseDependency,
+    room: str,
+    room_data: UpdateRoom,
+):
+    stmt = (
+        select(StaticRoom)
+        .where(StaticRoom.name == room)
+        .where(StaticRoom.owner_id == user.id)
+    )
+    db_room = db.psql_session.exec(stmt).one_or_none()
+    if db_room is None:
+        raise HTTPException(status.HTTP_418_IM_A_TEAPOT, detail="room doesnt exist")
+    if room_data.private_level is not None:
+        db_room.level = room_data.private_level
+    if room_data.key is not None:
+        db_room.key = room_data.key
+    if room_data.invite is not None:
+        ids = [id for id in room_data.invite if isinstance(id, uuid.UUID)]
+        names = [name for name in room_data.invite if isinstance(name, str)]
+        stmt = select(User).where(
+            or_(col(User.id).in_(ids), col(User.username).in_(names))
+        )
+        users: List[User] = list(db.psql_session.exec(stmt).all())
+        db_room.users += users
+    db.psql_session.add(db_room)
+    db.psql_session.commit()
+    db.psql_session.refresh(db_room)
+
+
+@router.delete("/{room}")
+async def delete_room(
+    room: str,
+    user: PermanentUserDependency,
+    db: DatabaseDependency,
+):
+    stmt = (
+        select(StaticRoom)
+        .where(StaticRoom.name == room)
+        .where(StaticRoom.owner_id == user.id)
+    )
+    db_room = db.psql_session.exec(stmt).one_or_none()
+    if db_room is None:
+        raise HTTPException(status.HTTP_418_IM_A_TEAPOT, detail="room doesnt exist")
+    db.psql_session.delete(db_room)
 
 
 @router.get("/{room}")
-async def listen(
+async def get_room(
     room: str,
     user: UserDependency,
-    db_context: DatabaseDependency,
-    listen_seconds: int = Query(30, description="How long to listen in seconds"),
+    db: DatabaseDependency,
 ):
-    first_join = await db_context.valkey.exists(f"{room}:{user.username}") == 0
-    if first_join:
-        # _, num_users = (await db_context.valkey.pubsub_numsub(room))[0]
-        await db_context.valkey.publish(
-            room,
-            MessagePublic(
-                type=MessageType.JOIN,
-                content=Plaintext(content=f"User {user.username} joined"),
-                sender=user,
-            ).model_dump_json(),
-        )
-        await db_context.valkey.set(
-            f"{room}:{user.username}", "1", ex=listen_seconds + LEAVE_DELAY
-        )
+    stmt = select(StaticRoom).where(StaticRoom.name == room)
+    db_room = db.psql_session.exec(stmt).one_or_none()
+    if db_room:
+        if db_room.level == RoomLevel.FREE:
+            return True
+        if user.user_type == UserType.GUEST:
+            return False
+        full_user = User.model_validate(user)
+        db.psql_session.refresh(full_user)
+        if full_user in db_room.users:
+            return True
     else:
-        await db_context.valkey.expire(
-            f"{room}:{user.username}", listen_seconds + LEAVE_DELAY
-        )
-    return StreamingResponse(
-        get_message(room, listen_seconds, db_context, first_join),
-        media_type="application/json",
-    )
-
-
-async def get_message(
-    room: str,
-    timeout: int,
-    context: DatabaseContext,
-    first_join: bool = False,
-):
-    async with context.valkey.pubsub() as pubsub:
-        await pubsub.subscribe(room)
-        if first_join:
-            _, num_users = (await context.valkey.pubsub_numsub(room))[0]
-            yield MessagePublic(
-                type=MessageType.SYSTEM,
-                content=SystemMessage(content="People Online", online_users=num_users),
-                sender=None,
-            ).model_dump_json().encode()
-
-        end_time = asyncio.get_event_loop().time() + timeout
-
-        while True:
-            remaining = end_time - asyncio.get_event_loop().time()
-            if remaining <= 0:
-                yield b"END"
-                break
-            try:
-                message = await pubsub.get_message(
-                    ignore_subscribe_messages=True, timeout=remaining
-                )
-            except Exception:
-                continue
-            if message is not None:
-                data: str | bytes | Any = message["data"]
-                if not isinstance(data, str):
-                    print(type(data))
-                yield data
+        return True

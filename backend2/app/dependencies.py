@@ -24,7 +24,7 @@ from app.datamodel.user import AppearancePublic, User, UserPrivate, UserType
 load_dotenv()
 
 LEAVE_DELAY = 10  # seconds before being marked offline
-TOKEN_TTL = 60 * 60 * 24  # Token Time-to-Live in seconds
+TOKEN_TTL = 60 * 30  # Token Time-to-Live in seconds
 TOKEN_PREFIX = "session_token:"
 ALGORITHM = "HS256"
 SECRET_KEY = os.getenv("SECRET", "secret")  # Use a secure random key
@@ -135,20 +135,20 @@ async def get_current_user(
     return await get_user_from_token(credentials.credentials, db)
 
 
-# async def get_current_user_oauth(
-#    token: Annotated[str, Depends(oauth2_scheme)], db: DatabaseDependency
-# ) -> UserPrivate:
-#    user = await get_user_from_token(token, db)
-#    if not user:
-#        raise HTTPException(
-#            status_code=status.HTTP_401_UNAUTHORIZED,
-#            detail="Not authenticated.",
-#            headers={"WWW-Authenticate": "Bearer"},
-#        )
-#    return user
+async def get_current_permanent_user(
+    credentials: TokenDependency, db: DatabaseDependency
+) -> UserPrivate:
+    user = await get_user_from_token(credentials.credentials, db)
+    if user.user_type == UserType.GUEST:
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            detail="only registered user can create a room",
+        )
+    return user
 
 
 UserDependency = Annotated[UserPrivate, Depends(get_current_user)]
+PermanentUserDependency = Annotated[UserPrivate, Depends(get_current_permanent_user)]
 
 
 class UUIDEncoder(json.JSONEncoder):

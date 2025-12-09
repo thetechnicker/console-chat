@@ -38,7 +38,11 @@ router = APIRouter(
 )
 
 
-@router.get("/", response_model=list[UserPublic])
+@router.get(
+    "/",
+    response_model=list[UserPublic],
+    description="Get all Users stored in the database",
+)
 async def users(
     db_context: DatabaseDependency,
     _: ApiKeyAuth,
@@ -48,7 +52,11 @@ async def users(
     return [UserPublic.model_validate(m) for m in result.all()]
 
 
-@router.get("/online", response_model=OnlineResponse)
+@router.get(
+    "/online",
+    response_model=OnlineResponse,
+    description="Set Status to online/Create Auth Token for temporary user",
+)
 async def online(
     db_context: DatabaseDependency,
     credentials: OptionalTokenDependency,
@@ -78,7 +86,9 @@ async def online(
     return OnlineResponse(token=token, user=user_complete.id)
 
 
-@router.post("/login", response_model=OnlineResponse)
+@router.post(
+    "/login", response_model=OnlineResponse, description="Login as permanent user"
+)
 async def login(
     login: Annotated[LoginData, Body()],
     db_context: DatabaseContext = Depends(get_db_context),
@@ -100,7 +110,9 @@ async def login(
         )
 
 
-@router.post("/register", response_model=OnlineResponse)
+@router.post(
+    "/register", response_model=OnlineResponse, description="Register as permanent user"
+)
 async def register(
     login: Annotated[RegisterData, Body()],
     db_context: DatabaseDependency,
@@ -146,24 +158,3 @@ async def register(
 @router.get("/me")
 async def get_me(user: UserDependency):
     return UserPrivate.model_validate(user)
-
-
-# @router.post("/token")
-# async def login_oauth(
-#    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-#    db_context: DatabaseDependency,
-# ):
-#    stmt = select(User).where(User.username == form_data.username)
-#    user = db_context.psql_session.exec(stmt).one_or_none()
-#    if (
-#        user
-#        and user.password
-#        and verify_password(user.password, form_data.username, form_data.password)
-#    ):
-#        token = create_access_token(user, TOKEN_TTL)
-#
-#        return OnlineResponse(token=token, user=user.id)
-#    else:
-#        raise HTTPException(
-#            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
-#        )

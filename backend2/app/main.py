@@ -13,7 +13,7 @@ from fastapi import FastAPI, Request
 
 import app.logger  # type:ignore
 from app.dependencies import lifespan
-from app.routers import rooms, users, websockets
+from app.routers import rooms, rooms_old, users, websockets
 
 
 def setup_logging():
@@ -61,4 +61,5 @@ app.add_middleware(CorrelationIdMiddleware)
 
 app.include_router(users.router)
 app.include_router(rooms.router)
+app.include_router(rooms_old.router)
 app.include_router(websockets.router)

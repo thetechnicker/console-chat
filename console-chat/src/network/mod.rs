@@ -1,10 +1,3 @@
-pub mod client;
-pub use client::*;
-//pub mod encryption;
-//pub use encryption::*;
-pub mod error;
-//pub use error::*;
 pub mod data_model;
-pub mod encryption;
-pub mod listen;
+pub mod error;
 pub type Result<T, E = error::NetworkError> = std::result::Result<T, E>;

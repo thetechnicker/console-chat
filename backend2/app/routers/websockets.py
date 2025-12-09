@@ -1,7 +1,8 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, status
+from sqlmodel import select
 
-from app.datamodel.message import MessagePublic, MessageType, Plaintext
-from app.datamodel.user import UserPublic
+from app.datamodel.message import MessagePublic, MessageType, Plaintext, StaticRoom
+from app.datamodel.user import User, UserPublic
 from app.dependencies import DatabaseDependency, UserDependency
 
 router = APIRouter(
@@ -34,13 +35,25 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
-@router.websocket("/rooms/{room}")
+@router.websocket("/room/{room}")
 async def websocket_endpoint(
     websocket: WebSocket,
     room: str,
     user: UserDependency,
     db_context: DatabaseDependency,
 ):
+    stmt = select(StaticRoom).where(StaticRoom.name == room)
+    db_room = db_context.psql_session.exec(stmt).one_or_none()
+    if db_room:
+        full_user = User.model_validate(user)
+        if not (full_user.id == db_room.owner_id or full_user in db_room.users):
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED)
+        await join_room(room, websocket, user)
+    else:
+        await join_room(room, websocket, user)
+
+
+async def join_room(room: str, websocket: WebSocket, user: UserDependency):
     await manager.connect(room, websocket)
     public_user = UserPublic.model_validate(user)
     try:
