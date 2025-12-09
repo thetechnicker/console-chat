@@ -1,5 +1,4 @@
 use crate::components::vim::*;
-use crate::network::data_model::messages::Message;
 use color_eyre::Result;
 use crossterm::event::KeyEvent;
 use ratatui::{prelude::*, widgets::*};
@@ -10,6 +9,7 @@ use tui_textarea::TextArea;
 use super::Component;
 use crate::{action::Action, config::Config};
 
+struct Message {}
 struct MessageComponent {
     content: Message,
     selected: bool,
@@ -31,25 +31,25 @@ impl MessageComponent {
 
 impl Widget for &MessageComponent {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let user = self.content.user.clone().unwrap_or_default();
-        let color = user
-            .color
-            .map_or(Color::Gray, |c| c.parse().unwrap_or(Color::Gray));
-        let alignment = if self.content.is_mine() {
-            Alignment::Right
-        } else {
-            Alignment::Left
-        };
-        Paragraph::new(self.content.text.clone())
-            .block(
-                Block::bordered()
-                    .border_type(BorderType::Rounded)
-                    .fg(color)
-                    .title(user.display_name)
-                    .title_alignment(alignment),
-            )
-            .alignment(alignment)
-            .render(area, buf);
+        //let user = self.content.user.clone().unwrap_or_default();
+        //let color = user
+        //    .color
+        //    .map_or(Color::Gray, |c| c.parse().unwrap_or(Color::Gray));
+        //let alignment = if self.content.is_mine() {
+        //    Alignment::Right
+        //} else {
+        //    Alignment::Left
+        //};
+        //Paragraph::new(self.content.text.clone())
+        //    .block(
+        //        Block::bordered()
+        //            .border_type(BorderType::Rounded)
+        //            .fg(color)
+        //            .title(user.display_name)
+        //            .title_alignment(alignment),
+        //    )
+        //    .alignment(alignment)
+        //    .render(area, buf);
     }
 }
 impl From<Message> for MessageComponent {
@@ -182,7 +182,7 @@ impl Component for Chat<'_> {
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
             Action::OpenChat => self.active = true,
-            Action::ReceivedMessage(msg) => self.msgs.push(msg.into()),
+            //Action::ReceivedMessage(msg) => self.msgs.push(msg.into()),
             Action::Leave => self.msgs.clear(),
             Action::Tick => {
                 // add any logic here that should run on every tick

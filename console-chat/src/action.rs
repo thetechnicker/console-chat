@@ -1,4 +1,4 @@
-use crate::network::{data_model::messages::Message, error::NetworkError};
+//use crate::network::{data_model::messages::Message, error::NetworkError};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use strum::Display;
 
@@ -8,7 +8,7 @@ pub enum AppError {
     MissingPassword,
     MissingUsername,
     MissingPasswordAndUsername,
-    NetworkError(NetworkError),
+    //    NetworkError(NetworkError),
     Error(String),
 }
 
@@ -19,7 +19,7 @@ impl std::fmt::Display for AppError {
             Self::MissingPassword => write!(f, "MissingPassword"),
             Self::MissingUsername => write!(f, "MissingUsername"),
             Self::MissingPasswordAndUsername => write!(f, "MissingPasswordAndUsername"),
-            Self::NetworkError(e) => write!(f, "Network Error: {e}"),
+            //            Self::NetworkError(e) => write!(f, "Network Error: {e}"),
             Self::Error(s) => write!(f, "Error: {s}"),
         }
     }
@@ -32,23 +32,23 @@ impl PartialEq for AppError {
         match self {
             Self::Error(e) => match other {
                 Self::Error(o) => e == o,
-                Self::NetworkError(error) => &format!("{error}") == e,
+                //               Self::NetworkError(error) => &format!("{error}") == e,
                 Self::MissingActionTX => false,
                 Self::MissingPassword => false,
                 Self::MissingUsername => false,
                 Self::MissingPasswordAndUsername => false,
             },
-            Self::NetworkError(error) => match other {
-                Self::Error(e) => &format!("{error}") == e,
-                Self::NetworkError(e) => format!("{error}") == format!("{e}"),
-                Self::MissingActionTX => false,
-                Self::MissingPassword => false,
-                Self::MissingUsername => false,
-                Self::MissingPasswordAndUsername => false,
-            },
+            //         Self::NetworkError(error) => match other {
+            //             Self::Error(e) => &format!("{error}") == e,
+            //             Self::NetworkError(e) => format!("{error}") == format!("{e}"),
+            //             Self::MissingActionTX => false,
+            //             Self::MissingPassword => false,
+            //             Self::MissingUsername => false,
+            //             Self::MissingPasswordAndUsername => false,
+            //         },
             Self::MissingActionTX => match other {
                 Self::Error(_) => false,
-                Self::NetworkError(_) => false,
+                //            Self::NetworkError(_) => false,
                 Self::MissingActionTX => true,
                 Self::MissingPassword => false,
                 Self::MissingUsername => false,
@@ -104,11 +104,11 @@ impl From<String> for AppError {
     }
 }
 
-impl From<NetworkError> for AppError {
-    fn from(s: NetworkError) -> Self {
-        AppError::NetworkError(s.to_owned())
-    }
-}
+//impl From<NetworkError> for AppError {
+//    fn from(s: NetworkError) -> Self {
+//        AppError::NetworkError(s.to_owned())
+//    }
+//}
 
 #[derive(Debug, Clone, PartialEq, Eq, Display, Serialize, Deserialize)]
 pub enum Action {
@@ -139,7 +139,7 @@ pub enum Action {
     TriggerJoin,
     PerformJoin(String),
     SendMessage(String),
-    ReceivedMessage(Message),
+    //ReceivedMessage(Message),
     Leave,
 
     SyncProfile,

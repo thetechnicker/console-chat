@@ -6,6 +6,10 @@ description = "idk"
 authors = ["Thetechnicker <106349149+thetechnicker@users.noreply.github.com>"]
 build = "build.rs"
 
+[workspace]
+members = [
+    "network",
+]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

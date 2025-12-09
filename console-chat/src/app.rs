@@ -12,7 +12,7 @@ use crate::{
         home::Home, join::Join, login::Login, settings::Settings, sorted_components,
     },
     config::Config,
-    network::handle_network,
+    //    network::handle_network,
     tui::{Event, Tui},
 };
 
@@ -70,8 +70,8 @@ impl App {
     }
 
     pub async fn run(&mut self) -> Result<()> {
-        crate::network::Client::init(self.config.network.host.clone(), self.action_tx.clone())
-            .await?;
+        //       crate::network::Client::init(self.config.network.host.clone(), self.action_tx.clone())
+        //          .await?;
         let mut tui = Tui::new()?
             .mouse(true) // uncomment this line to enable mouse support
             .tick_rate(self.tick_rate)
@@ -255,9 +255,9 @@ impl App {
                     self.action_tx.send(action)?
                 }
             }
-            if let Some(action) = handle_network(action.clone())? {
-                self.action_tx.send(action)?
-            };
+            //if let Some(action) = handle_network(action.clone())? {
+            //       self.action_tx.send(action)?
+            // };
         }
         Ok(())
     }
