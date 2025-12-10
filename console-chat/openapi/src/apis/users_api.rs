@@ -46,15 +46,8 @@ pub enum RegisterUsersRegisterPostError {
     UnknownValue(serde_json::Value),
 }
 
-/// struct for typed errors of method [`users_users_get`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum UsersUsersGetError {
-    UnknownValue(serde_json::Value),
-}
 
-
-pub async fn get_me_users_me_get(configuration: &configuration::Configuration, ) -> Result<serde_json::Value, Error<GetMeUsersMeGetError>> {
+pub async fn get_me_users_me_get(configuration: &configuration::Configuration, ) -> Result<models::UserPrivate, Error<GetMeUsersMeGetError>> {
 
     let uri_str = format!("{}/users/me", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
@@ -81,8 +74,8 @@ pub async fn get_me_users_me_get(configuration: &configuration::Configuration, )
         let content = resp.text().await?;
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `serde_json::Value`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `serde_json::Value`")))),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::UserPrivate`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::UserPrivate`")))),
         }
     } else {
         let content = resp.text().await?;
@@ -209,49 +202,6 @@ pub async fn register_users_register_post(configuration: &configuration::Configu
     } else {
         let content = resp.text().await?;
         let entity: Option<RegisterUsersRegisterPostError> = serde_json::from_str(&content).ok();
-        Err(Error::ResponseError(ResponseContent { status, content, entity }))
-    }
-}
-
-/// Get all Users stored in the database
-pub async fn users_users_get(configuration: &configuration::Configuration, ) -> Result<Vec<models::UserPublic>, Error<UsersUsersGetError>> {
-
-    let uri_str = format!("{}/users/", configuration.base_path);
-    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
-
-    if let Some(ref user_agent) = configuration.user_agent {
-        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
-    }
-    if let Some(ref apikey) = configuration.api_key {
-        let key = apikey.key.clone();
-        let value = match apikey.prefix {
-            Some(ref prefix) => format!("{} {}", prefix, key),
-            None => key,
-        };
-        req_builder = req_builder.header("X-Api-Key", value);
-    };
-
-    let req = req_builder.build()?;
-    let resp = configuration.client.execute(req).await?;
-
-    let status = resp.status();
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
-
-    if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::UserPublic&gt;`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::UserPublic&gt;`")))),
-        }
-    } else {
-        let content = resp.text().await?;
-        let entity: Option<UsersUsersGetError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent { status, content, entity }))
     }
 }

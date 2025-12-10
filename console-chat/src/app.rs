@@ -1,10 +1,3 @@
-use color_eyre::Result;
-use crossterm::event::KeyEvent;
-use ratatui::prelude::Rect;
-use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc;
-use tracing::{debug, error, info};
-
 use crate::{
     action::Action,
     components::{
@@ -15,6 +8,12 @@ use crate::{
     //    network::handle_network,
     tui::{Event, Tui},
 };
+use color_eyre::Result;
+use crossterm::event::KeyEvent;
+use ratatui::prelude::Rect;
+use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc;
+use tracing::{debug, error, info};
 
 pub struct App {
     config: Config,

@@ -1,5 +1,4 @@
 .gitignore
-.openapi-generator-ignore
 .travis.yml
 Cargo.toml
 README.md
@@ -24,6 +23,7 @@ docs/StaticRoomPublic.md
 docs/SystemMessage.md
 docs/Token.md
 docs/UpdateRoom.md
+docs/UserPrivate.md
 docs/UserPublic.md
 docs/UserType.md
 docs/UsersApi.md
@@ -56,6 +56,7 @@ src/models/static_room_public.rs
 src/models/system_message.rs
 src/models/token.rs
 src/models/update_room.rs
+src/models/user_private.rs
 src/models/user_public.rs
 src/models/user_type.rs
 src/models/validation_error.rs

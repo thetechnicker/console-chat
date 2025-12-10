@@ -8,13 +8,12 @@ Method | HTTP request | Description
 [**login_users_login_post**](UsersApi.md#login_users_login_post) | **POST** /users/login | Login
 [**online_users_online_get**](UsersApi.md#online_users_online_get) | **GET** /users/online | Online
 [**register_users_register_post**](UsersApi.md#register_users_register_post) | **POST** /users/register | Register
-[**users_users_get**](UsersApi.md#users_users_get) | **GET** /users/ | Users
 
 
 
 ## get_me_users_me_get
 
-> serde_json::Value get_me_users_me_get()
+> models::UserPrivate get_me_users_me_get()
 Get Me
 
 ### Parameters
@@ -23,7 +22,7 @@ This endpoint does not need any parameter.
 
 ### Return type
 
-[**serde_json::Value**](serde_json::Value.md)
+[**models::UserPrivate**](UserPrivate.md)
 
 ### Authorization
 
@@ -122,33 +121,6 @@ Name | Type | Description  | Required | Notes
 ### HTTP request headers
 
 - **Content-Type**: application/json
-- **Accept**: application/json
-
-[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
-
-
-## users_users_get
-
-> Vec<models::UserPublic> users_users_get()
-Users
-
-Get all Users stored in the database
-
-### Parameters
-
-This endpoint does not need any parameter.
-
-### Return type
-
-[**Vec<models::UserPublic>**](UserPublic.md)
-
-### Authorization
-
-[APIKeyHeader](../README.md#APIKeyHeader)
-
-### HTTP request headers
-
-- **Content-Type**: Not defined
 - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)

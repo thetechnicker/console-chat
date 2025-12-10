@@ -38,7 +38,6 @@ Class | Method | HTTP request | Description
 *UsersApi* | [**login_users_login_post**](docs/UsersApi.md#login_users_login_post) | **POST** /users/login | Login
 *UsersApi* | [**online_users_online_get**](docs/UsersApi.md#online_users_online_get) | **GET** /users/online | Online
 *UsersApi* | [**register_users_register_post**](docs/UsersApi.md#register_users_register_post) | **POST** /users/register | Register
-*UsersApi* | [**users_users_get**](docs/UsersApi.md#users_users_get) | **GET** /users/ | Users
 
 
 ## Documentation For Models
@@ -62,6 +61,7 @@ Class | Method | HTTP request | Description
  - [SystemMessage](docs/SystemMessage.md)
  - [Token](docs/Token.md)
  - [UpdateRoom](docs/UpdateRoom.md)
+ - [UserPrivate](docs/UserPrivate.md)
  - [UserPublic](docs/UserPublic.md)
  - [UserType](docs/UserType.md)
  - [ValidationError](docs/ValidationError.md)

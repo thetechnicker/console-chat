@@ -13,8 +13,7 @@ import valkey.asyncio as valkey
 from argon2 import PasswordHasher
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Security, status
-from fastapi.security import APIKeyHeader  # OAuth2PasswordBearer,
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 

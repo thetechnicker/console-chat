@@ -10,13 +10,11 @@ from app.datamodel.user import (
     AppearancePublic,
     User,
     UserPrivate,
-    UserPublic,
     UserType,
     generate_temp_username,
 )
 from app.dependencies import (
     TOKEN_TTL,
-    ApiKeyAuth,
     DatabaseContext,
     DatabaseDependency,
     LoginData,
@@ -38,18 +36,18 @@ router = APIRouter(
 )
 
 
-@router.get(
-    "/",
-    response_model=list[UserPublic],
-    description="Get all Users stored in the database",
-)
-async def users(
-    db_context: DatabaseDependency,
-    _: ApiKeyAuth,
-):
-    stmt = select(User)
-    result = db_context.psql_session.exec(stmt)
-    return [UserPublic.model_validate(m) for m in result.all()]
+# @router.get(
+#    "/",
+#    response_model=list[UserPublic],
+#    description="Get all Users stored in the database",
+# )
+# async def users(
+#    db_context: DatabaseDependency,
+#    _: ApiKeyAuth,
+# ):
+#    stmt = select(User)
+#    result = db_context.psql_session.exec(stmt)
+#    return [UserPublic.model_validate(m) for m in result.all()]
 
 
 @router.get(
@@ -66,8 +64,6 @@ async def online(
     username = None
     if credentials:
         user = await get_user_from_token(credentials.credentials, db_context)
-        if username:
-            user.username
         if user:
             token = create_access_token(user, TOKEN_TTL)
             return OnlineResponse(token=token, user=user.id)
@@ -155,6 +151,6 @@ async def register(
             return OnlineResponse(token=token, user=new_user.id)
 
 
-@router.get("/me")
+@router.get("/me", response_model=UserPrivate)
 async def get_me(user: UserDependency):
     return UserPrivate.model_validate(user)

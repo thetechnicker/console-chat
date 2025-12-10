@@ -1,8 +1,9 @@
+extern crate openapi;
+
+use crate::app::App;
 use clap::Parser;
 use cli::Cli;
 use color_eyre::Result;
-
-use crate::app::App;
 
 mod action;
 mod app;
@@ -11,6 +12,7 @@ mod components;
 mod config;
 mod errors;
 mod logging;
+mod network;
 mod tui;
 
 #[tokio::main]

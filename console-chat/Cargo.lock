@@ -498,6 +498,7 @@ dependencies = [
  "json5",
  "lazy_static",
  "libc",
+ "openapi",
  "pretty_assertions",
  "rand",
  "ratatui",

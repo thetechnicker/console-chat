@@ -36,6 +36,8 @@ pub mod token;
 pub use self::token::Token;
 pub mod update_room;
 pub use self::update_room::UpdateRoom;
+pub mod user_private;
+pub use self::user_private::UserPrivate;
 pub mod user_public;
 pub use self::user_public::UserPublic;
 pub mod user_type;
