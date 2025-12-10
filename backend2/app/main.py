@@ -63,3 +63,10 @@ app.include_router(users.router)
 app.include_router(rooms.router)
 app.include_router(rooms_old.router)
 app.include_router(websockets.router)
+
+
+# WARNING: this is for debug only
+# @app.get("/valkey", response_model=list[str])
+# async def valkey_get(db: DatabaseDependency):
+#    keys = await db.valkey.keys()
+#    return keys

@@ -64,6 +64,8 @@ async def online(
     username = None
     if credentials:
         user = await get_user_from_token(credentials.credentials, db_context)
+        if user.user_type == UserType.GUEST:
+            await db_context.valkey.expire(str(user.id), TOKEN_TTL)
         if user:
             token = create_access_token(user, TOKEN_TTL)
             return OnlineResponse(token=token, user=user.id)
@@ -76,10 +78,11 @@ async def online(
         username=username,
         appearance=AppearancePublic(color=deterministic_color_from_string(str(id))),
     )
-    user_complete = User.model_validate(user)
-    db_context.valkey.set(str(user_complete.id), user_complete.model_dump_json())
+    # user_complete = User.model_validate(user)
+    # user_dump = UserPrivate.model_validate(user_complete)
+    await db_context.valkey.set(str(user.id), user.model_dump_json(), ex=TOKEN_TTL)
     token = create_access_token(user, TOKEN_TTL)
-    return OnlineResponse(token=token, user=user_complete.id)
+    return OnlineResponse(token=token, user=user.id)
 
 
 @router.post(

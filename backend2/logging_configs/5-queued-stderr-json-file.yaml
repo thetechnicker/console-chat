@@ -39,7 +39,7 @@ handlers:
     level: DEBUG
     formatter: ansi
     filename: logs/console-chat-api.ansi.log
-    maxBytes: 10000
+    maxBytes: 1_000_000
     backupCount: 3
   file_json:
     filters:
@@ -48,7 +48,7 @@ handlers:
     level: DEBUG
     formatter: json
     filename: logs/console-chat-api.log.jsonl
-    maxBytes: 10000
+    maxBytes: 1_000_000
     backupCount: 3
   queue_handler:
     class: logging.handlers.QueueHandler

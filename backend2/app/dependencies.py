@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from app.datamodel import init_postgesql_connection
-from app.datamodel.user import AppearancePublic, User, UserPrivate, UserType
+from app.datamodel.user import User, UserPrivate, UserType
 
 load_dotenv()
 
@@ -81,6 +81,13 @@ async def lifespan(app: FastAPI):
     valkey_host = os.getenv("VALKEY_HOST", "valkey")
     v_pool = valkey.ConnectionPool(host=valkey_host, port=6379, protocol=3)
     engine = init_postgesql_connection()
+
+    # NOTE: might be usefull if a server reboot should invalidate every temp user
+    # v = valkey.Valkey.from_pool(v_pool)
+    # keys = await v.keys()
+    # for key in keys:
+    #    await v.delete(key)
+
     yield
 
 
@@ -115,9 +122,7 @@ async def get_user_from_token(token: str, db: DatabaseDependency) -> UserPrivate
         else:
             res = await db.valkey.get(id)
             logging.debug(f"Temporary user data: {res}")
-            return UserPrivate(
-                appearance=AppearancePublic(color="#ffccff"), id=uuid.uuid4()
-            )
+            return UserPrivate.model_validate_json(res)
     except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired."

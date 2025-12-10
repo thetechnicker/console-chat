@@ -1,7 +1,5 @@
 pub mod appearance_public;
 pub use self::appearance_public::AppearancePublic;
-pub mod content;
-pub use self::content::Content;
 pub mod create_room;
 pub use self::create_room::CreateRoom;
 pub mod create_room_invite_inner;
