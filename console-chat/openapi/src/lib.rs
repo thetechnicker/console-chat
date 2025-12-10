@@ -8,6 +8,4 @@ extern crate serde_repr;
 extern crate url;
 
 pub mod apis;
-//pub mod models;
-pub mod models2;
-pub use models2 as models;
+pub mod models;
