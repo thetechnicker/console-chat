@@ -116,5 +116,6 @@ impl From<&str> for ContentType {
 pub mod deprecated_api;
 pub mod rooms_api;
 pub mod users_api;
+pub mod websocket_api;
 
 pub mod configuration;

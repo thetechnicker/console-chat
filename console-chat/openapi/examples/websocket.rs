@@ -1,6 +1,5 @@
 use chrono::{DateTime, Utc};
 use futures_util::{SinkExt, StreamExt};
-use native_tls::TlsConnector;
 use openapi::apis::{configuration, users_api};
 use openapi::models::*;
 use std::sync::Arc;
