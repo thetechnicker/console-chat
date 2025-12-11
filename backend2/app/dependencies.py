@@ -22,6 +22,8 @@ from app.datamodel.user import User, UserPrivate, UserType
 
 load_dotenv()
 
+ENV = os.getenv("ENVIRONMENT", "development")
+
 LEAVE_DELAY = 10  # seconds before being marked offline
 TOKEN_TTL = 60 * 30  # Token Time-to-Live in seconds
 TOKEN_PREFIX = "session_token:"
@@ -60,7 +62,6 @@ class RegisterData(BaseModel):
 auth_bearer_scheme = HTTPBearer()
 optional_auth_bearer_scheme = HTTPBearer(auto_error=False)
 api_key_scheme = APIKeyHeader(name="X-Api-Key")
-# oauth2_scheme = OAuth2PasswordBearer(tokenUrl="users/token")
 
 
 def validate_api_key(key: Annotated[str, Security(api_key_scheme)]):
@@ -178,6 +179,17 @@ def verify_password(hashed: str, username: str, password: str) -> bool:
         )  # Will raise an exception if the hash does not match
     except Exception:
         return False
+
+
+def get_from_login(username: str, password: str, db: DatabaseDependency):
+    stmt = select(User).where(User.username == username)
+    user = db.psql_session.exec(stmt).one_or_none()
+    if (
+        user
+        and user.password
+        and verify_password(hashed=user.password, username=username, password=password)
+    ):
+        return UserPrivate.model_validate(user)
 
 
 def create_access_token(

@@ -63,6 +63,7 @@ app.include_router(users.router)
 app.include_router(rooms.router)
 app.include_router(rooms_old.router)
 app.include_router(websockets.router)
+# app.include_router(admin.router)
 
 
 # WARNING: this is for debug only

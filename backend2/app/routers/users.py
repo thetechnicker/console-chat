@@ -36,20 +36,6 @@ router = APIRouter(
 )
 
 
-# @router.get(
-#    "/",
-#    response_model=list[UserPublic],
-#    description="Get all Users stored in the database",
-# )
-# async def users(
-#    db_context: DatabaseDependency,
-#    _: ApiKeyAuth,
-# ):
-#    stmt = select(User)
-#    result = db_context.psql_session.exec(stmt)
-#    return [UserPublic.model_validate(m) for m in result.all()]
-
-
 @router.get(
     "/online",
     response_model=OnlineResponse,
@@ -78,8 +64,7 @@ async def online(
         username=username,
         appearance=AppearancePublic(color=deterministic_color_from_string(str(id))),
     )
-    # user_complete = User.model_validate(user)
-    # user_dump = UserPrivate.model_validate(user_complete)
+
     await db_context.valkey.set(str(user.id), user.model_dump_json(), ex=TOKEN_TTL)
     token = create_access_token(user, TOKEN_TTL)
     return OnlineResponse(token=token, user=user.id)
