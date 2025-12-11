@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MessageSend {
     #[serde(rename = "content")]
-    pub content: Box<models::MessageType>,
+    pub content: models::MessageType,
 
     #[serde(rename = "send_at")]
     pub send_at: DateTime<Utc>,
