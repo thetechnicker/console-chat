@@ -1,31 +1,42 @@
 use chrono::{DateTime, Utc};
+use color_eyre::Result;
 use futures_util::{SinkExt, StreamExt};
+use native_tls::TlsConnector;
 use openapi::apis::{configuration, users_api};
 use openapi::models::*;
 use std::sync::Arc;
 use std::time::SystemTime;
-use tokio_tungstenite::tungstenite::protocol::Message;
-use tokio_tungstenite::{connect_async, tungstenite::Error as WsError};
+use tokio_tungstenite::tungstenite::{client::ClientRequestBuilder, protocol::Message};
+use tokio_tungstenite::{connect_async_tls_with_config, Connector};
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<()> {
     let mut conf = configuration::Configuration::new();
     conf.client = reqwest::ClientBuilder::new()
         .danger_accept_invalid_certs(true)
         .build()?;
 
     let token = users_api::online_users_online_get(&conf, None).await?;
-    println!("{:#?}", token);
+    println!("Token: {:#?}", token);
 
-    let url = "wss://localhost:8443/ws/room/abc";
+    let url = "wss://localhost:8443/ws/room/abcd";
 
     // Build a TLS connector
     let tls_connector = TlsConnector::builder()
         .danger_accept_invalid_certs(true)
         .build()?;
-    let (websocket, _) = connect_async(url, Some(Arc::new(tls_connector)))
-        .await
-        .map_err(|e| WsError::Io(e.into()))?;
+    let request = ClientRequestBuilder::new(url.parse()?)
+        .with_header("Authorization", format!("Bearer {}", token.token.token));
+    println!("Request: {:#?}", request);
+
+    let (websocket, r) = connect_async_tls_with_config(
+        request,
+        None,
+        false,
+        Some(Connector::NativeTls(tls_connector)),
+    )
+    .await?;
+    println!("Responce: {:#?}", r);
 
     // Split the websocket into a sender and receiver
     let (mut sink, mut stream) = websocket.split();
@@ -37,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Sending a message
-    sink.send(Message::Text(serde_json::to_string(&msg)?))
+    sink.send(Message::Text(serde_json::to_string(&msg)?.into()))
         .await
         .expect("Failed to send message");
 
