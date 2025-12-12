@@ -1,4 +1,5 @@
 import logging
+from contextlib import asynccontextmanager, contextmanager
 from typing import Annotated, cast
 
 from fastapi import (
@@ -13,27 +14,51 @@ from fastapi import (
     status,
 )
 from sqlmodel import select
+from valkey.asyncio import Valkey
 
 from app.datamodel.message import MessagePublic, MessageType, StaticRoom, SystemMessage
 from app.datamodel.user import User, UserPublic
 from app.dependencies import (
-    DatabaseContext,
     DatabaseDependency,
     auth_bearer_scheme,
     get_current_user,
-)
-
-router = APIRouter(
-    prefix="/ws",
-    tags=["ws"],
+    get_db_context,
 )
 
 logger = logging.getLogger(__name__)
 
+manager = None
+
+
+@asynccontextmanager
+async def init_manager(router: APIRouter):
+    logger.debug(f"")
+    global manager
+    with contextmanager(get_db_context)() as db:
+        manager = ConnectionManager(db.valkey)
+        yield
+
+
+router = APIRouter(
+    lifespan=init_manager,
+    prefix="/ws",
+    tags=["ws"],
+)
+
 
 class ConnectionManager:
-    def __init__(self):
+    def __init__(self, valkey_instance: Valkey):
         self.active_connections: dict[str, list[WebSocket]] = {}
+        self.valkey: None | Valkey = valkey_instance
+
+    async def add_message_to_buffer(self, room: str, message: MessagePublic):
+        """Add message to Valkey buffer."""
+        await self.valkey.rpush(room, message.model_dump_json())  # type: ignore
+
+    async def get_messages_from_buffer(self, room: str, limit: int = 100):
+        """Retrieve messages from Valkey buffer."""
+        messages_json = await self.valkey.lrange(room, 0, limit)  # type: ignore
+        return [MessagePublic.model_validate_json(msg) for msg in messages_json]
 
     async def connect(self, room: str, websocket: WebSocket):
         await websocket.accept()
@@ -57,9 +82,6 @@ class ConnectionManager:
 
     def get_num_connected(self, room: str):
         return len(self.active_connections.get(room, []))
-
-
-manager = ConnectionManager()
 
 
 async def get_cookie_or_token(
@@ -107,9 +129,9 @@ async def websocket_endpoint(
                 f"Unauthorized access attempt by user {full_user.username} to room '{room}'."
             )
             raise HTTPException(status.HTTP_401_UNAUTHORIZED)
-        await join_room(room, websocket, public_user)
+        await join_room(room, websocket, public_user, manager)
     else:
-        await join_room(room, websocket, public_user)
+        await join_room(room, websocket, public_user, manager)
 
 
 async def join_room(
@@ -118,6 +140,9 @@ async def join_room(
     user: UserPublic,
 ):
     await manager.connect(room, websocket)
+    previous_messages = await manager.get_messages_from_buffer(room)
+    for msg in previous_messages:
+        await manager.send_personal_message(msg, websocket)
     await manager.broadcast(
         room,
         MessagePublic(
