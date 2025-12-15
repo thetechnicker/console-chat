@@ -10,8 +10,9 @@ import asgi_correlation_id  # type:ignore
 import yaml
 from asgi_correlation_id import CorrelationIdMiddleware
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse
 from fastapi.routing import APIRoute
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 import app.logger  # type:ignore
 from app.dependencies import lifespan
@@ -31,9 +32,11 @@ def setup_logging():
         if queue_handler.listener is not None:
             queue_handler.listener.start()
             atexit.register(queue_handler.listener.stop)
+    logging.info("Logging is configured")
 
 
 setup_logging()
+LOG = logging.getLogger(__name__)
 
 
 def custom_generate_unique_id(route: APIRoute):
@@ -53,7 +56,6 @@ app = FastAPI(
     generate_unique_id_function=custom_generate_unique_id,
 )
 
-LOG = logging.getLogger(__name__)
 LOG.info("API is starting up")
 
 
@@ -74,6 +76,11 @@ app.add_middleware(CorrelationIdMiddleware)
 @app.get("/")
 def home():
     return HTMLResponse("Hello")
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: Any):
+    return PlainTextResponse(str(exc.detail), status_code=exc.status_code)
 
 
 app.include_router(users.router)

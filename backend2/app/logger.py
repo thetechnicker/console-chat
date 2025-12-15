@@ -81,25 +81,32 @@ class NonErrorFilter(logging.Filter):
 
 
 class ColorFormatter(logging.Formatter):
-    # Source - https://stackoverflow.com/questions/384076/how-can-i-color-python-logging-output
-    # Posted by Sergey Pleshakov, modified by community. See post 'Timeline' for change history
-    # Retrieved 2025-12-06, License - CC BY-SA 4.0
+    BASIC_FORMAT = "{LEVEL}%(levelname)s{RESET}:%(name)s:%(message)s"
+    rec = False
 
-    grey = "\x1b[38;20m"
-    yellow = "\x1b[33;20m"
-    red = "\x1b[31;20m"
-    bold_red = "\x1b[31;1m"
-    reset = "\x1b[0m"
+    grey = "\x1b[90m"  # Bright Grey
+    green = "\x1b[32m"  # Green
+    blue = "\x1b[34m"  # Blue
+    yellow = "\x1b[33m"  # Yellow
+    red = "\x1b[31m"  # Red
+    bold_red = "\x1b[31;1m"  # Bold Red
+    reset = "\x1b[0m"  # Reset color
 
+    KEYS = {"GREY": grey, "RESET": reset}
     FORMATS = {
-        logging.DEBUG: grey + "{format}" + reset,
-        logging.INFO: grey + "{format}" + reset,
-        logging.WARNING: yellow + "{format}" + reset,
-        logging.ERROR: red + "{format}" + reset,
-        logging.CRITICAL: bold_red + "{format}" + reset,
+        logging.DEBUG: blue,
+        logging.INFO: green,
+        logging.WARNING: yellow,
+        logging.ERROR: red,
+        logging.CRITICAL: bold_red,
     }
 
     def format(self, record: logging.LogRecord):
-        log_fmt = self.FORMATS.get(record.levelno, "{format}").format(format=self._fmt)
-        formatter = logging.Formatter(log_fmt)
-        return formatter.format(record)
+        try:
+            if self._fmt is None:
+                self._fmt = self.BASIC_FORMAT
+            log_fmt = self._fmt.format(**self.KEYS, LEVEL=self.FORMATS[record.levelno])
+            formatter = logging.Formatter(log_fmt)
+            return formatter.format(record)
+        except:
+            return super().format(record)

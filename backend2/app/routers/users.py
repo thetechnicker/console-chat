@@ -14,6 +14,7 @@ from app.datamodel.user import (
     generate_temp_username,
 )
 from app.dependencies import (
+    RESPONSES,
     TOKEN_TTL,
     DatabaseContext,
     DatabaseDependency,
@@ -39,6 +40,8 @@ router = APIRouter(
 @router.get(
     "/online",
     response_model=OnlineResponse,
+    status_code=200,
+    responses={**RESPONSES},
 )
 async def online(
     db_context: DatabaseDependency,
@@ -77,7 +80,11 @@ async def online(
     return OnlineResponse(token=token, user=user.id)
 
 
-@router.post("/login", response_model=OnlineResponse)
+@router.post(
+    "/login",
+    response_model=OnlineResponse,
+    responses={**RESPONSES},
+)
 async def login(
     login: Annotated[LoginData, Body()],
     db_context: DatabaseContext = Depends(get_db_context),
@@ -114,6 +121,7 @@ async def login(
     "/register",
     response_model=OnlineResponse,
     status_code=201,
+    responses={**RESPONSES, 409: {"description": "User already exists"}},
 )
 async def register(
     login: Annotated[RegisterData, Body()],
@@ -170,7 +178,11 @@ async def register(
         return OnlineResponse(token=token, user=new_user.id)
 
 
-@router.get("/me", response_model=UserPrivate)
+@router.get(
+    "/me",
+    response_model=UserPrivate,
+    responses={**RESPONSES},
+)
 async def get_me(user: UserDependency):
     """
     Retrieve the currently authenticated user's information.

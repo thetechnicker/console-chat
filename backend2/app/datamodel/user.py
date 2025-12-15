@@ -85,7 +85,10 @@ class UserPublic(UserBase):
 
 class UserPrivate(UserPublic):
     id: uuid.UUID
-    # password: Optional[str]
+
+
+class PermanentUserPrivate(UserPrivate):
+    static_rooms: List["StaticRoom"]
 
 
 class UserUpdate(UserBase):

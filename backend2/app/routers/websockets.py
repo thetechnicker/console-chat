@@ -1,11 +1,9 @@
 import logging
-from contextlib import asynccontextmanager, contextmanager
-from typing import Annotated, cast
+from contextlib import asynccontextmanager
+from typing import cast
 
 from fastapi import (
     APIRouter,
-    Cookie,
-    Query,
     Request,
     WebSocket,
     WebSocketDisconnect,
@@ -39,7 +37,7 @@ async def init_manager(router: APIRouter):
     """
     logger.debug(f"Initializing connection manager.")
     global manager
-    with contextmanager(get_db_context)() as db:
+    async with asynccontextmanager(get_db_context)() as db:
         manager = ConnectionManager(db.valkey)
         yield
 
@@ -80,7 +78,7 @@ class ConnectionManager:
             websocket (WebSocket): The WebSocket connection to be registered.
         """
         await websocket.accept()
-        logger.info(f"WebSocket connection established for room '{room}'.")
+        logger.debug(f"WebSocket connection established for room '{room}'.")
         self.active_connections.setdefault(room, [])
         self.active_connections[room].append(websocket)
 
@@ -88,7 +86,7 @@ class ConnectionManager:
         """Disconnect a WebSocket connection from the specified room."""
         if room in self.active_connections:
             self.active_connections[room].remove(websocket)
-            logger.info(f"WebSocket disconnected from room '{room}'.")
+            logger.debug(f"WebSocket disconnected from room '{room}'.")
 
     async def send_personal_message(self, message: MessagePublic, websocket: WebSocket):
         """Send a personal message to the specified WebSocket connection."""
@@ -104,30 +102,6 @@ class ConnectionManager:
     def get_num_connected(self, room: str):
         """Return the number of active connections for the specified room."""
         return len(self.active_connections.get(room, []))
-
-
-async def get_cookie_or_token(
-    websocket: WebSocket,
-    session: Annotated[str | None, Cookie()] = None,
-    token: Annotated[str | None, Query()] = None,
-):
-    """
-    Retrieve a session cookie or token for WebSocket authentication.
-
-    Args:
-        websocket (WebSocket): The WebSocket connection.
-        session (Optional[str]): The session cookie.
-        token (Optional[str]): The token from the query parameters.
-
-    Raises:
-        WebSocketException: If both session and token are missing.
-
-    Returns:
-        str: The session cookie or token.
-    """
-    if session is None and token is None:
-        raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION)
-    return session or token
 
 
 @router.websocket("/room/{room}")
@@ -150,7 +124,7 @@ async def websocket_endpoint(
     This function manages the WebSocket connection, checks for the room's existence,
     authenticates the user, and allows the user to send and receive messages.
     """
-    logger.info(f"Attempting to join room '{room}'.")
+    logger.debug(f"Attempting to join room '{room}'.")
 
     stmt = select(StaticRoom).where(StaticRoom.name == room)
     db_room = db_context.psql_session.exec(stmt).one_or_none()
@@ -228,7 +202,7 @@ async def join_room(
 
     except WebSocketDisconnect:
         manager.disconnect(room, websocket)
-        logger.info(f"User {user.username} disconnected from room '{room}'.")
+        logger.debug(f"User {user.username} disconnected from room '{room}'.")
 
         await manager.broadcast(
             room,
