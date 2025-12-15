@@ -9,3 +9,4 @@ uvicorn
 valkey
 argon2-cffi
 asgi_correlation_id
+cryptography

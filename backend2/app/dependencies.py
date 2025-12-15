@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import hashlib
 import json
 import logging
@@ -5,7 +7,7 @@ import os
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
-from typing import Annotated, Any, NamedTuple, Optional
+from typing import TYPE_CHECKING, Annotated, Any, NamedTuple, Optional
 
 import jwt
 import valkey.asyncio as valkey
@@ -17,12 +19,14 @@ from cryptography.hazmat.primitives.asymmetric.types import PrivateKeyTypes
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Security, status
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
-from jwt.algorithms import AllowedPrivateKeys
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from app.datamodel import init_postgesql_connection
 from app.datamodel.user import User, UserPrivate, UserType
+
+if TYPE_CHECKING:
+    from jwt.algorithms import AllowedPrivateKeys
 
 load_dotenv()
 logger = logging.getLogger("dependencies")
