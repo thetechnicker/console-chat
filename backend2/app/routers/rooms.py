@@ -30,7 +30,7 @@ async def get_my_rooms(user: PermanentUserDependency, db: DatabaseDependency):
     return rooms
 
 
-@router.put("/{room}")
+@router.put("/{room}", status_code=201)
 async def create_room(
     room: str,
     user: PermanentUserDependency,

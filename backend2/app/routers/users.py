@@ -39,7 +39,6 @@ router = APIRouter(
 @router.get(
     "/online",
     response_model=OnlineResponse,
-    description="Set Status to online/Create Auth Token for temporary user",
 )
 async def online(
     db_context: DatabaseDependency,
@@ -52,9 +51,8 @@ async def online(
         user = await get_user_from_token(credentials.credentials, db_context)
         if user.user_type == UserType.GUEST:
             await db_context.valkey.expire(str(user.id), TOKEN_TTL)
-        if user:
-            token = create_access_token(user, TOKEN_TTL)
-            return OnlineResponse(token=token, user=user.id)
+        token = create_access_token(user, TOKEN_TTL)
+        return OnlineResponse(token=token, user=user.id)
 
     id = uuid.uuid4()
     if username is None:
@@ -70,9 +68,7 @@ async def online(
     return OnlineResponse(token=token, user=user.id)
 
 
-@router.post(
-    "/login", response_model=OnlineResponse, description="Login as permanent user"
-)
+@router.post("/login", response_model=OnlineResponse)
 async def login(
     login: Annotated[LoginData, Body()],
     db_context: DatabaseContext = Depends(get_db_context),
@@ -95,7 +91,9 @@ async def login(
 
 
 @router.post(
-    "/register", response_model=OnlineResponse, description="Register as permanent user"
+    "/register",
+    response_model=OnlineResponse,
+    status_code=201,
 )
 async def register(
     login: Annotated[RegisterData, Body()],

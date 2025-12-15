@@ -19,7 +19,7 @@ async fn main() -> Result<()> {
     let token = users_api::online_users_online_get(&conf, None).await?;
     println!("Token: {:#?}", token);
 
-    let url = "wss://localhost:8443/ws/room/abcd";
+    let url = "wss://localhost/ws/room/abcd";
 
     // Build a TLS connector
     let tls_connector = TlsConnector::builder()
