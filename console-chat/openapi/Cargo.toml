@@ -8,6 +8,10 @@ license = "Unlicense"
 edition = "2021"
 
 [[example]]
+name = "basic_usage"
+required-features  = ["tokio/full"]
+
+[[example]]
 name = "websocket"
 required-features  = ["websocket"]
 
@@ -21,7 +25,8 @@ uuid = { version = "^1.8", features = ["serde", "v4"] }
 reqwest = { version = "^0.12", default-features = false, features = ["json", "multipart"] }
 chrono = { version = "0.4.42", features = ["serde"] }
 native-tls = { version = "0.2.14", optional = true }
-tokio-tungstenite = { version = "0.28.0", optional = true }
+tokio-tungstenite = { version = "0.28.0", optional = true}
+tokio =  "1.40.0"
 
 [features]
 default = ["native-tls"]
@@ -30,7 +35,6 @@ rustls-tls = ["reqwest/rustls-tls"]
 websocket = ["dep:tokio-tungstenite", "native-tls"]
 
 [dev-dependencies]
-tokio = { version = "1.40.0", features = ["full"] }
 tokio-util = "0.7.17"
 futures-util = "0.3.31"
 color-eyre = "0.6.5"

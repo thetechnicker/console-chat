@@ -55,6 +55,8 @@ tui-textarea = "0.7.0"
 url = { version = "2.5.7", features = ["serde"] }
 uuid = { version = "1.19.0", features = ["serde"] }
 
+[features]
+default = ["openapi/websocket"]
 
 [build-dependencies]
 anyhow = "1.0.100"
