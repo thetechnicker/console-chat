@@ -10,6 +10,7 @@ import asgi_correlation_id  # type:ignore
 import yaml
 from asgi_correlation_id import CorrelationIdMiddleware
 from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
 
 import app.logger  # type:ignore
 from app.dependencies import lifespan
@@ -37,6 +38,10 @@ setup_logging()
 app = FastAPI(
     title="Console Chat API",
     lifespan=lifespan,
+    servers=[
+        {"url": "https://localhost", "description": "local development environment"},
+        {"url": "https://console-chat", "description": "with correct dns"},
+    ],
     root_path="/api/v1",
     root_path_in_servers=False,
 )
@@ -57,6 +62,11 @@ async def log_requests(request: Request, call_next: Any):
 
 
 app.add_middleware(CorrelationIdMiddleware)
+
+
+@app.get("/")
+def home():
+    return HTMLResponse("Hello")
 
 
 app.include_router(users.router)
