@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from enum import StrEnum
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from fastapi import Body
 from pydantic import BaseModel, Field, model_validator
@@ -73,9 +73,12 @@ def get_correct_message_type(message: MessageType):
             return SystemMessage
 
 
+MessageContent = Union[Encrypted, Plaintext, KeyRequest, KeyResponse, SystemMessage]
+
+
 class MessageBase(SQLModel):
     type: MessageType = Field(default=MessageType.PLAINTEXT, sa_column=Integer)
-    content: Optional[BaseMessage] = Field(default=None, sa_column=Column(JSON))
+    content: Optional[MessageContent] = Field(default=None, sa_column=Column(JSON))
     send_at: datetime = Field(default_factory=datetime.now)
     data: Optional[Json] = Field(default=None, sa_column=Column(JSON))
 

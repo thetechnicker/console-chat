@@ -4,7 +4,6 @@ use futures_util::{SinkExt, StreamExt};
 use native_tls::TlsConnector;
 use openapi::apis::{configuration, users_api};
 use openapi::models::*;
-use std::sync::Arc;
 use std::time::SystemTime;
 use tokio_tungstenite::tungstenite::{client::ClientRequestBuilder, protocol::Message};
 use tokio_tungstenite::{connect_async_tls_with_config, Connector};
