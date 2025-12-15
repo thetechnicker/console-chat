@@ -5,6 +5,8 @@ WORKDIR /code
 
 
 COPY ./requirements.txt /code/requirements.txt
+COPY ./private_key.pem /code/private_key.pem
+COPY ./public_key.pem /code/public_key.pem
 
 
 RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt

@@ -5,7 +5,6 @@ from typing import Annotated, cast
 from fastapi import (
     APIRouter,
     Cookie,
-    HTTPException,
     Query,
     Request,
     WebSocket,
@@ -94,14 +93,14 @@ async def get_cookie_or_token(
     return session or token
 
 
-@router.get("/room")
-async def coockie_test(id: Annotated[str | None, Cookie()] = None):
-    return id
+# @router.get("/room")
+# async def coockie_test(id: Annotated[str | None, Cookie()] = None):
+#    return id
 
 
-@router.websocket("/room")
-async def listen_room():
-    pass
+# @router.websocket("/room")
+# async def listen_room():
+#    pass
 
 
 @router.websocket("/room/{room}")
@@ -117,7 +116,7 @@ async def websocket_endpoint(
 
     token = await auth_bearer_scheme(cast(Request, websocket))
     if not token:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED)
+        raise WebSocketException(status.HTTP_401_UNAUTHORIZED)
     user = await get_current_user(token, db_context)
 
     public_user = UserPublic.model_validate(user)
@@ -128,10 +127,10 @@ async def websocket_endpoint(
             logger.warning(
                 f"Unauthorized access attempt by user {full_user.username} to room '{room}'."
             )
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED)
-        await join_room(room, websocket, public_user, manager)
+            raise WebSocketException(status.HTTP_401_UNAUTHORIZED)
+        await join_room(room, websocket, public_user)
     else:
-        await join_room(room, websocket, public_user, manager)
+        await join_room(room, websocket, public_user)
 
 
 async def join_room(
@@ -139,6 +138,9 @@ async def join_room(
     websocket: WebSocket,
     user: UserPublic,
 ):
+    if manager is None:
+        raise WebSocketException(status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     await manager.connect(room, websocket)
     previous_messages = await manager.get_messages_from_buffer(room)
     for msg in previous_messages:

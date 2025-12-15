@@ -3,7 +3,6 @@ import json
 import logging
 import os
 import uuid
-import warnings
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Any, NamedTuple, Optional
@@ -11,9 +10,14 @@ from typing import Annotated, Any, NamedTuple, Optional
 import jwt
 import valkey.asyncio as valkey
 from argon2 import PasswordHasher
+from cryptography.fernet import Fernet
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.types import PrivateKeyTypes
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Security, status
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
+from jwt.algorithms import AllowedPrivateKeys
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
@@ -21,17 +25,66 @@ from app.datamodel import init_postgesql_connection
 from app.datamodel.user import User, UserPrivate, UserType
 
 load_dotenv()
+logger = logging.getLogger("dependencies")
 
 ENV = os.getenv("ENVIRONMENT", "development")
+PRODUCTION = ENV.upper() == "PRODUCTION"
 
 LEAVE_DELAY = 10  # seconds before being marked offline
-TOKEN_TTL = 60 * 30  # Token Time-to-Live in seconds
 TOKEN_PREFIX = "session_token:"
-ALGORITHM = "HS256"
-SECRET_KEY = os.getenv("SECRET", "secret")  # Use a secure random key
+ISS = os.getenv("HOSTNAME", "https://localhost/")
 
-if SECRET_KEY == "secret":
-    warnings.warn("No secret key provided! Please set a secure one.")
+use_fallback = True
+TOKEN_TTL = 60 * 30
+
+
+def fallback_signing() -> tuple[str, bytes]:
+    algorithm = "HS256"
+    jwt_key = os.getenv("SECRET", "secret").encode()
+    if jwt_key == b"secret":
+        logging.warning("No secret key provided! Please set a secure one.")
+        if PRODUCTION:
+            logging.warning("Generating signing key for JWT in production!")
+            jwt_key = Fernet.generate_key()
+    return algorithm, jwt_key
+
+
+def is_valid_private_key(key: PrivateKeyTypes):
+    """Check if the key is of an accepted type for JWT signing."""
+    return isinstance(key, AllowedPrivateKeys)
+
+
+def setup_token_signing() -> tuple[str, AllowedPrivateKeys | str | bytes, bytes]:
+    password = os.getenv("PASSWORD", "password")
+    if password == "password":
+        logging.warning("No password provided! Please set a secure one.")
+        algorithm, jwt_key = fallback_signing()
+        return algorithm, jwt_key, jwt_key
+
+    algorithm = "RS256"
+    try:
+        with open("private_key.pem", "rb") as f:
+            private_jwt_key = serialization.load_pem_private_key(
+                f.read(), password=password.encode(), backend=default_backend()
+            )
+        if not is_valid_private_key(private_jwt_key):
+            raise ValueError(
+                "Invalid private key type for JWT signing. Acceptable types are RSAPrivateKey, EllipticCurvePrivateKey, Ed25519PrivateKey, Ed448PrivateKey."
+            )
+        assert isinstance(private_jwt_key, AllowedPrivateKeys)
+
+        with open("public_key.pem", "rb") as f:
+            public_jwt_key = f.read()
+    except Exception as e:
+        logging.error(f"Failed to load keys: {e}")
+        algorithm, jwt_key = fallback_signing()
+        return algorithm, jwt_key, jwt_key
+
+    return algorithm, private_jwt_key, public_jwt_key
+
+
+ALGORITHM, PRIVATE_JWT_KEY, PUBLIC_JWT_KEY = setup_token_signing()
+
 
 DatabaseContext = NamedTuple(
     "Context", [("valkey", valkey.Valkey), ("psql_session", Session)]
@@ -114,7 +167,7 @@ ApiKeyAuth = Annotated[None, Security(validate_api_key)]
 
 async def get_user_from_token(token: str, db: DatabaseDependency) -> UserPrivate:
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, PUBLIC_JWT_KEY, algorithms=[ALGORITHM])
         id = payload.get("sub")
         if not payload.get("tmp", True):
             stmt = select(User).where(User.id == id)
@@ -193,18 +246,20 @@ def get_from_login(username: str, password: str, db: DatabaseDependency):
 
 
 def create_access_token(
-    user: User | UserPrivate, expires_delta: int = TOKEN_TTL
+    user: User | UserPrivate,
+    expires_delta: int = TOKEN_TTL,
+    iss_sufix: str = "",
 ) -> Token:
     expire = datetime.now(timezone.utc) + timedelta(seconds=expires_delta or TOKEN_TTL)
     to_encode = {
         "exp": expire,
         "iat": datetime.now(timezone.utc),
-        "iss": "http://localhost:8000/auth",
+        "iss": ISS + iss_sufix,
         "sub": str(user.id),
         "name": user.username,
         "tmp": user.user_type == UserType.GUEST,
     }
-    token_str = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    token_str = jwt.encode(to_encode, PRIVATE_JWT_KEY, algorithm=ALGORITHM)
     return Token(token=token_str, ttl=expires_delta)
 
 
