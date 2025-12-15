@@ -11,6 +11,7 @@ import yaml
 from asgi_correlation_id import CorrelationIdMiddleware
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
+from fastapi.routing import APIRoute
 
 import app.logger  # type:ignore
 from app.dependencies import lifespan
@@ -35,6 +36,11 @@ def setup_logging():
 setup_logging()
 
 
+def custom_generate_unique_id(route: APIRoute):
+    tag = route.tags[0] if len(route.tags) > 0 else "root"
+    return f"{tag}-{route.name}"
+
+
 app = FastAPI(
     title="Console Chat API",
     lifespan=lifespan,
@@ -44,6 +50,7 @@ app = FastAPI(
     ],
     root_path="/api/v1",
     root_path_in_servers=False,
+    generate_unique_id_function=custom_generate_unique_id,
 )
 
 LOG = logging.getLogger(__name__)
@@ -81,3 +88,8 @@ app.include_router(websockets.router)
 # async def valkey_get(db: DatabaseDependency):
 #    keys = await db.valkey.keys()
 #    return keys
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app)

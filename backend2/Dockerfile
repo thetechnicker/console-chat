@@ -21,3 +21,5 @@ EXPOSE ${PORT}
 
 
 CMD ["fastapi", "run", "app/main.py", "--proxy-headers"]
+#CMD ["python", "-m", "app.main", "--proxy-headers"]
+

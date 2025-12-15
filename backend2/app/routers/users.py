@@ -45,6 +45,15 @@ async def online(
     credentials: OptionalTokenDependency,
     username: Annotated[str | None, Query()] = None,
 ):
+    """
+    Get online user status or create a temporary user.
+
+    - **credentials**: An optional JWT token used for authentication.
+    - **username**: An optional username parameter. If not provided, a temporary username will be generated.
+
+    Returns:
+    - An access token and the user ID.
+    """
     # Handle Bearer Token Authentication
     username = None
     if credentials:
@@ -73,16 +82,27 @@ async def login(
     login: Annotated[LoginData, Body()],
     db_context: DatabaseContext = Depends(get_db_context),
 ):
+    """
+    Login a user using username and password.
+
+    - **login**: Contains the username and password for authentication.
+
+    Returns:
+    - An access token and the user ID if login is successful.
+
+    Raises:
+    - HTTPException: If credentials are invalid.
+    """
     # Handle Username and Password Authentication
     stmt = select(User).where(User.username == login.username)
     user = db_context.psql_session.exec(stmt).one_or_none()
+
     if (
         user
         and user.password
         and verify_password(user.password, login.username, login.password)
     ):
         token = create_access_token(user, TOKEN_TTL)
-
         return OnlineResponse(token=token, user=user.id)
     else:
         raise HTTPException(
@@ -100,43 +120,64 @@ async def register(
     db_context: DatabaseDependency,
     current_token: OptionalTokenDependency,
 ):
+    """
+    Register a new user.
+
+    - **login**: Contains the username and password for registration.
+    - **current_token**: An optional JWT token for authenticated registration.
+
+    Returns:
+    - An access token and the user ID.
+
+    Raises:
+    - HTTPException: If username is missing or user already exists.
+    """
     if login.username is None and (current_token is None):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="you cant register without a username",
+            detail="You can't register without a username",
         )
+
     stmt = select(User).where(User.username == login.username)
     existing_user = db_context.psql_session.exec(stmt).one_or_none()
+
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="User already exists"
         )
-    else:
-        if current_token:
-            user_from_token = await get_user_from_token(
-                current_token.credentials, db_context
-            )
-            print(user_from_token)
-        elif login.username:
-            password = secure_hash_argon2(login.username, login.password)
-            appearance = Appearance(
-                color=deterministic_color_from_string(login.username)
-            )
-            db_context.psql_session.add(appearance)
-            db_context.psql_session.commit()
-            new_user = User(
-                username=login.username,
-                user_type=UserType.PERMANENT,
-                password=password,
-                appearance=appearance,
-            )
-            db_context.psql_session.add(new_user)
-            db_context.psql_session.commit()
-            db_context.psql_session.refresh(new_user)
-            token = create_access_token(new_user, TOKEN_TTL)
-            return OnlineResponse(token=token, user=new_user.id)
+
+    if current_token:
+        user_from_token = await get_user_from_token(
+            current_token.credentials, db_context
+        )
+        print(user_from_token)
+    elif login.username:
+        password = secure_hash_argon2(login.username, login.password)
+        appearance = Appearance(color=deterministic_color_from_string(login.username))
+        db_context.psql_session.add(appearance)
+        db_context.psql_session.commit()
+        new_user = User(
+            username=login.username,
+            user_type=UserType.PERMANENT,
+            password=password,
+            appearance=appearance,
+        )
+        db_context.psql_session.add(new_user)
+        db_context.psql_session.commit()
+        db_context.psql_session.refresh(new_user)
+        token = create_access_token(new_user, TOKEN_TTL)
+
+        return OnlineResponse(token=token, user=new_user.id)
 
 
 @router.get("/me", response_model=UserPrivate)
 async def get_me(user: UserDependency):
+    """
+    Retrieve the currently authenticated user's information.
+
+    - **user**: The currently authenticated user dependency.
+
+    Returns:
+    - The user information encapsulated in the UserPrivate model.
+    """
     return UserPrivate.model_validate(user)

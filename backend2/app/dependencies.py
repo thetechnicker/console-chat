@@ -41,6 +41,8 @@ ISS = os.getenv("HOSTNAME", "https://localhost/")
 use_fallback = True
 TOKEN_TTL = 60 * 30
 
+STATUS_CODES = {401: "Unauthorised"}
+
 
 def fallback_signing() -> tuple[str, bytes]:
     algorithm = "HS256"
