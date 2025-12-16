@@ -47,6 +47,7 @@ def custom_generate_unique_id(route: APIRoute):
 
 app = FastAPI(
     title="Console Chat API",
+    version="0.2.0",
     lifespan=lifespan,
     servers=[
         {"url": "https://localhost", "description": "local development environment"},

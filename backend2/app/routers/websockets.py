@@ -51,6 +51,7 @@ async def init_manager(router: APIRouter):
 
 router = APIRouter(
     lifespan=init_manager,
+    # deprecated=True,
     prefix="/ws",
     tags=["ws"],
 )
