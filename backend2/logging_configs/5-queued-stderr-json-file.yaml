@@ -29,12 +29,12 @@ handlers:
     class: logging.StreamHandler
     level: WARNING
     formatter: ansi
-    filters:
-      - correlation_id
+    #filters:
+    #  - correlation_id
     stream: ext://sys.stderr
   file_ansi:
-    filters:
-      - correlation_id
+    #filters:
+    #  - correlation_id
     class: logging.handlers.RotatingFileHandler
     level: DEBUG
     formatter: ansi
@@ -42,8 +42,8 @@ handlers:
     maxBytes: 1_000_000
     backupCount: 3
   file_json:
-    filters:
-      - correlation_id
+    #filters:
+    #  - correlation_id
     class: logging.handlers.RotatingFileHandler
     level: DEBUG
     formatter: json
@@ -51,6 +51,8 @@ handlers:
     maxBytes: 1_000_000
     backupCount: 3
   queue_handler:
+    filters:
+      - correlation_id
     class: logging.handlers.QueueHandler
     handlers:
       - stderr
@@ -61,7 +63,7 @@ loggers:
   root:
     level: DEBUG
     handlers:
-      #- queue_handler
-      - stderr
-      - file_json
-      - file_ansi
+      - queue_handler
+      #- stderr
+      #- file_json
+      #- file_ansi

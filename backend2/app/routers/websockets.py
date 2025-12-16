@@ -13,11 +13,18 @@ from fastapi import (
 from sqlmodel import select
 from valkey.asyncio import Valkey
 
-from app.datamodel.message import MessagePublic, MessageType, StaticRoom, SystemMessage
+from app.datamodel.message import (
+    MessagePublic,
+    MessageType,
+    StaticRoom,
+    StaticRoomPublic,
+    SystemMessage,
+)
 from app.datamodel.user import User, UserPublic
 from app.dependencies import (
     DatabaseDependency,
     auth_bearer_scheme,
+    get_current_permanent_user,
     get_current_user,
     get_db_context,
 )
@@ -104,30 +111,55 @@ class ConnectionManager:
         return len(self.active_connections.get(room, []))
 
 
+@router.websocket("/room/{username}/{room}")
+async def static_room(
+    websocket: WebSocket,
+    username: str,
+    room: str,
+    db_context: DatabaseDependency,
+):
+    logger.debug(f"Attempting to join a temporary room '{room}'.")
+
+    token = await auth_bearer_scheme(cast(Request, websocket))
+    if not token:
+        raise WebSocketException(status.HTTP_401_UNAUTHORIZED)
+
+    user = await get_current_permanent_user(token, db_context)
+    public_user = UserPublic.model_validate(user)
+
+    stmt = select(User).where(User.username == username)
+    owner = db_context.psql_session.exec(stmt).one_or_none()
+
+    if not owner:
+        raise WebSocketException(status.HTTP_404_NOT_FOUND)
+
+    stmt = (
+        select(StaticRoom)
+        .where(StaticRoom.owner_id == owner.id)
+        .where(StaticRoom.name == room)
+    )
+    db_room = db_context.psql_session.exec(stmt).one_or_none()
+    if not db_room:
+        raise WebSocketException(status.HTTP_404_NOT_FOUND)
+
+    logger.debug(f"User {user.username} is validated for room '{room}'.")
+
+    public_room = StaticRoomPublic.model_validate(db_room)
+    if not (user.id == db_room.owner_id or public_user in public_room.users):
+        logger.warning(
+            f"Unauthorized access attempt by user {user.username} to room '{room}'."
+        )
+        raise WebSocketException(status.HTTP_401_UNAUTHORIZED)
+    await join_room(room, websocket, public_user)
+
+
 @router.websocket("/room/{room}")
-async def websocket_endpoint(
+async def temporary_room(
     websocket: WebSocket,
     room: str,
     db_context: DatabaseDependency,
 ):
-    """
-    Handle incoming WebSocket connections for a specific room.
-
-    Args:
-        websocket (WebSocket): The WebSocket connection for the user.
-        room (str): The name of the room the user is trying to join.
-        db_context (DatabaseDependency): The database context for database operations.
-
-    Raises:
-        WebSocketException: If the user is not authenticated or if access to the room is unauthorized.
-
-    This function manages the WebSocket connection, checks for the room's existence,
-    authenticates the user, and allows the user to send and receive messages.
-    """
-    logger.debug(f"Attempting to join room '{room}'.")
-
-    stmt = select(StaticRoom).where(StaticRoom.name == room)
-    db_room = db_context.psql_session.exec(stmt).one_or_none()
+    logger.debug(f"Attempting to join a temporary room '{room}'.")
 
     token = await auth_bearer_scheme(cast(Request, websocket))
     if not token:
@@ -136,19 +168,7 @@ async def websocket_endpoint(
     user = await get_current_user(token, db_context)
     public_user = UserPublic.model_validate(user)
 
-    if db_room:
-        full_user = User.model_validate(user)
-        logger.debug(f"User {full_user.username} is validated for room '{room}'.")
-
-        if not (full_user.id == db_room.owner_id or full_user in db_room.users):
-            logger.warning(
-                f"Unauthorized access attempt by user {full_user.username} to room '{room}'."
-            )
-            raise WebSocketException(status.HTTP_401_UNAUTHORIZED)
-
-        await join_room(room, websocket, public_user)
-    else:
-        await join_room(room, websocket, public_user)
+    await join_room(room, websocket, public_user)
 
 
 async def join_room(

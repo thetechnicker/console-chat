@@ -8,14 +8,15 @@ from typing import Any, cast
 
 import asgi_correlation_id  # type:ignore
 import yaml
-from asgi_correlation_id import CorrelationIdMiddleware
+from asgi_correlation_id import CorrelationIdMiddleware, correlation_id
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.routing import APIRoute
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 import app.logger  # type:ignore
-from app.dependencies import lifespan
+from app.dependencies import ErrorModel, lifespan
 from app.routers import rooms, rooms_old, users, websockets
 
 
@@ -80,7 +81,13 @@ def home():
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: Any):
-    return PlainTextResponse(str(exc.detail), status_code=exc.status_code)
+    error = jsonable_encoder(
+        ErrorModel(detail=exc.detail, id=correlation_id.get()),
+    )
+    return JSONResponse(
+        error,
+        status_code=exc.status_code,
+    )
 
 
 app.include_router(users.router)

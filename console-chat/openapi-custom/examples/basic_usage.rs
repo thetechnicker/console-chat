@@ -1,4 +1,4 @@
-use openapi::apis::{configuration, users_api};
+use openapi_custom::apis::{configuration, users_api};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

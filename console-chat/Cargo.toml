@@ -8,11 +8,11 @@ build = "build.rs"
 
 [workspace]
 members = [
-    "openapi",
+    "openapi-custom",
 ]
 
 [dependencies]
-openapi = { path = "./openapi" } 
+openapi-custom = { path = "./openapi-custom" } 
 alkali = "0.3.0"
 base64 = "0.22.1"
 better-panic = "0.3.0"
@@ -56,7 +56,7 @@ url = { version = "2.5.7", features = ["serde"] }
 uuid = { version = "1.19.0", features = ["serde"] }
 
 [features]
-default = ["openapi/websocket"]
+default = ["openapi-custom/websocket"]
 
 [build-dependencies]
 anyhow = "1.0.100"

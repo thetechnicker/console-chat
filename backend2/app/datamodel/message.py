@@ -5,7 +5,15 @@ from typing import List, Optional, Union
 
 from fastapi import Body
 from pydantic import BaseModel, Field, model_validator
-from sqlmodel import JSON, Column, Field, Integer, Relationship, SQLModel
+from sqlmodel import (
+    JSON,
+    Column,
+    Field,
+    Integer,
+    Relationship,
+    SQLModel,
+    UniqueConstraint,
+)
 from typing_extensions import Self
 
 from app.datamodel.user import User, UserPublic
@@ -125,7 +133,7 @@ class StaticRoomUser(SQLModel, table=True):
 
 
 class RoomBase(SQLModel):
-    name: str = Field(unique=True)
+    name: str = Field(index=True)
     key: str | None = Field(default=None)
 
 
@@ -136,12 +144,14 @@ class StaticRoom(RoomBase, table=True):
     users: List["User"] = Relationship(link_model=StaticRoomUser)
     level: RoomLevel = Field(sa_column=Integer)
 
+    __table_args__ = (UniqueConstraint("owner_id", "name"),)
+
 
 class StaticRoomPublic(RoomBase):
     id: int
     owner: "UserPublic"
     users: List["UserPublic"]
-    level: RoomLevel = Field()
+    level: RoomLevel
 
 
 class CreateRoom(BaseModel):

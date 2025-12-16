@@ -37,6 +37,7 @@ AllowedPrivateKeys = (
 load_dotenv()
 logger = logging.getLogger("dependencies")
 
+
 # Environment and configuration
 ENV = os.getenv("ENVIRONMENT", "development")
 PRODUCTION = ENV.upper() == "PRODUCTION"
@@ -44,9 +45,6 @@ LEAVE_DELAY = 10  # seconds before being marked offline
 TOKEN_PREFIX = "session_token:"
 ISS = os.getenv("HOSTNAME", "https://localhost/")
 TOKEN_TTL = 60 * 30  # default token expiration in seconds
-
-# Error responses
-RESPONSES: dict[int, dict[str, Any]] = {401: {"description": "Unauthorized"}}
 
 
 def fallback_signing() -> tuple[str, bytes, bytes]:
@@ -308,3 +306,15 @@ def deterministic_color_from_string(input_string: str) -> str:
     color = hash_bytes[0:6]  # Take first six characters for hex color code
     logger.debug(f"Deterministic color generated for '{input_string}': #{color}")
     return f"#{color}"
+
+
+class ErrorModel(BaseModel):
+    detail: str
+    id: str | None = None
+
+
+# Error responses
+RESPONSES: dict[int, dict[str, Any]] = {
+    401: {"model": ErrorModel, "description": "Returned if user cant be verified"}
+    # 401: {"description": "Unauthorized"}
+}

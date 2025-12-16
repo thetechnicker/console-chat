@@ -18,6 +18,7 @@ from app.dependencies import (
     TOKEN_TTL,
     DatabaseContext,
     DatabaseDependency,
+    ErrorModel,
     LoginData,
     OnlineResponse,
     OptionalTokenDependency,
@@ -121,7 +122,10 @@ async def login(
     "/register",
     response_model=OnlineResponse,
     status_code=201,
-    responses={**RESPONSES, 409: {"description": "User already exists"}},
+    responses={
+        **RESPONSES,
+        409: {"model": ErrorModel, "description": "User already exists"},
+    },
 )
 async def register(
     login: Annotated[RegisterData, Body()],

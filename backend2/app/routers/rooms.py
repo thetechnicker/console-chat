@@ -1,15 +1,19 @@
 import logging
+import random
+import string
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import RedirectResponse
 from sqlmodel import col, or_, select
 
 from app.datamodel.message import *
 from app.datamodel.user import *
 from app.dependencies import (
+    RESPONSES,
     DatabaseDependency,
+    ErrorModel,
     PermanentUserDependency,
-    UserDependency,
     get_current_user,
 )
 
@@ -24,7 +28,12 @@ router = APIRouter(
 )
 
 
-@router.get("/", response_model=List[StaticRoomPublic])
+@router.get(
+    "/",
+    response_model=List[StaticRoomPublic],
+    status_code=200,
+    responses={**RESPONSES},
+)
 async def list_rooms(db: DatabaseDependency):
     """
     List all rooms.
@@ -42,7 +51,12 @@ async def list_rooms(db: DatabaseDependency):
     return rooms
 
 
-@router.get("/mine", response_model=List[StaticRoomPublic])
+@router.get(
+    "/mine",
+    response_model=List[StaticRoomPublic],
+    status_code=200,
+    responses={**RESPONSES},
+)
 async def get_my_rooms(user: PermanentUserDependency, db: DatabaseDependency):
     """
     Get all rooms owned by the current user.
@@ -61,7 +75,34 @@ async def get_my_rooms(user: PermanentUserDependency, db: DatabaseDependency):
     return rooms
 
 
-@router.put("/{room}", status_code=201)
+def generate_random_string(length: int = 8):
+    """Generate a random string of fixed length."""
+    letters = string.ascii_letters + string.digits
+    return "".join(random.choice(letters) for _ in range(length))
+
+
+@router.get("/room", tags=["experimental"])
+async def random_room():
+    random_string = generate_random_string()
+    return RedirectResponse(f"/room/{random_string}")
+
+
+# -------------------------------------------------------------
+# CRUD for rooms
+# -------------------------------------------------------------
+
+
+@router.put(
+    "/{room}",
+    status_code=201,
+    responses={
+        **RESPONSES,
+        409: {
+            "model": ErrorModel,
+            "description": "Retuned if the room already exists or the user has reached their room limit",
+        },
+    },
+)
 async def create_room(
     room: str,
     user: PermanentUserDependency,
@@ -119,7 +160,14 @@ async def create_room(
     return StaticRoomPublic.model_validate(new_room)
 
 
-@router.post("/{room}")
+@router.post(
+    "/{room}",
+    status_code=204,
+    responses={
+        **RESPONSES,
+        404: {"model": ErrorModel, "description": "Retuned if the room cant be found"},
+    },
+)
 async def update_room(
     user: PermanentUserDependency,
     db: DatabaseDependency,
@@ -149,7 +197,7 @@ async def update_room(
         logger.warning(
             f"Room {room} not found or access denied for user: {user.username}"
         )
-        raise HTTPException(status.HTTP_418_IM_A_TEAPOT, detail="Room doesn't exist")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Room doesn't exist")
 
     if room_data.private_level is not None:
         db_room.level = room_data.private_level
@@ -173,7 +221,14 @@ async def update_room(
     logger.debug(f"Room {room} updated successfully")
 
 
-@router.delete("/{room}")
+@router.delete(
+    "/{room}",
+    status_code=204,
+    responses={
+        **RESPONSES,
+        404: {"model": ErrorModel, "description": "Retuned if the room cant be found"},
+    },
+)
 async def delete_room(
     room: str,
     user: PermanentUserDependency,
@@ -201,50 +256,50 @@ async def delete_room(
         logger.warning(
             f"Room {room} not found or access denied for user: {user.username}"
         )
-        raise HTTPException(status.HTTP_418_IM_A_TEAPOT, detail="Room doesn't exist")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Room doesn't exist")
 
     db.psql_session.delete(db_room)
     db.psql_session.commit()
     logger.debug(f"Room {room} deleted successfully")
 
 
-@router.get("/{room}")
-async def get_room(
-    room: str,
-    user: UserDependency,
-    db: DatabaseDependency,
-):
-    """
-    Get the details of a specific room.
-
-    Args:
-        room (str): The name of the room to retrieve.
-        user (UserDependency): The currently authenticated user.
-        db (DatabaseDependency): The database dependency for executing queries.
-
-    Returns:
-        bool: True if the user can access the room, otherwise False.
-
-    This function checks if the user has permission
-    to access the specified room based on the room's level and the user's status.
-    """
-    logger.debug(f"Checking access for user: {user.username} to room: {room}")
-    stmt = select(StaticRoom).where(StaticRoom.name == room)
-    db_room = db.psql_session.exec(stmt).one_or_none()
-    if db_room:
-        if user.user_type == UserType.GUEST:
-            logger.debug(
-                f"User {user.username} is a guest and cannot access room {room}"
-            )
-            return False
-        if db_room.level == RoomLevel.FREE:
-            logger.debug(f"Room {room} is free to access")
-            return True
-        full_user = User.model_validate(user)
-        db.psql_session.refresh(full_user)
-        if full_user in db_room.users:
-            logger.debug(f"User {user.username} has access to room {room}")
-            return True
-    else:
-        # Everyone can access temporary rooms
-        return True
+# @router.get("/{room}")
+# async def get_room(
+#    room: str,
+#    user: UserDependency,
+#    db: DatabaseDependency,
+# ):
+#    """
+#    Get the details of a specific room.
+#
+#    Args:
+#        room (str): The name of the room to retrieve.
+#        user (UserDependency): The currently authenticated user.
+#        db (DatabaseDependency): The database dependency for executing queries.
+#
+#    Returns:
+#        bool: True if the user can access the room, otherwise False.
+#
+#    This function checks if the user has permission
+#    to access the specified room based on the room's level and the user's status.
+#    """
+#    logger.debug(f"Checking access for user: {user.username} to room: {room}")
+#    stmt = select(StaticRoom).where(StaticRoom.name == room)
+#    db_room = db.psql_session.exec(stmt).one_or_none()
+#    if db_room:
+#        if user.user_type == UserType.GUEST:
+#            logger.debug(
+#                f"User {user.username} is a guest and cannot access room {room}"
+#            )
+#            return False
+#        if db_room.level == RoomLevel.FREE:
+#            logger.debug(f"Room {room} is free to access")
+#            return True
+#        full_user = User.model_validate(user)
+#        db.psql_session.refresh(full_user)
+#        if full_user in db_room.users:
+#            logger.debug(f"User {user.username} has access to room {room}")
+#            return True
+#    else:
+#        # Everyone can access temporary rooms
+#        return True
