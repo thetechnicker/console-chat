@@ -114,7 +114,6 @@ async fn read_input_and_send(
         .json(&body)
         .send()
         .await?;
-
-    //println!("Response from server: {:#?}", res);
+    println!("Response from server: {:#?}", res.status());
     Ok(())
 }
