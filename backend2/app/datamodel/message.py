@@ -87,7 +87,7 @@ MessageContent = Union[Encrypted, Plaintext, KeyRequest, KeyResponse, SystemMess
 class MessageBase(SQLModel):
     type: MessageType = Field(default=MessageType.PLAINTEXT, sa_column=Integer)
     content: Optional[MessageContent] = Field(default=None, sa_column=Column(JSON))
-    send_at: datetime = Field(default_factory=datetime.now)
+    send_at: datetime = Field(default_factory=datetime.now, index=True)
     data: Optional[Json] = Field(default=None, sa_column=Column(JSON))
 
     @model_validator(mode="after")
@@ -112,6 +112,7 @@ class Message(MessageBase, table=True):
     sender_id: uuid.UUID = Field(foreign_key="user.id")
     sender: User = Relationship()  # link_model="message.sender_id")
     room_id: int = Field(foreign_key="staticroom.id")
+    room: "StaticRoom" = Relationship()  # link_model="message.sender_id")
     # receipient_id: uuid.UUID = Field(foreign_key="user.id")
     # receipient: User = Relationship(link_model="message.receipient_id")
 

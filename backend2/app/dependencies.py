@@ -149,6 +149,7 @@ async def lifespan(app: FastAPI):
     global v_pool, engine
     valkey_host = os.getenv("VALKEY_HOST", "valkey")
     v_pool = valkey.ConnectionPool(host=valkey_host, port=6379, protocol=3)
+
     engine = init_postgesql_connection()
 
     yield  # Yield control to the application

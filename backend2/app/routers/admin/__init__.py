@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from app.datamodel.user import *
 from app.dependencies import (
     ALGORITHM,
-    SECRET_KEY,
+    PRIVATE_JWT_KEY,  # PUBLIC_JWT_KEY,
     TOKEN_TTL,
     DatabaseDependency,
     OptionalTokenDependency,
@@ -54,7 +54,7 @@ def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = 
     else:
         expire = datetime.now(timezone.utc) + timedelta(minutes=15)
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, PRIVATE_JWT_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
 

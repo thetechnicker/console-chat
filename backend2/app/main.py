@@ -1,4 +1,5 @@
 import atexit
+import json
 import logging
 import logging.config
 import logging.handlers
@@ -80,8 +81,34 @@ def home():
     return HTMLResponse("Hello")
 
 
+ERROR_LOG_VERSION: int = 0
+
+
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: Any):
+    match ERROR_LOG_VERSION:
+        case 0:
+            pass
+        case 1:
+            header_str = "\n\t".join(
+                f"{key}: {value}" for key, value in request.headers.items()
+            )
+            try:
+                body_str = json.dumps(await request.json(), indent=4).replace(
+                    "\n", "\n\t"
+                )
+            except:
+                body_str = (await request.body()).decode().replace("\n", "\n\t")
+            form_str = await request.form()
+
+            LOG.error(
+                f"HTTP Exeption,\nheaders:\n\t{header_str}\n\nBody:\n\t{body_str}\n\nForm:\n\t{form_str}"
+            )
+        case 2:
+            req_dict = dict(request)
+            LOG.error(f"HTTP Exeption, request: {req_dict}")
+        case _:
+            pass
     error = jsonable_encoder(
         ErrorModel(detail=exc.detail, id=correlation_id.get()),
     )
