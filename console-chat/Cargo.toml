@@ -1,6 +1,6 @@
 [package]
-name = "console-chat-3"
-version = "0.2.0"
+name = "console-chat"
+version = "0.2.1"
 edition = "2024"
 description = "idk"
 authors = ["Thetechnicker <106349149+thetechnicker@users.noreply.github.com>"]
@@ -8,6 +8,7 @@ build = "build.rs"
 
 [workspace]
 members = [
+  #    "openapi",
     "openapi-custom",
 ]
 
@@ -56,7 +57,7 @@ url = { version = "2.5.7", features = ["serde"] }
 uuid = { version = "1.19.0", features = ["serde"] }
 
 [features]
-default = ["openapi-custom/websocket"]
+default = ["openapi-custom/full"]
 
 [build-dependencies]
 anyhow = "1.0.100"

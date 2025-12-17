@@ -1,5 +1,3 @@
-extern crate openapi;
-
 use crate::app::App;
 use clap::Parser;
 use cli::Cli;
@@ -12,7 +10,7 @@ mod components;
 mod config;
 mod errors;
 mod logging;
-mod network;
+//mod network;
 mod tui;
 
 #[tokio::main]
