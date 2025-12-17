@@ -11,20 +11,6 @@
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-#[cfg(feature = "websocket")]
-#[derive(Debug, Clone)]
-pub struct Configuration {
-    pub base_path: String,
-    pub user_agent: Option<String>,
-    pub client: reqwest::Client,
-    pub basic_auth: Option<BasicAuth>,
-    pub oauth_access_token: Option<String>,
-    pub bearer_access_token: Option<String>,
-    pub api_key: Option<ApiKey>,
-    pub ws_path: String,
-}
-
-#[cfg(not(feature = "websocket"))]
 #[derive(Debug, Clone)]
 pub struct Configuration {
     pub base_path: String,
@@ -50,23 +36,6 @@ impl Configuration {
     }
 }
 
-#[cfg(feature = "websocket")]
-impl Default for Configuration {
-    fn default() -> Self {
-        Configuration {
-            base_path: "https://localhost".to_owned(),
-            user_agent: Some("OpenAPI-Generator/0.1.0/rust".to_owned()),
-            client: reqwest::Client::new(),
-            basic_auth: None,
-            oauth_access_token: None,
-            bearer_access_token: None,
-            api_key: None,
-            ws_path: "https://localhost".to_owned(),
-        }
-    }
-}
-
-#[cfg(not(feature = "websocket"))]
 impl Default for Configuration {
     fn default() -> Self {
         Configuration {

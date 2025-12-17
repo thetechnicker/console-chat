@@ -1,4 +1,4 @@
-use openapi::apis::configuration;
+use openapi_custom::apis::configuration;
 use std::sync::Arc;
 use std::sync::OnceLock;
 use tokio::sync::Mutex;
