@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from enum import StrEnum
-from typing import List, Optional, Union
+from typing import List, Literal, Optional, Union
 
 from fastapi import Body
 from pydantic import BaseModel, Field, model_validator
@@ -36,30 +36,41 @@ class BaseMessage(BaseModel):
 
 
 class Encrypted(BaseMessage):
+    type: Literal[MessageType.ENCRYPTED] = MessageType.ENCRYPTED
     content_base64: str
     nonce: str
 
 
 class Plaintext(BaseMessage):
+    type: Literal[MessageType.PLAINTEXT] = MessageType.PLAINTEXT
     content: str
 
 
 class KeyRequest(BaseMessage):
+    type: Literal[MessageType.KEY_REQUEST] = MessageType.KEY_REQUEST
     public_key: str
 
 
 class KeyResponse(BaseMessage):
+    type: Literal[MessageType.KEY_RESPONSE] = MessageType.KEY_RESPONSE
     encrypted_symmetric_key: str
     check_msg: str
     sender_public_key: str
 
 
 class SystemMessage(BaseMessage):
+    type: Literal[MessageType.SYSTEM] = MessageType.SYSTEM
     content: str
     online_users: int
 
 
 class JoinMessage(BaseMessage):
+    type: Literal[MessageType.JOIN] = MessageType.JOIN
+    content: str
+
+
+class LeaveMessage(BaseMessage):
+    type: Literal[MessageType.LEAVE] = MessageType.LEAVE
     content: str
 
 
@@ -86,17 +97,19 @@ MessageContent = Union[Encrypted, Plaintext, KeyRequest, KeyResponse, SystemMess
 
 class MessageBase(SQLModel):
     type: MessageType = Field(default=MessageType.PLAINTEXT, sa_column=Integer)
-    content: Optional[MessageContent] = Field(default=None, sa_column=Column(JSON))
+    content: Optional[MessageContent] = Field(
+        default=None, sa_column=Column(JSON), discriminator="type"
+    )
     send_at: datetime = Field(default_factory=datetime.now, index=True)
     data: Optional[Json] = Field(default=None, sa_column=Column(JSON))
 
-    @model_validator(mode="after")
-    def check_passwords_match(self) -> Self:
-        if isinstance(self.content, get_correct_message_type(self.type)):
-            return self
-        raise ValueError(
-            f"Wrong Message Type: Expected: {type(get_correct_message_type(self.type))}, got: {type(self.content)}"
-        )
+    # @model_validator(mode="after")
+    # def check_passwords_match(self) -> Self:
+    #    if isinstance(self.content, get_correct_message_type(self.type)):
+    #        return self
+    #    raise ValueError(
+    #        f"Wrong Message Type: Expected: {type(get_correct_message_type(self.type))}, got: {type(self.content)}"
+    #    )
 
 
 class MessageSend(MessageBase):

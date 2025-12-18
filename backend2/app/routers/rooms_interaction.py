@@ -81,7 +81,18 @@ async def _send(
 @router.get(
     "/static/{room}",
     response_class=EventSourceResponse,
-    responses={**RESPONSES, 200: {"text/event-stream": {}}},
+    status_code=200,
+    responses={
+        **RESPONSES,
+        200: {
+            "content": {
+                "text/event-stream": {
+                    "example": 'id: string\r\nevent: message\r\ndata: {"type":"PLAINTEXT","content":{"content":"string"},"send_at":"2025-12-17T17:11:54.282325Z","data":{"server_time":"2025-12-17T17:11:54.615735+00:00"},"sender":{"username":"TempUser_GhostlyTraveler_ej48ur","user_type":"GUEST","appearance":{"color":"#99adf3"}}}\r\nretry: 15000\r\n\r\n'
+                }
+            },
+            "description": "event stream",
+        },
+    },
 )
 async def listen_static(
     room: str,
@@ -101,6 +112,7 @@ async def listen_static(
         ),
         db=db_context,
         static_room=True,
+        online=True,
     )
     return EventSourceResponse(
         event_generator(room, user, db_context, request, static_room=True),
@@ -110,7 +122,18 @@ async def listen_static(
 @router.get(
     "/{room}",
     response_class=EventSourceResponse,
-    responses={**RESPONSES, 200: {"text/event-stream": {}}},
+    status_code=200,
+    responses={
+        **RESPONSES,
+        200: {
+            "content": {
+                "text/event-stream": {
+                    "example": 'id: string\r\nevent: message\r\ndata: {"type":"PLAINTEXT","content":{"content":"string"},"send_at":"2025-12-17T17:11:54.282325Z","data":{"server_time":"2025-12-17T17:11:54.615735+00:00"},"sender":{"username":"TempUser_GhostlyTraveler_ej48ur","user_type":"GUEST","appearance":{"color":"#99adf3"}}}\r\nretry: 15000\r\n\r\n'
+                }
+            },
+            "description": "event stream",
+        },
+    },
 )
 async def listen(
     room: str,

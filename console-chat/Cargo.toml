@@ -18,7 +18,7 @@ name = "sse_room"
 
 [workspace]
 members = [
-  #    "openapi",
+      "openapi",
     "openapi-custom",
 ]
 
@@ -67,7 +67,7 @@ url = { version = "2.5.7", features = ["serde"] }
 uuid = { version = "1.19.0", features = ["serde"] }
 futures-util = "0.3.31"
 native-tls = { version = "0.2.14" }
-reqwest-eventsource = { version = "0.6.0"}
+reqwest-eventsource = "0.6.0"
 tokio-tungstenite = { version = "0.28.0", optional = true}
 
 [features]
