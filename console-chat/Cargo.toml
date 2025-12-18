@@ -24,6 +24,7 @@ members = [
 
 [dependencies]
 openapi-custom = { path = "./openapi-custom", features=["native-tls"]} 
+openapi = { path = "./openapi", features=["native-tls"]} 
 alkali = "0.3.0"
 base64 = "0.22.1"
 better-panic = "0.3.0"

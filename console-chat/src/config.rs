@@ -7,7 +7,7 @@ use ratatui::style::{Color, Modifier, Style};
 use serde::{Deserialize, Serialize, Serializer, de::Deserializer};
 use std::{collections::HashMap, env, path::PathBuf};
 use tracing::error;
-use url::Url;
+//use url::Url;
 
 use crate::{action::Action, app::Mode};
 
@@ -25,8 +25,8 @@ pub struct AppConfig {
 pub struct Config {
     #[serde(default, flatten)]
     pub config: AppConfig,
-    #[serde(default)]
-    pub network: NetworkConfig,
+    //#[serde(default)]
+    //pub network: NetworkConfig,
     #[serde(default)]
     pub keybindings: KeyBindings,
     #[serde(default)]
@@ -35,17 +35,19 @@ pub struct Config {
     pub themes: Themes,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct NetworkConfig {
-    pub host: Url,
-}
-impl Default for NetworkConfig {
-    fn default() -> Self {
-        Self {
-            host: Url::parse("https://localhost:8443").expect("default URL should be valid"),
-        }
-    }
-}
+//#[derive(Clone, Debug, Deserialize, Serialize)]
+//pub struct NetworkConfig {
+//    pub host: Url,
+//    pub accept_danger: bool,
+//}
+//impl Default for NetworkConfig {
+//    fn default() -> Self {
+//        Self {
+//            host: Url::parse("https://localhost").expect("default URL should be valid"),
+//            accept_danger: false,
+//        }
+//    }
+//}
 
 lazy_static! {
     pub static ref PROJECT_NAME: String = env!("CARGO_CRATE_NAME").to_uppercase().to_string();

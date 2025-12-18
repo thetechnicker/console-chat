@@ -1,5 +1,6 @@
 use crate::{
     action::Action,
+    cli::Cli,
     components::{
         Component, chat::Chat, editor::Editor, error_display::ErrorDisplay, fps::FpsCounter,
         home::Home, join::Join, login::Login, settings::Settings, sorted_components,
@@ -17,8 +18,9 @@ use tracing::{debug, error, info};
 
 pub struct App {
     config: Config,
-    tick_rate: f64,
-    frame_rate: f64,
+    args: Cli,
+    //tick_rate: f64,
+    //frame_rate: f64,
     components: Vec<Box<dyn Component>>,
     should_quit: bool,
     should_suspend: bool,
@@ -42,11 +44,12 @@ pub enum Mode {
 }
 
 impl App {
-    pub fn new(tick_rate: f64, frame_rate: f64) -> Result<Self> {
+    pub fn new(args: Cli) -> Result<Self> {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
+        let config = Config::new()?;
+        //config.network.accept_danger = args.accept_invalid_certificate;
         Ok(Self {
-            tick_rate,
-            frame_rate,
+            args,
             components: sorted_components(vec![
                 Box::new(Home::new()),
                 Box::new(Chat::new()),
@@ -59,7 +62,7 @@ impl App {
             ]),
             should_quit: false,
             should_suspend: false,
-            config: Config::new()?,
+            config,
             mode: Mode::Home,
             last_mode: None,
             last_tick_key_events: Vec::new(),
@@ -69,12 +72,11 @@ impl App {
     }
 
     pub async fn run(&mut self) -> Result<()> {
-        //       crate::network::Client::init(self.config.network.host.clone(), self.action_tx.clone())
-        //          .await?;
+        crate::network::init(self.args.clone()).await?;
         let mut tui = Tui::new()?
             .mouse(true) // uncomment this line to enable mouse support
-            .tick_rate(self.tick_rate)
-            .frame_rate(self.frame_rate);
+            .tick_rate(self.args.tick_rate)
+            .frame_rate(self.args.frame_rate);
         tui.enter()?;
 
         for component in self.components.iter_mut() {

@@ -500,6 +500,7 @@ dependencies = [
  "lazy_static",
  "libc",
  "native-tls",
+ "openapi",
  "openapi-custom",
  "pretty_assertions",
  "rand",

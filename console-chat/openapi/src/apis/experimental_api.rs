@@ -12,26 +12,9 @@ use super::{ContentType, Error, configuration};
 use crate::{apis::ResponseContent, models};
 use futures_util::StreamExt;
 use reqwest;
-use reqwest_eventsource::{Error as EventError, Event, EventSource};
+use reqwest_eventsource::{Error as EventError, *};
 use serde::{Deserialize, Serialize, de::Error as _};
-
-/// struct for typed errors of method [`experimental_listen`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum ExperimentalListenError {
-    Status401(models::ErrorModel),
-    Status422(models::HttpValidationError),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`experimental_listen_static`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum ExperimentalListenStaticError {
-    Status401(models::ErrorModel),
-    Status422(models::HttpValidationError),
-    UnknownValue(serde_json::Value),
-}
+use std::rc::Rc;
 
 /// struct for typed errors of method [`experimental_send`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,7 +42,7 @@ pub enum RoomsRandomRoomError {
 pub async fn experimental_listen(
     configuration: &configuration::Configuration,
     room: &str,
-) -> Result<(EventSource, Event), Error<ExperimentalListenError>> {
+) -> Result<EventSource, Error<()>> {
     // add a prefix to parameters to efficiently prevent name collisions
     let p_path_room = room;
 
@@ -76,33 +59,13 @@ pub async fn experimental_listen(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    match EventSource::new(req_builder) {
-        Ok(mut es) => {
-            if let Some(event) = es.next().await {
-                return match event {
-                    Ok(event) => Ok((es, event)),
-                    Err(e) => Err(Error::ResponseError(ResponseContent {
-                        status: reqwest::StatusCode::EXPECTATION_FAILED,
-                        content: e.to_string(),
-                        entity: None,
-                    })),
-                };
-            } else {
-                Err(Error::ResponseError(ResponseContent {
-                    status: reqwest::StatusCode::EXPECTATION_FAILED,
-                    content: "Connection Closed before event was sent".to_owned(),
-                    entity: None,
-                }))
-            }
-        }
-        Err(e) => Err(Error::EventSourceError(e)),
-    }
+    Ok(req_builder.eventsource().map_err(Error::EventSourceError)?)
 }
 
 pub async fn experimental_listen_static(
     configuration: &configuration::Configuration,
     room: &str,
-) -> Result<(EventSource, Event), Error<ExperimentalListenError>> {
+) -> Result<EventSource, Error<()>> {
     // add a prefix to parameters to efficiently prevent name collisions
     let p_path_room = room;
 
@@ -120,27 +83,7 @@ pub async fn experimental_listen_static(
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
 
-    match EventSource::new(req_builder) {
-        Ok(mut es) => {
-            if let Some(event) = es.next().await {
-                return match event {
-                    Ok(event) => Ok((es, event)),
-                    Err(e) => Err(Error::ResponseError(ResponseContent {
-                        status: reqwest::StatusCode::EXPECTATION_FAILED,
-                        content: e.to_string(),
-                        entity: None,
-                    })),
-                };
-            } else {
-                Err(Error::ResponseError(ResponseContent {
-                    status: reqwest::StatusCode::EXPECTATION_FAILED,
-                    content: "Connection Closed before event was sent".to_owned(),
-                    entity: None,
-                }))
-            }
-        }
-        Err(e) => Err(Error::EventSourceError(e)),
-    }
+    Ok(req_builder.eventsource().map_err(Error::EventSourceError)?)
 }
 
 pub async fn experimental_send(

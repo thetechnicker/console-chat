@@ -12,6 +12,7 @@ mod errors;
 mod logging;
 mod network;
 mod tui;
+mod util;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -24,7 +25,7 @@ async fn actual_main() -> Result<()> {
     crate::errors::init()?;
     crate::logging::init()?;
     let args = Cli::parse();
-    let mut app = App::new(args.tick_rate, args.frame_rate)?;
+    let mut app = App::new(args)?;
     app.run().await?;
 
     Ok(())
