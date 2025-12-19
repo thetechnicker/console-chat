@@ -62,6 +62,76 @@ impl Deref for TypeErasedWrapper {
     }
 }
 
+use std::cell::RefCell;
+
+/*
+/// Struct to hold references to the same object across threads while allowing unblocking reads but
+/// blocking writes
+// TODO: May use tokio
+pub struct SaveUpdateAsyncRead<T>
+where
+    T: Clone,
+{
+    data: Arc<std::sync::Mutex<T>>,
+    local_copy: RefCell<T>,
+}
+
+impl<T> SaveUpdateAsyncRead<T>
+where
+    T: Clone,
+{
+    pub fn new(v: T) -> Self {
+        Self {
+            data: Arc::new(std::sync::Mutex::new(v.clone())),
+            local_copy: RefCell::new(v),
+        }
+    }
+    pub fn sync(&mut self) {
+        if let Ok(mut data) = self.data.lock() {
+            *data = self.local_copy.borrow().clone();
+        }
+    }
+}
+
+impl<T> Deref for SaveUpdateAsyncRead<T>
+where
+    T: Clone,
+{
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        if let Ok(data) = self.data.try_lock() {
+            *self.local_copy.borrow_mut() = data.clone();
+        }
+        self.local_copy.borrow()
+    }
+}
+
+impl<T> DerefMut for SaveUpdateAsyncRead<T>
+where
+    T: Clone,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.local_copy
+    }
+}
+
+impl<T> Clone for SaveUpdateAsyncRead<T>
+where
+    T: Clone,
+{
+    fn clone(&self) -> Self {
+        let local_copy = self
+            .data
+            .try_lock()
+            .map_or(self.local_copy.clone(), |data| data.clone());
+        Self {
+            data: self.data.clone(),
+            local_copy,
+        }
+    }
+}
+*/
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -87,29 +157,5 @@ mod test {
         assert!(z.is_ok(), "{:?}", z);
         assert_eq!(z.unwrap(), x);
         Ok(())
-    }
-}
-
-// TODO: May use tokio
-struct SaveUpdateAsyncRead<T>
-where
-    T: Clone,
-{
-    data: Arc<std::sync::Mutex<T>>,
-    local_copy: T,
-    has_update: std::sync::atomic::AtomicBool,
-}
-
-impl<T> Clone for SaveUpdateAsyncRead<T>
-where
-    T: Clone,
-{
-    fn clone(&self) -> Self {
-        let local_copy = self.data.lock().map_or(|data| *data, self.local_copy);
-        Self {
-            data: self.data.clone(),
-            local_copy,
-            has_update: self.has_update,
-        }
     }
 }
