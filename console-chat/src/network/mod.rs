@@ -1,5 +1,5 @@
 use crate::cli::Cli;
-use color_eyre::Result;
+//use color_eyre::Result;
 use lazy_static::lazy_static;
 use openapi::apis::configuration::Configuration;
 use openapi::apis::users_api;
@@ -7,6 +7,9 @@ use openapi::models::user_private::UserPrivate;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::debug;
+
+pub(crate) mod error;
+pub(self) type Result<T> = std::result::Result<T, error::NetworkError>;
 
 lazy_static! {
     pub static ref CLIENT: Arc<Mutex<Configuration>> = Arc::new(Mutex::new(Configuration::new()));

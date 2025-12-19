@@ -32,11 +32,14 @@ impl Serialize for OptionalBool {
 
 #[derive(Debug, Clone)]
 pub struct TypeErasedWrapper {
-    data: Arc<Box<dyn std::any::Any + Send + Sync>>,
+    data: Arc<Box<dyn std::any::Any>>,
 }
 
+unsafe impl Send for TypeErasedWrapper {}
+unsafe impl Sync for TypeErasedWrapper {}
+
 impl TypeErasedWrapper {
-    pub fn new<T: 'static + Send + Sync>(value: T) -> Self {
+    pub fn new<T: 'static>(value: T) -> Self {
         TypeErasedWrapper {
             data: Arc::new(Box::new(value)),
         }
@@ -44,9 +47,18 @@ impl TypeErasedWrapper {
 
     pub fn downcast<T: 'static>(self) -> Result<T, TypeErasedWrapper> {
         match Arc::try_unwrap(self.data) {
-            Ok(value) => Ok(*value.downcast().unwrap()),
+            Ok(value) => Ok(*value.downcast::<T>().map_err(|data| Self {
+                data: Arc::new(data),
+            })?),
             Err(data) => Err(TypeErasedWrapper { data }),
         }
+    }
+}
+
+impl Deref for TypeErasedWrapper {
+    type Target = Box<dyn std::any::Any>;
+    fn deref(&self) -> &Self::Target {
+        &self.data
     }
 }
 
@@ -75,5 +87,29 @@ mod test {
         assert!(z.is_ok(), "{:?}", z);
         assert_eq!(z.unwrap(), x);
         Ok(())
+    }
+}
+
+// TODO: May use tokio
+struct SaveUpdateAsyncRead<T>
+where
+    T: Clone,
+{
+    data: Arc<std::sync::Mutex<T>>,
+    local_copy: T,
+    has_update: std::sync::atomic::AtomicBool,
+}
+
+impl<T> Clone for SaveUpdateAsyncRead<T>
+where
+    T: Clone,
+{
+    fn clone(&self) -> Self {
+        let local_copy = self.data.lock().map_or(|data| *data, self.local_copy);
+        Self {
+            data: self.data.clone(),
+            local_copy,
+            has_update: self.has_update,
+        }
     }
 }

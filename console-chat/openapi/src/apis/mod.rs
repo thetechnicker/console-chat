@@ -46,11 +46,11 @@ impl<T: fmt::Debug> error::Error for Error<T> {
     }
 }
 
-//impl<T> From<reqwest_eventsource::Error> for Error<T> {
-//    fn from(e: reqwest_eventsource::Error) -> Self {
-//        Error::ReqwestEventSource(e)
-//    }
-//}
+impl<T> From<reqwest_eventsource::Error> for Error<T> {
+    fn from(e: reqwest_eventsource::Error) -> Self {
+        Error::ReqwestEventSource(e)
+    }
+}
 
 impl<T> From<reqwest::Error> for Error<T> {
     fn from(e: reqwest::Error) -> Self {
