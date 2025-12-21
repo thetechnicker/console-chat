@@ -13,8 +13,9 @@ docs/HttpValidationError.md
 docs/KeyRequest.md
 docs/KeyResponse.md
 docs/LoginData.md
+docs/MessagePublic.md
+docs/MessagePublicContent.md
 docs/MessageSend.md
-docs/MessageSendContent.md
 docs/MessageType.md
 docs/OnlineResponse.md
 docs/Plaintext.md
@@ -46,8 +47,9 @@ src/models/http_validation_error.rs
 src/models/key_request.rs
 src/models/key_response.rs
 src/models/login_data.rs
+src/models/message_public.rs
+src/models/message_public_content.rs
 src/models/message_send.rs
-src/models/message_send_content.rs
 src/models/message_type.rs
 src/models/mod.rs
 src/models/online_response.rs

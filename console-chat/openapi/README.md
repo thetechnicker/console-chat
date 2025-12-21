@@ -41,6 +41,7 @@ Class | Method | HTTP request | Description
 *RoomsApi* | [**rooms_create_room**](docs/RoomsApi.md#rooms_create_room) | **PUT** /rooms/{room} | Create Room
 *RoomsApi* | [**rooms_delete_room**](docs/RoomsApi.md#rooms_delete_room) | **DELETE** /rooms/{room} | Delete Room
 *RoomsApi* | [**rooms_get_my_rooms**](docs/RoomsApi.md#rooms_get_my_rooms) | **GET** /rooms/mine | Get My Rooms
+*RoomsApi* | [**rooms_get_room**](docs/RoomsApi.md#rooms_get_room) | **GET** /rooms/{room} | Get Room
 *RoomsApi* | [**rooms_list_rooms**](docs/RoomsApi.md#rooms_list_rooms) | **GET** /rooms/ | List Rooms
 *RoomsApi* | [**rooms_random_room**](docs/RoomsApi.md#rooms_random_room) | **GET** /rooms/room | Random Room
 *RoomsApi* | [**rooms_update_room**](docs/RoomsApi.md#rooms_update_room) | **POST** /rooms/{room} | Update Room
@@ -61,8 +62,9 @@ Class | Method | HTTP request | Description
  - [KeyRequest](docs/KeyRequest.md)
  - [KeyResponse](docs/KeyResponse.md)
  - [LoginData](docs/LoginData.md)
+ - [MessagePublic](docs/MessagePublic.md)
+ - [MessagePublicContent](docs/MessagePublicContent.md)
  - [MessageSend](docs/MessageSend.md)
- - [MessageSendContent](docs/MessageSendContent.md)
  - [MessageType](docs/MessageType.md)
  - [OnlineResponse](docs/OnlineResponse.md)
  - [Plaintext](docs/Plaintext.md)

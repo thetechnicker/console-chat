@@ -5,7 +5,7 @@
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **r#type** | Option<[**models::MessageType**](MessageType.md)> |  | [optional][default to Plaintext]
-**content** | Option<[**models::MessageSendContent**](MessageSend_content.md)> |  | [optional]
+**content** | Option<[**models::MessagePublicContent**](MessagePublic_content.md)> |  | [optional]
 **send_at** | Option<**String**> |  | [optional]
 **data** | Option<[**serde_json::Value**](.md)> |  | [optional]
 

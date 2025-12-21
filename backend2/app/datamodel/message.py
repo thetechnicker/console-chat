@@ -96,8 +96,10 @@ MessageContent = Union[Encrypted, Plaintext, KeyRequest, KeyResponse, SystemMess
 
 class MessageBase(SQLModel):
     type: MessageType = Field(default=MessageType.PLAINTEXT, sa_column=Integer)
-    content: Optional[MessageContent] = Field(
-        default=None, sa_column=Column(JSON), discriminator="type"
+    content: MessageContent = Field(
+        default=Plaintext(content="Hello World"),
+        sa_column=Column(JSON),
+        discriminator="type",
     )
     send_at: datetime = Field(default_factory=datetime.now, index=True)
     data: Json = Field(default=None, sa_column=Column(JSON))

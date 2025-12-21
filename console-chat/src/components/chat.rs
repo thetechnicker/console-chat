@@ -1,6 +1,7 @@
 use crate::components::vim::*;
 use color_eyre::Result;
 use crossterm::event::KeyEvent;
+use openapi::models::{AppearancePublic, MessagePublic, UserPublic};
 use ratatui::{prelude::*, widgets::*};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::debug;
@@ -9,13 +10,12 @@ use tui_textarea::TextArea;
 use super::Component;
 use crate::{action::Action, config::Config};
 
-struct Message {}
 struct MessageComponent {
-    content: Message,
+    content: MessagePublic,
     selected: bool,
 }
 impl MessageComponent {
-    fn new(content: Message) -> Self {
+    fn new(content: MessagePublic) -> Self {
         Self {
             content,
             selected: false,
@@ -31,29 +31,32 @@ impl MessageComponent {
 
 impl Widget for &MessageComponent {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        //let user = self.content.user.clone().unwrap_or_default();
-        //let color = user
-        //    .color
-        //    .map_or(Color::Gray, |c| c.parse().unwrap_or(Color::Gray));
-        //let alignment = if self.content.is_mine() {
-        //    Alignment::Right
-        //} else {
-        //    Alignment::Left
-        //};
-        //Paragraph::new(self.content.text.clone())
-        //    .block(
-        //        Block::bordered()
-        //            .border_type(BorderType::Rounded)
-        //            .fg(color)
-        //            .title(user.display_name)
-        //            .title_alignment(alignment),
-        //    )
-        //    .alignment(alignment)
-        //    .render(area, buf);
+        let user = self
+            .content
+            .sender
+            .clone()
+            .unwrap_or(Box::new(UserPublic::new(AppearancePublic::new(
+                "#c0ffee".to_owned(),
+            ))));
+        let name = user.username.unwrap_or("System".to_owned());
+        let color = user.appearance.color.parse().unwrap_or(Color::Gray);
+        let message = match self.content.content {
+            Some(_) => "",
+            None => "",
+        };
+        Paragraph::new(message)
+            .block(
+                Block::bordered()
+                    .border_type(BorderType::Rounded)
+                    .fg(color)
+                    .title(name), //       .title_alignment(alignment),
+            )
+            //.alignment(alignment)
+            .render(area, buf);
     }
 }
-impl From<Message> for MessageComponent {
-    fn from(msg: Message) -> Self {
+impl From<MessagePublic> for MessageComponent {
+    fn from(msg: MessagePublic) -> Self {
         Self::new(msg)
     }
 }

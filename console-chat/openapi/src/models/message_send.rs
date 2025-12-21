@@ -16,7 +16,7 @@ pub struct MessageSend {
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub r#type: Option<models::MessageType>,
     #[serde(rename = "content", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
-    pub content: Option<Option<Box<models::MessageSendContent>>>,
+    pub content: Option<Option<Box<models::MessagePublicContent>>>,
     #[serde(rename = "send_at", skip_serializing_if = "Option::is_none")]
     pub send_at: Option<String>,
     #[serde(rename = "data", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
