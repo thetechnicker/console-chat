@@ -6,7 +6,7 @@ use openapi_custom::apis::{configuration, users_api};
 use openapi_custom::models::*;
 use std::time::SystemTime;
 use tokio_tungstenite::tungstenite::{client::ClientRequestBuilder, protocol::Message};
-use tokio_tungstenite::{connect_async_tls_with_config, Connector};
+use tokio_tungstenite::{Connector, connect_async_tls_with_config};
 
 #[tokio::main]
 async fn main() -> Result<()> {
