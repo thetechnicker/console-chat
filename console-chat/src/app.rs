@@ -258,9 +258,17 @@ impl App {
                     self.action_tx.send(action)?
                 }
             }
-            if let Some(action) = network::handle_actions(action.clone()).await? {
-                self.action_tx.send(action)?
-            };
+            match network::handle_actions(action.clone()).await {
+                Ok(action) => {
+                    if let Some(action) = action {
+                        self.action_tx.send(action)?
+                    }
+                }
+                Err(e) => {
+                    let _ = self.action_tx.send(Action::Error(e.into()));
+                    let _ = self.action_tx.send(Action::OpenHome);
+                }
+            }
         }
         Ok(())
     }
