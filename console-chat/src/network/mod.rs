@@ -16,6 +16,7 @@ lazy_static! {
     pub static ref CONFIGURATION: Arc<RwLock<Configuration>> =
         Arc::new(RwLock::new(Configuration::new()));
     pub static ref USER: Arc<RwLock<Option<UserPrivate>>> = Arc::new(RwLock::new(None));
+    pub static ref ROOM: Arc<RwLock<Option<String>>> = Arc::new(RwLock::new(None));
 }
 
 pub async fn init(config: Cli) -> Result<()> {
@@ -45,11 +46,22 @@ pub async fn handle_actions(event: Action) -> Result<Option<Action>> {
             login(&username, &password).await?;
             return Ok(Some(Action::OpenHome));
         }
-        Action::PerformJoin(_room) => {}
-        Action::SendMessage(_msg) => {}
+        Action::PerformJoin(room) => {
+            join(&room).await?;
+        }
+        Action::SendMessage(msg) => {
+            send_message(&msg).await?;
+        }
         _ => {}
     }
     Ok(None)
+}
+
+async fn join(_room: &str) -> Result<()> {
+    Ok(())
+}
+async fn send_message(_message: &str) -> Result<()> {
+    Ok(())
 }
 
 async fn login(username: &str, password: &str) -> Result<()> {
