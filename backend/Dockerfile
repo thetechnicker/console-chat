@@ -1,27 +1,25 @@
-# Use the official Python image from the Docker Hub
 FROM python:3.12-slim
 
-# User
-RUN useradd -ms /bin/sh -u 1001 app
-USER app
 
-# Set the working directory
-WORKDIR /app
+WORKDIR /code
 
-# Copy the requirements file and install dependencies
-COPY requirements.txt ./
-RUN pip install --upgrade pip
-RUN pip install --no-cache-dir -r requirements.txt
-#RUN pip install netifaces
 
-# Copy the rest of the application code
-COPY --chown=app:app . /app
+COPY ./requirements.txt /code/requirements.txt
+COPY ./private_key.pem /code/private_key.pem
+COPY ./public_key.pem /code/public_key.pem
 
-# Expose the port on which FastAPI will run
+
+RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
+
+
+COPY ./logging_configs /code/logging_configs
+COPY ./app /code/app
+
 ARG PORT=8000
 ENV PORT=${PORT}
 EXPOSE ${PORT}
 
-# Command to run the FastAPI application
-#, "--host", "0.0.0.0", "--port", "8000"]
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0"]
+
+CMD ["fastapi", "run", "app/main.py", "--proxy-headers"]
+#CMD ["python", "-m", "app.main", "--proxy-headers"]
+

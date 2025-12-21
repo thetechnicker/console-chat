@@ -1,3 +1,4 @@
 testing.db
 nginx/certs/
 *.pem
+logs/

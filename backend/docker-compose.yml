@@ -3,7 +3,7 @@
 services:
   postgres:
     image: postgres:latest
-    container_name: postgres
+    hostname: postgres
     restart: on-failure
     env_file:
       - .env
@@ -17,16 +17,18 @@ services:
       timeout: 5s
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./logs/postgres:/var/log/postgresql
     networks:
       - internalnet
   valkey:
     image: valkey/valkey:latest
-    container_name: valkey
+    hostname: valkey
     restart: on-failure
     ports:
       - "6379:6379"
     volumes:
       - valkey_data:/data
+      - ./logs/valkey:/data/logs # Mounting logs to host
     networks:
       - internalnet
   chat-server:
@@ -37,21 +39,25 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    env_file:
+      - .env
     networks:
       - internalnet
-    ports:
-      - "8000:8000"
+    volumes:
+      - ./logs/chat-server:/code/logs
   nginx:
     image: nginx:latest
-    container_name: nginx
+    hostname: console-chat
     restart: on-failure
     depends_on:
       - chat-server
     ports:
-      - "8443:8443"
+      - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/certs:/etc/nginx/certs:ro
+      - ./logs/nginx:/var/log/nginx # Mounting logs to host
     networks:
       - internalnet
       - externalnet
@@ -63,9 +69,10 @@ volumes:
 networks:
   internalnet:
     driver: bridge
-    driver_opts:
-      com.docker.network.bridge.enable_ip_masquerade: "false" # Disable NAT for this network to block internet
+    ipam:
+      config:
+        - subnet: 192.168.1.0/24 # Adjust per your network
   externalnet:
     driver: bridge
     driver_opts:
-      com.docker.network.bridge.host_binding_ipv4: "127.0.0.1"
+      com.docker.network.bridge.host_binding_ipv4: "0.0.0.0" # Allows access from all interfaces

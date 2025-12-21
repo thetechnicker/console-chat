@@ -2,7 +2,7 @@ use clap::Parser;
 
 use crate::config::{get_config_dir, get_data_dir};
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Clone)]
 #[command(author, version = version(), about)]
 pub struct Cli {
     /// Tick rate, i.e. number of ticks per second
@@ -12,6 +12,10 @@ pub struct Cli {
     /// Frame rate, i.e. number of frames per second
     #[arg(short, long, value_name = "FLOAT", default_value_t = 60.0)]
     pub frame_rate: f64,
+
+    /// Accept invalid certificate, helpfull if server uses selfsinged certs
+    #[arg(short, long, value_name = "BOOl", default_value_t = false)]
+    pub accept_invalid_certificate: bool,
 }
 
 const VERSION_MESSAGE: &str = concat!(

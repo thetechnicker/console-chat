@@ -1,6 +1,5 @@
-fastapi
+fastapi[standard]
 pydantic
-pwdlib
 PyJWT
 python-dotenv
 psycopg2-binary
@@ -8,3 +7,7 @@ sqlmodel
 sqlalchemy 
 uvicorn
 valkey
+argon2-cffi
+asgi_correlation_id
+cryptography
+sse_starlette

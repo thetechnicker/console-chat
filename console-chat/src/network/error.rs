@@ -1,142 +1,105 @@
-use alkali::AlkaliError;
-use color_eyre::Report;
+use crate::util::TypeErasedWrapper;
+use openapi::apis::{Error as OpenapiError, ResponseContent};
+use reqwest_eventsource::{CannotCloneRequestError, Error as EventError};
 use std::error::Error;
 use std::sync::Arc;
-use tokio::task::JoinError;
-
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ResponseErrorData {
-    pub msg: String,
-    pub status: reqwest::StatusCode,
-    pub url: url::Url,
-}
-
-impl std::fmt::Display for ResponseErrorData {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{}] {} ({})", self.status, self.msg, self.url)
-    }
-}
 
 #[derive(Debug, Clone)]
 pub enum NetworkError {
-    NoRoom,
-    MissingAuthToken,
+    Reqwest(Arc<reqwest::Error>),
+    ReqwestEventSource(Arc<EventError>),
+    Serde(Arc<serde_json::Error>),
+    Io(Arc<std::io::Error>),
+    ResponseError(Arc<ResponseContent<TypeErasedWrapper>>),
+    CannotCloneRequestError(CannotCloneRequestError),
+}
 
-    GenericError(String),
-    UrlParseError(url::ParseError),
-
-    Unauthorized(ResponseErrorData),
-    NotFound(ResponseErrorData),
-    ClientError(ResponseErrorData),
-    ServerError(ResponseErrorData),
-
-    ReqwestError(Arc<reqwest::Error>),
-
-    Utf8Error(std::str::Utf8Error),
-    Base64DecodeError(base64::DecodeError),
-    SerdeError(Arc<serde_json::Error>),
-    AlkaliError(AlkaliError),
-    CompositError(Arc<NetworkError>, String),
-
-    JoinError(Arc<JoinError>),
-    Eyre(Arc<Report>),
+pub fn print_recursive_error(e: impl Error) -> String {
+    fn print_recursive_error_inner(e: impl Error, depth: usize) -> String {
+        if let Some(source) = e.source() {
+            format!(
+                "{}{}\nsource: {}",
+                "\t".repeat(depth),
+                e,
+                print_recursive_error_inner(source, depth + 1)
+                    .replace("\n", &format!("\n{}", "\t".repeat(depth + 1)))
+            )
+        } else {
+            e.to_string()
+        }
+    }
+    print_recursive_error_inner(e, 0)
 }
 
 impl std::fmt::Display for NetworkError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            NetworkError::NoRoom => write!(f, "You haven't Joined a room"),
-            NetworkError::MissingAuthToken => write!(f, "The authentication token isnt set"),
-            NetworkError::GenericError(msg) => write!(f, "Error: {}", msg),
-            NetworkError::UrlParseError(e) => write!(f, "URL Parse Error: {}", e),
-            NetworkError::ReqwestError(e) => write!(f, "Request Error: {}", e),
-            NetworkError::ClientError(data) => write!(f, "Client Error: HTTP {}", data),
-            NetworkError::ServerError(data) => write!(f, "Server Error: HTTP {}", data),
-            NetworkError::Unauthorized(data) => write!(f, "Unauthorized: {}", data),
-            NetworkError::NotFound(data) => write!(f, "Not Found: {}", data),
-            NetworkError::Utf8Error(error) => write!(f, "Utf8Error: {}", error),
-            NetworkError::SerdeError(error) => write!(f, "SerdeError: {}", error),
-            NetworkError::AlkaliError(error) => write!(f, "AlkaliError: {}", error),
-            NetworkError::Base64DecodeError(error) => write!(f, "Base64Error: {}", error),
-            NetworkError::JoinError(error) => write!(f, "Tokio Join Error: {}", error),
-            NetworkError::CompositError(error, str) => {
-                write!(f, "CompositError: {}, \"{}\"", error, str)
-            }
-            NetworkError::Eyre(e) => {
-                write!(f, "{e}")
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let (module, e) = match self {
+            Self::Reqwest(e) => ("reqwest", print_recursive_error(e)),
+            Self::ReqwestEventSource(e) => ("reqwest-eventsource", print_recursive_error(e)),
+            Self::Serde(e) => ("serde", print_recursive_error(e)),
+            Self::Io(e) => ("IO", print_recursive_error(e)),
+            Self::CannotCloneRequestError(e) => ("event source", print_recursive_error(e)),
+            Self::ResponseError(e) => (
+                "response",
+                if let Some(entity) = e.entity.as_ref() {
+                    format!(
+                        "status code {}, contet: {}, data: {:?}",
+                        e.status, e.content, entity
+                    )
+                } else {
+                    format!("status code {}, contet: {}", e.status, e.content)
+                },
+            ),
+        };
+        write!(f, "error in {}: {}", module, e)
+    }
+}
+
+/*
+impl PartialEq for NetworkError {
+    fn eq(&self, other: &Self) -> bool {
+        self.to_string() == other.to_string()
+    }
+}
+impl Eq for NetworkError {}
+*/
+impl std::error::Error for NetworkError {}
+
+impl<T> From<OpenapiError<T>> for NetworkError
+where
+    T: 'static + Clone + Sync + Send + std::fmt::Debug,
+{
+    fn from(value: OpenapiError<T>) -> NetworkError {
+        match value {
+            OpenapiError::Reqwest(e) => NetworkError::Reqwest(Arc::new(e)),
+            OpenapiError::ReqwestEventSource(e) => NetworkError::ReqwestEventSource(Arc::new(e)),
+            OpenapiError::Serde(e) => NetworkError::Serde(Arc::new(e)),
+            OpenapiError::Io(e) => NetworkError::Io(Arc::new(e)),
+            OpenapiError::EventSourceError(e) => NetworkError::CannotCloneRequestError(e),
+            OpenapiError::ResponseError(e) => {
+                NetworkError::ResponseError(Arc::new(ResponseContent {
+                    status: e.status,
+                    content: e.content,
+                    entity: Some(TypeErasedWrapper::new(e.entity)),
+                }))
             }
         }
     }
 }
 
-impl From<url::ParseError> for NetworkError {
-    fn from(value: url::ParseError) -> Self {
-        Self::UrlParseError(value)
-    }
-}
-impl From<reqwest::Error> for NetworkError {
-    fn from(value: reqwest::Error) -> Self {
-        Self::ReqwestError(Arc::new(value))
-    }
-}
+pub trait ToNetworkError: Into<OpenapiError<()>> {}
 
-impl From<std::str::Utf8Error> for NetworkError {
-    fn from(value: std::str::Utf8Error) -> Self {
-        Self::Utf8Error(value)
-    }
-}
-
-impl From<serde_json::Error> for NetworkError {
-    fn from(value: serde_json::Error) -> Self {
-        Self::SerdeError(Arc::new(value))
-    }
-}
-
-impl From<base64::DecodeError> for NetworkError {
-    fn from(value: base64::DecodeError) -> Self {
-        Self::Base64DecodeError(value)
-    }
-}
-
-impl From<AlkaliError> for NetworkError {
-    fn from(value: AlkaliError) -> Self {
-        Self::AlkaliError(value)
-    }
-}
-impl From<JoinError> for NetworkError {
-    fn from(value: JoinError) -> Self {
-        Self::JoinError(Arc::new(value))
-    }
-}
-impl From<Report> for NetworkError {
-    fn from(value: Report) -> Self {
-        Self::Eyre(Arc::new(value))
-    }
-}
-
-/// Emty trait to specify which objects get parsed to ApiError::GenericError
-trait StringError: Into<String> {}
-
-impl StringError for String {}
-impl StringError for &str {}
+impl ToNetworkError for reqwest::Error {}
+impl ToNetworkError for reqwest_eventsource::Error {}
+impl ToNetworkError for serde_json::Error {}
+impl ToNetworkError for std::io::Error {}
 
 impl<T> From<T> for NetworkError
 where
-    T: StringError,
+    T: ToNetworkError,
 {
-    fn from(value: T) -> Self {
-        Self::GenericError(value.into())
+    fn from(value: T) -> NetworkError {
+        let x: OpenapiError<()> = value.into();
+        x.into()
     }
 }
-
-impl<E, S> From<(E, S)> for NetworkError
-where
-    E: Into<NetworkError>,
-    S: Into<String>,
-{
-    fn from(value: (E, S)) -> Self {
-        Self::CompositError(Arc::new(value.0.into()), value.1.into())
-    }
-}
-
-impl Error for NetworkError {}

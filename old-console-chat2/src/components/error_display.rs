@@ -1,0 +1,85 @@
+use std::time::Instant;
+
+use color_eyre::Result;
+use ratatui::{prelude::*, widgets::*};
+
+use super::Component;
+
+use crate::action::{Action, AppError};
+
+const ERROR_TIMEOUT: f64 = 5.0;
+
+#[derive(Debug, Clone)]
+pub struct ErrorDisplay {
+    last_error: Instant,
+    errors: Vec<AppError>,
+    current_error: Option<AppError>,
+}
+
+impl Default for ErrorDisplay {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ErrorDisplay {
+    pub fn new() -> Self {
+        Self {
+            last_error: Instant::now(),
+            errors: Vec::new(),
+            current_error: None,
+        }
+    }
+
+    fn app_tick(&mut self) {
+        let now = Instant::now();
+        let elapsed = (now - self.last_error).as_secs_f64();
+        if elapsed >= ERROR_TIMEOUT || self.current_error.is_none() {
+            self.current_error = self.errors.pop();
+            if self.current_error.is_some() {
+                self.last_error = Instant::now();
+            }
+        }
+    }
+}
+
+impl Component for ErrorDisplay {
+    fn hide(&mut self) {}
+    fn update(&mut self, action: Action) -> Result<Option<Action>> {
+        match action {
+            Action::Error(msg) => {
+                self.errors.push(msg);
+            }
+            Action::Tick => self.app_tick(),
+            _ => {}
+        };
+        Ok(None)
+    }
+
+    fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
+        if let Some(error) = self.current_error.as_ref() {
+            let center = Layout::vertical([
+                Constraint::Fill(1),
+                Constraint::Percentage(30),
+                Constraint::Fill(1),
+            ])
+            .split(
+                Layout::horizontal([
+                    Constraint::Fill(1),
+                    Constraint::Percentage(30),
+                    Constraint::Fill(1),
+                ])
+                .split(area)[1],
+            )[1];
+
+            frame.render_widget(Clear, center);
+
+            let display = Paragraph::new(format!("{error}"))
+                .centered()
+                .block(Block::bordered().border_type(BorderType::QuadrantInside))
+                .on_red();
+            frame.render_widget(display, center);
+        }
+        Ok(())
+    }
+}

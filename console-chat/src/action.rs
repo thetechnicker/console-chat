@@ -1,6 +1,9 @@
-use crate::network::{data_model::messages::ServerMessage, error::NetworkError};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use crate::network::error::NetworkError;
+use openapi::models::{MessagePublic, UserPrivate};
+use serde::{Deserialize, Deserializer, Serialize};
 use strum::Display;
+
+pub(crate) type Result<T, E = AppError> = std::result::Result<T, E>;
 
 #[derive(Debug, Clone)]
 pub enum AppError {
@@ -28,55 +31,11 @@ impl std::fmt::Display for AppError {
 impl std::error::Error for AppError {}
 
 impl PartialEq for AppError {
-    fn eq(&self, other: &Self) -> bool {
-        match self {
-            Self::Error(e) => match other {
-                Self::Error(o) => e == o,
-                Self::NetworkError(error) => &format!("{error}") == e,
-                Self::MissingActionTX => false,
-                Self::MissingPassword => false,
-                Self::MissingUsername => false,
-                Self::MissingPasswordAndUsername => false,
-            },
-            Self::NetworkError(error) => match other {
-                Self::Error(e) => &format!("{error}") == e,
-                Self::NetworkError(e) => format!("{error}") == format!("{e}"),
-                Self::MissingActionTX => false,
-                Self::MissingPassword => false,
-                Self::MissingUsername => false,
-                Self::MissingPasswordAndUsername => false,
-            },
-            Self::MissingActionTX => match other {
-                Self::Error(_) => false,
-                Self::NetworkError(_) => false,
-                Self::MissingActionTX => true,
-                Self::MissingPassword => false,
-                Self::MissingUsername => false,
-                Self::MissingPasswordAndUsername => false,
-            },
-            Self::MissingPassword => {
-                matches!(other, Self::MissingPassword)
-            }
-            Self::MissingUsername => {
-                matches!(other, Self::MissingUsername)
-            }
-            Self::MissingPasswordAndUsername => {
-                matches!(other, Self::MissingPasswordAndUsername)
-            }
-        }
+    fn eq(&self, _: &Self) -> bool {
+        false // No error is equal
     }
 }
 impl Eq for AppError {}
-
-impl Serialize for AppError {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        // You said “just convert to string”
-        serializer.serialize_str(&self.to_string())
-    }
-}
 
 impl<'de> Deserialize<'de> for AppError {
     fn deserialize<D>(deserializer: D) -> Result<AppError, D::Error>
@@ -110,7 +69,7 @@ impl From<NetworkError> for AppError {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Display, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Display, Serialize, Deserialize)]
 pub enum Action {
     Tick,
     Render,
@@ -119,6 +78,7 @@ pub enum Action {
     Resume,
     Quit,
     ClearScreen,
+    #[serde(skip)]
     Error(AppError),
     Help,
 
@@ -139,7 +99,8 @@ pub enum Action {
     TriggerJoin,
     PerformJoin(String),
     SendMessage(String),
-    ReceivedMessage(ServerMessage),
+    Me(UserPrivate),
+    ReceivedMessage(MessagePublic),
     Leave,
 
     SyncProfile,

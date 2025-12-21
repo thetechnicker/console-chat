@@ -1,3 +1,16 @@
+use crate::{
+    action::Action,
+    //action::Result,
+    cli::Cli,
+    components::{
+        Component, chat::Chat, editor::Editor, error_display::ErrorDisplay, fps::FpsCounter,
+        home::Home, join::Join, login::Login, settings::Settings, sorted_components,
+    },
+    config::Config,
+    network,
+    //    network::handle_network,
+    tui::{Event, Tui},
+};
 use color_eyre::Result;
 use crossterm::event::KeyEvent;
 use ratatui::prelude::Rect;
@@ -5,21 +18,11 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
 
-use crate::{
-    action::Action,
-    components::{
-        Component, chat::Chat, editor::Editor, error_display::ErrorDisplay, fps::FpsCounter,
-        home::Home, join::Join, login::Login, settings::Settings, sorted_components,
-    },
-    config::Config,
-    network::handle_network,
-    tui::{Event, Tui},
-};
-
 pub struct App {
     config: Config,
-    tick_rate: f64,
-    frame_rate: f64,
+    args: Cli,
+    //tick_rate: f64,
+    //frame_rate: f64,
     components: Vec<Box<dyn Component>>,
     should_quit: bool,
     should_suspend: bool,
@@ -43,11 +46,10 @@ pub enum Mode {
 }
 
 impl App {
-    pub fn new(tick_rate: f64, frame_rate: f64) -> Result<Self> {
+    pub fn new(args: Cli) -> Result<Self> {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
         Ok(Self {
-            tick_rate,
-            frame_rate,
+            args,
             components: sorted_components(vec![
                 Box::new(Home::new()),
                 Box::new(Chat::new()),
@@ -70,12 +72,13 @@ impl App {
     }
 
     pub async fn run(&mut self) -> Result<()> {
-        crate::network::Client::init(self.config.network.host.clone(), self.action_tx.clone())
-            .await?;
+        network::init(self.args.clone(), self.action_tx.clone())
+            .await
+            .map_err(|e| color_eyre::Report::new(e))?;
         let mut tui = Tui::new()?
             .mouse(true) // uncomment this line to enable mouse support
-            .tick_rate(self.tick_rate)
-            .frame_rate(self.frame_rate);
+            .tick_rate(self.args.tick_rate)
+            .frame_rate(self.args.frame_rate);
         tui.enter()?;
 
         for component in self.components.iter_mut() {
@@ -91,7 +94,7 @@ impl App {
         let action_tx = self.action_tx.clone();
         loop {
             self.handle_events(&mut tui).await?;
-            self.handle_actions(&mut tui)?;
+            self.handle_actions(&mut tui).await?;
             if self.should_suspend {
                 tui.suspend()?;
                 action_tx.send(Action::Resume)?;
@@ -218,7 +221,7 @@ impl App {
         Ok(())
     }
 
-    fn handle_actions(&mut self, tui: &mut Tui) -> Result<()> {
+    async fn handle_actions(&mut self, tui: &mut Tui) -> Result<()> {
         while let Ok(action) = self.action_rx.try_recv() {
             if action != Action::Tick && action != Action::Render {
                 debug!("{action:?}");
@@ -255,7 +258,7 @@ impl App {
                     self.action_tx.send(action)?
                 }
             }
-            if let Some(action) = handle_network(action.clone())? {
+            if let Some(action) = network::handle_actions(action.clone()).await? {
                 self.action_tx.send(action)?
             };
         }

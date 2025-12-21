@@ -1,8 +1,8 @@
+use crate::app::App;
 use clap::Parser;
 use cli::Cli;
 use color_eyre::Result;
-
-use crate::app::App;
+use tracing::error;
 
 mod action;
 mod app;
@@ -13,10 +13,14 @@ mod errors;
 mod logging;
 mod network;
 mod tui;
+mod util;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let res = actual_main().await;
+    if res.is_err() {
+        error!("App exited with: {:#?}", res.as_ref().err().unwrap())
+    }
     crate::logging::clear_logs();
     res
 }
@@ -25,8 +29,7 @@ async fn actual_main() -> Result<()> {
     crate::errors::init()?;
     crate::logging::init()?;
     let args = Cli::parse();
-    let mut app = App::new(args.tick_rate, args.frame_rate)?;
+    let mut app = App::new(args)?;
     app.run().await?;
-
     Ok(())
 }

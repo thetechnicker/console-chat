@@ -1,7 +1,7 @@
 use crate::components::vim::*;
-use crate::network::data_model::messages::ServerMessage;
 use color_eyre::Result;
 use crossterm::event::KeyEvent;
+use openapi::models::{AppearancePublic, MessagePublic, UserPublic};
 use ratatui::{prelude::*, widgets::*};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::debug;
@@ -11,11 +11,11 @@ use super::Component;
 use crate::{action::Action, config::Config};
 
 struct MessageComponent {
-    content: ServerMessage,
+    content: MessagePublic,
     selected: bool,
 }
 impl MessageComponent {
-    fn new(content: ServerMessage) -> Self {
+    fn new(content: MessagePublic) -> Self {
         Self {
             content,
             selected: false,
@@ -31,29 +31,30 @@ impl MessageComponent {
 
 impl Widget for &MessageComponent {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let user = self.content.user.clone().unwrap_or_default();
-        let color = user
-            .color
-            .map_or(Color::Gray, |c| c.parse().unwrap_or(Color::Gray));
-        let alignment = if self.content.base.is_mine() {
-            Alignment::Right
-        } else {
-            Alignment::Left
+        let user = self
+            .content
+            .sender
+            .clone()
+            .unwrap_or(UserPublic::new(AppearancePublic::new("#c0ffee".to_owned())));
+        let name = user.username.unwrap_or("System".to_owned());
+        let color = user.appearance.color.parse().unwrap_or(Color::Gray);
+        let message = match self.content.content.as_ref() {
+            Some(content) => format!("{:?}", content),
+            None => "".to_owned(),
         };
-        Paragraph::new(self.content.base.text.clone())
+        Paragraph::new(message)
             .block(
                 Block::bordered()
                     .border_type(BorderType::Rounded)
                     .fg(color)
-                    .title(user.display_name)
-                    .title_alignment(alignment),
+                    .title(name), //       .title_alignment(alignment),
             )
-            .alignment(alignment)
+            //.alignment(alignment)
             .render(area, buf);
     }
 }
-impl From<ServerMessage> for MessageComponent {
-    fn from(msg: ServerMessage) -> Self {
+impl From<MessagePublic> for MessageComponent {
+    fn from(msg: MessagePublic) -> Self {
         Self::new(msg)
     }
 }
