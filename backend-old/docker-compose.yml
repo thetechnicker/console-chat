@@ -1,0 +1,71 @@
+# This file currently is for development
+# it will get updated once the chat api works good enougth
+services:
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    restart: on-failure
+    env_file:
+      - .env
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 5s
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - internalnet
+  valkey:
+    image: valkey/valkey:latest
+    container_name: valkey
+    restart: on-failure
+    ports:
+      - "6379:6379"
+    volumes:
+      - valkey_data:/data
+    networks:
+      - internalnet
+  chat-server:
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: on-failure
+    build:
+      context: .
+      dockerfile: Dockerfile
+    networks:
+      - internalnet
+    ports:
+      - "8000:8000"
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    restart: on-failure
+    depends_on:
+      - chat-server
+    ports:
+      - "8443:8443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    networks:
+      - internalnet
+      - externalnet
+volumes:
+  postgres_data:
+    driver: local
+  valkey_data:
+    driver: local
+networks:
+  internalnet:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_ip_masquerade: "false" # Disable NAT for this network to block internet
+  externalnet:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.host_binding_ipv4: "127.0.0.1"
