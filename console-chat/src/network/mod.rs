@@ -14,7 +14,7 @@ use tokio::task::JoinHandle;
 use tracing::debug;
 
 pub(crate) mod error;
- type Result<T, E = error::NetworkError> = std::result::Result<T, E>;
+type Result<T, E = error::NetworkError> = std::result::Result<T, E>;
 
 pub struct ListenData {
     pub thread: JoinHandle<Result<()>>,
@@ -148,17 +148,18 @@ async fn login(username: &str, password: &str) -> Result<()> {
         Err(e) => {
             // TODO: is it a good idea to register if login fails?
             if let ApiError::ResponseError(ref e) = e
-                && let Some(users_api::UsersLoginError::Status401(_)) = e.entity {
-                    if let Ok(string) = serde_json::to_string(&login) {
-                        debug!("{}", string);
-                    }
-                    let response = users_api::users_register(&conf, login).await?;
-                    conf.bearer_access_token = Some(response.token.token);
-
-                    let mut user = USER.write().await;
-                    *user = Some(users_api::users_get_me(&conf).await?);
-                    debug!("{:#?}", user);
+                && let Some(users_api::UsersLoginError::Status401(_)) = e.entity
+            {
+                if let Ok(string) = serde_json::to_string(&login) {
+                    debug!("{}", string);
                 }
+                let response = users_api::users_register(&conf, login).await?;
+                conf.bearer_access_token = Some(response.token.token);
+
+                let mut user = USER.write().await;
+                *user = Some(users_api::users_get_me(&conf).await?);
+                debug!("{:#?}", user);
+            }
             Err(e.into())
         }
     }
