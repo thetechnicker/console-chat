@@ -38,9 +38,9 @@ impl Widget for &MessageComponent {
             .unwrap_or(UserPublic::new(AppearancePublic::new("#c0ffee".to_owned())));
         let name = user.username.unwrap_or("System".to_owned());
         let color = user.appearance.color.parse().unwrap_or(Color::Gray);
-        let message = match self.content.content {
-            Some(_) => "",
-            None => "",
+        let message = match self.content.content.as_ref() {
+            Some(content) => format!("{:?}", content),
+            None => "".to_owned(),
         };
         Paragraph::new(message)
             .block(
@@ -183,7 +183,7 @@ impl Component for Chat<'_> {
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
             Action::OpenChat => self.active = true,
-            //Action::ReceivedMessage(msg) => self.msgs.push(msg.into()),
+            Action::ReceivedMessage(msg) => self.msgs.push(msg.into()),
             Action::Leave => self.msgs.clear(),
             Action::Tick => {
                 // add any logic here that should run on every tick

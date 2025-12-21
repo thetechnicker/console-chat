@@ -1,5 +1,5 @@
 use crate::network::error::NetworkError;
-use openapi::models::UserPrivate;
+use openapi::models::{MessagePublic, UserPrivate};
 use serde::{Deserialize, Deserializer, Serialize};
 use strum::Display;
 
@@ -100,7 +100,7 @@ pub enum Action {
     PerformJoin(String),
     SendMessage(String),
     Me(UserPrivate),
-    //ReceivedMessage(Message),
+    ReceivedMessage(MessagePublic),
     Leave,
 
     SyncProfile,

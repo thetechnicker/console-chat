@@ -72,7 +72,7 @@ impl App {
     }
 
     pub async fn run(&mut self) -> Result<()> {
-        network::init(self.args.clone())
+        network::init(self.args.clone(), self.action_tx.clone())
             .await
             .map_err(|e| color_eyre::Report::new(e))?;
         let mut tui = Tui::new()?

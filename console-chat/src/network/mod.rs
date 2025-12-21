@@ -1,25 +1,37 @@
 use crate::action::Action;
 use crate::cli::Cli;
+use futures_util::stream::StreamExt;
 use lazy_static::lazy_static;
 use openapi::apis::Error as ApiError;
 use openapi::apis::configuration::Configuration;
-use openapi::apis::users_api;
+use openapi::apis::{experimental_api, users_api};
 use openapi::models::*;
 use std::sync::Arc;
+//use tokio::sync::Mutex;
 use tokio::sync::RwLock;
+use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
+use tokio::task::JoinHandle;
 use tracing::debug;
 
 pub(crate) mod error;
 pub(self) type Result<T, E = error::NetworkError> = std::result::Result<T, E>;
 
+pub struct ListenData {
+    pub thread: JoinHandle<Result<()>>,
+    pub room: Arc<String>,
+}
+
 lazy_static! {
     pub static ref CONFIGURATION: Arc<RwLock<Configuration>> =
         Arc::new(RwLock::new(Configuration::new()));
     pub static ref USER: Arc<RwLock<Option<UserPrivate>>> = Arc::new(RwLock::new(None));
-    pub static ref ROOM: Arc<RwLock<Option<String>>> = Arc::new(RwLock::new(None));
+    pub static ref LISTEN_TASK: Arc<RwLock<Option<ListenData>>> = Arc::new(RwLock::new(None));
+    pub static ref ACTION_TX: Arc<RwLock<UnboundedSender<Action>>> =
+        Arc::new(RwLock::new(unbounded_channel().0));
 }
 
-pub async fn init(config: Cli) -> Result<()> {
+pub async fn init(config: Cli, action_tx: UnboundedSender<Action>) -> Result<()> {
+    *ACTION_TX.write().await = action_tx;
     let mut client = CONFIGURATION.write().await;
     if config.accept_invalid_certificate {
         client.client = reqwest::ClientBuilder::new()
@@ -36,6 +48,12 @@ pub async fn init(config: Cli) -> Result<()> {
 
 pub async fn handle_actions(event: Action) -> Result<Option<Action>> {
     match event {
+        Action::Leave => {
+            let mut task = LISTEN_TASK.write().await;
+            if let Some(task) = task.take() {
+                task.thread.abort();
+            }
+        }
         Action::OpenLogin => {
             let me = USER.read().await;
             if let Some(me) = me.as_ref() {
@@ -57,10 +75,61 @@ pub async fn handle_actions(event: Action) -> Result<Option<Action>> {
     Ok(None)
 }
 
-async fn join(_room: &str) -> Result<()> {
+async fn join(room: &str) -> Result<()> {
+    let mut listen_task = LISTEN_TASK.write().await;
+    if listen_task.is_none() {
+        let room = Arc::new(room.to_owned());
+        let thread_room = room.clone();
+        let task = ListenData {
+            thread: tokio::task::spawn(async { listen(thread_room).await }),
+            room: room,
+        };
+        *listen_task = Some(task);
+    }
     Ok(())
 }
-async fn send_message(_message: &str) -> Result<()> {
+
+async fn listen(room: Arc<String>) -> Result<()> {
+    let conf = CONFIGURATION.read().await.clone();
+    let mut stream = experimental_api::experimental_listen(&conf, &room).await?;
+    let action_tx = ACTION_TX.read().await.clone();
+    let _ = action_tx.send(Action::OpenChat);
+    while let Some(Ok(msg)) = stream.next().await {
+        debug!("got message: {:#?}", msg);
+        match msg {
+            reqwest_eventsource::Event::Message(event) => {
+                match serde_json::from_str::<MessagePublic>(&event.data) {
+                    Ok(message) => {
+                        let _ = action_tx.send(Action::ReceivedMessage(message));
+                    }
+                    Err(e) => {
+                        let e: error::NetworkError = e.into();
+                        let _ = action_tx.send(Action::Error(e.into()));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+async fn send_message(message_content: &str) -> Result<()> {
+    let listen_task = LISTEN_TASK.read().await;
+    if let Some(task) = listen_task.as_ref() {
+        let conf = CONFIGURATION.read().await;
+        let now: chrono::DateTime<chrono::Utc> =
+            chrono::DateTime::from(std::time::SystemTime::now());
+        let message = MessageSend {
+            r#type: Some(MessageType::Plaintext),
+            content: Some(Content::Plaintext(Plaintext::new(
+                message_content.to_owned(),
+            ))),
+            send_at: Some(now.to_rfc3339()),
+            data: Some(None),
+        };
+
+        experimental_api::experimental_send(&conf, &task.room, message).await?;
+    }
     Ok(())
 }
 
