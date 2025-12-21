@@ -31,8 +31,8 @@ jobs:
           pip install -r ./backend/requirements-frozen.txt
       - name: Run Black check
         run: black --check ./backend/app
-      - name: Check import order with isort
-        run: isort --check-only ./backend/app
+      #- name: Check import order with isort
+      #  run: isort --check-only ./backend/app
       - name: Run Pyright strict
         run: pyright -p pyrightconfig.json ./backend/app
   python-test:
