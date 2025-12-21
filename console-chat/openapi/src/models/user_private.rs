@@ -18,7 +18,7 @@ pub struct UserPrivate {
     #[serde(rename = "user_type", skip_serializing_if = "Option::is_none")]
     pub user_type: Option<models::UserType>,
     #[serde(rename = "appearance")]
-    pub appearance: Box<models::AppearancePublic>,
+    pub appearance: models::AppearancePublic,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
 }
@@ -28,7 +28,7 @@ impl UserPrivate {
         UserPrivate {
             username: None,
             user_type: None,
-            appearance: Box::new(appearance),
+            appearance,
             id,
         }
     }

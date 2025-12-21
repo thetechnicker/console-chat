@@ -1,4 +1,4 @@
-# MessageSend
+# MessagePublic
 
 ## Properties
 
@@ -8,6 +8,7 @@ Name | Type | Description | Notes
 **content** | Option<[**models::Content**](Content.md)> |  | [optional]
 **send_at** | Option<**String**> |  | [optional]
 **data** | Option<[**serde_json::Value**](.md)> |  | [optional]
+**sender** | Option<[**models::UserPublic**](UserPublic.md)> |  | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

@@ -12,7 +12,7 @@ use crate::models;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct MessageSend {
+pub struct MessagePublic {
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub r#type: Option<models::MessageType>,
     #[serde(rename = "content", skip_serializing_if = "Option::is_none")]
@@ -21,15 +21,18 @@ pub struct MessageSend {
     pub send_at: Option<String>,
     #[serde(rename = "data", default, with = "::serde_with::rust::double_option", skip_serializing_if = "Option::is_none")]
     pub data: Option<Option<serde_json::Value>>,
+    #[serde(rename = "sender", deserialize_with = "Option::deserialize")]
+    pub sender: Option<models::UserPublic>,
 }
 
-impl MessageSend {
-    pub fn new() -> MessageSend {
-        MessageSend {
+impl MessagePublic {
+    pub fn new(sender: Option<models::UserPublic>) -> MessagePublic {
+        MessagePublic {
             r#type: None,
             content: None,
             send_at: None,
             data: None,
+            sender,
         }
     }
 }

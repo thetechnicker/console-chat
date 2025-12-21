@@ -13,20 +13,20 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
-pub enum Content {
+pub enum MessagePublicContent {
     #[serde(rename="ENCRYPTED")]
-    Encrypted(models::Encrypted),
+    Encrypted(Box<models::Encrypted>),
     #[serde(rename="PLAINTEXT")]
-    Plaintext(models::Plaintext),
+    Plaintext(Box<models::Plaintext>),
     #[serde(rename="KEY_REQUEST")]
-    KeyRequest(models::KeyRequest),
+    KeyRequest(Box<models::KeyRequest>),
     #[serde(rename="KEY_RESPONSE")]
-    KeyResponse(models::KeyResponse),
+    KeyResponse(Box<models::KeyResponse>),
     #[serde(rename="SYSTEM")]
-    System(models::SystemMessage),
+    System(Box<models::SystemMessage>),
 }
 
-impl Default for Content {
+impl Default for MessagePublicContent {
     fn default() -> Self {
         Self::Encrypted(Default::default())
     }

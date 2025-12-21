@@ -54,6 +54,7 @@ Class | Method | HTTP request | Description
 ## Documentation For Models
 
  - [AppearancePublic](docs/AppearancePublic.md)
+ - [Content](docs/Content.md)
  - [CreateRoom](docs/CreateRoom.md)
  - [CreateRoomInviteInner](docs/CreateRoomInviteInner.md)
  - [Encrypted](docs/Encrypted.md)
@@ -63,7 +64,6 @@ Class | Method | HTTP request | Description
  - [KeyResponse](docs/KeyResponse.md)
  - [LoginData](docs/LoginData.md)
  - [MessagePublic](docs/MessagePublic.md)
- - [MessagePublicContent](docs/MessagePublicContent.md)
  - [MessageSend](docs/MessageSend.md)
  - [MessageType](docs/MessageType.md)
  - [OnlineResponse](docs/OnlineResponse.md)

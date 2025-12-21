@@ -1,4 +1,4 @@
-# Content
+# MessagePublicContent
 
 ## Enum Variants
 

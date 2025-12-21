@@ -35,9 +35,7 @@ impl Widget for &MessageComponent {
             .content
             .sender
             .clone()
-            .unwrap_or(Box::new(UserPublic::new(AppearancePublic::new(
-                "#c0ffee".to_owned(),
-            ))));
+            .unwrap_or(UserPublic::new(AppearancePublic::new("#c0ffee".to_owned())));
         let name = user.username.unwrap_or("System".to_owned());
         let color = user.appearance.color.parse().unwrap_or(Color::Gray);
         let message = match self.content.content {

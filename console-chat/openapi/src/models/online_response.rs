@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OnlineResponse {
     #[serde(rename = "token")]
-    pub token: Box<models::Token>,
+    pub token: models::Token,
     #[serde(rename = "user")]
     pub user: uuid::Uuid,
 }
@@ -22,7 +22,7 @@ pub struct OnlineResponse {
 impl OnlineResponse {
     pub fn new(token: models::Token, user: uuid::Uuid) -> OnlineResponse {
         OnlineResponse {
-            token: Box::new(token),
+            token,
             user,
         }
     }

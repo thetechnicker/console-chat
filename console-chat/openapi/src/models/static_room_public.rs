@@ -20,7 +20,7 @@ pub struct StaticRoomPublic {
     #[serde(rename = "id")]
     pub id: i32,
     #[serde(rename = "owner")]
-    pub owner: Box<models::UserPublic>,
+    pub owner: models::UserPublic,
     #[serde(rename = "users")]
     pub users: Vec<models::UserPublic>,
     #[serde(rename = "level")]
@@ -33,7 +33,7 @@ impl StaticRoomPublic {
             name,
             key: None,
             id,
-            owner: Box::new(owner),
+            owner,
             users,
             level,
         }

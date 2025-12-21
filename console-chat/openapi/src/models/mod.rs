@@ -1,5 +1,7 @@
 pub mod appearance_public;
 pub use self::appearance_public::AppearancePublic;
+pub mod content;
+pub use self::content::Content;
 pub mod create_room;
 pub use self::create_room::CreateRoom;
 pub mod create_room_invite_inner;
@@ -18,8 +20,6 @@ pub mod login_data;
 pub use self::login_data::LoginData;
 pub mod message_public;
 pub use self::message_public::MessagePublic;
-pub mod message_public_content;
-pub use self::message_public_content::MessagePublicContent;
 pub mod message_send;
 pub use self::message_send::MessageSend;
 pub mod message_type;
