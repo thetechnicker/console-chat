@@ -38,7 +38,7 @@ handlers:
     class: logging.handlers.RotatingFileHandler
     level: DEBUG
     formatter: ansi
-    filename: logs/console-chat/console-chat-api.ansi.log
+    filename: logs/console-chat-api.ansi.log
     maxBytes: 1_000_000
     backupCount: 3
   file_json:
@@ -47,7 +47,7 @@ handlers:
     class: logging.handlers.RotatingFileHandler
     level: DEBUG
     formatter: json
-    filename: logs/console-chat/console-chat-api.log.jsonl
+    filename: logs/console-chat-api.log.jsonl
     maxBytes: 1_000_000
     backupCount: 3
   queue_handler:
