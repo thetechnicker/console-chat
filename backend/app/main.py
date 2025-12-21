@@ -3,8 +3,8 @@ import json
 import logging
 import logging.config
 import logging.handlers
-import os
 import pathlib
+import sys
 import time
 from typing import Any, cast
 
@@ -23,13 +23,13 @@ from app.routers import rooms, rooms_interaction, rooms_old, users, websockets
 
 
 def setup_logging():
+    if "pytest" in sys.modules:
+        logging.basicConfig()
+        logging.info("Logging is configured for testing")
+        return
     config_file = pathlib.Path("logging_configs/5-queued-stderr-json-file.yaml")
     with open(config_file, "r") as f_in:
         config = yaml.safe_load(f_in)
-    for handler in config["handlers"].values():
-        file = handler.get("filename")
-        if file:
-            os.makedirs(file, exist_ok=True)
 
     logging.config.dictConfig(config)
     queue_handler: logging.handlers.QueueHandler | None = cast(
