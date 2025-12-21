@@ -13,5 +13,4 @@ The purpose of this project is for me to learn new stuff.
 
 - `backend`: This folder contains the backend for this chat application.
 - `console-chat`: This is the current TUI chat application.
-- `old-console-chat`: The original TUI application, now deprecated.
 
