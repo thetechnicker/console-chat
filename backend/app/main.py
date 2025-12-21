@@ -3,6 +3,7 @@ import json
 import logging
 import logging.config
 import logging.handlers
+import os
 import pathlib
 import time
 from typing import Any, cast
@@ -25,6 +26,10 @@ def setup_logging():
     config_file = pathlib.Path("logging_configs/5-queued-stderr-json-file.yaml")
     with open(config_file, "r") as f_in:
         config = yaml.safe_load(f_in)
+    for handler in config["handlers"].values():
+        file = handler.get("filename")
+        if file:
+            os.makedirs(file, exist_ok=True)
 
     logging.config.dictConfig(config)
     queue_handler: logging.handlers.QueueHandler | None = cast(
