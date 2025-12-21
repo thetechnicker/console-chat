@@ -23,7 +23,7 @@ from cryptography.hazmat.primitives.asymmetric.types import PrivateKeyTypes
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Security, status
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from app.datamodel import init_postgesql_connection
@@ -115,11 +115,6 @@ class OnlineResponse(BaseModel):
 
 class LoginData(BaseModel):
     username: str
-    password: str
-
-
-class RegisterData(BaseModel):
-    username: Optional[str] = Field(None)
     password: str
 
 

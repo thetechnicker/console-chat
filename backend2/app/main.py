@@ -10,7 +10,7 @@ from typing import Any, cast
 import asgi_correlation_id  # type:ignore
 import yaml
 from asgi_correlation_id import CorrelationIdMiddleware, correlation_id
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.routing import APIRoute
@@ -81,7 +81,7 @@ def home():
     return HTMLResponse("Hello")
 
 
-ERROR_LOG_VERSION: int = 0
+ERROR_LOG_VERSION: int = 1
 
 
 @app.exception_handler(StarletteHTTPException)
@@ -107,6 +107,15 @@ async def http_exception_handler(request: Request, exc: Any):
         case 2:
             req_dict = dict(request)
             LOG.error(f"HTTP Exeption, request: {req_dict}")
+        case 3:
+            if exc.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR:
+                try:
+                    body_str = json.dumps(await request.json(), indent=4).replace(
+                        "\n", "\n\t"
+                    )
+                except:
+                    body_str = (await request.body()).decode().replace("\n", "\n\t")
+                LOG.error(f"HTTP Exeption,\nBody:\n\t{body_str}")
         case _:
             pass
     error = jsonable_encoder(

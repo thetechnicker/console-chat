@@ -263,43 +263,35 @@ async def delete_room(
     logger.debug(f"Room {room} deleted successfully")
 
 
-# @router.get("/{room}")
-# async def get_room(
-#    room: str,
-#    user: UserDependency,
-#    db: DatabaseDependency,
-# ):
-#    """
-#    Get the details of a specific room.
-#
-#    Args:
-#        room (str): The name of the room to retrieve.
-#        user (UserDependency): The currently authenticated user.
-#        db (DatabaseDependency): The database dependency for executing queries.
-#
-#    Returns:
-#        bool: True if the user can access the room, otherwise False.
-#
-#    This function checks if the user has permission
-#    to access the specified room based on the room's level and the user's status.
-#    """
-#    logger.debug(f"Checking access for user: {user.username} to room: {room}")
-#    stmt = select(StaticRoom).where(StaticRoom.name == room)
-#    db_room = db.psql_session.exec(stmt).one_or_none()
-#    if db_room:
-#        if user.user_type == UserType.GUEST:
-#            logger.debug(
-#                f"User {user.username} is a guest and cannot access room {room}"
-#            )
-#            return False
-#        if db_room.level == RoomLevel.FREE:
-#            logger.debug(f"Room {room} is free to access")
-#            return True
-#        full_user = User.model_validate(user)
-#        db.psql_session.refresh(full_user)
-#        if full_user in db_room.users:
-#            logger.debug(f"User {user.username} has access to room {room}")
-#            return True
-#    else:
-#        # Everyone can access temporary rooms
-#        return True
+@router.get(
+    "/{room}",
+    response_model=list[MessagePublic],
+    status_code=201,
+    responses={
+        **RESPONSES,
+        404: {"model": ErrorModel, "description": "Retuned if the room cant be found"},
+    },
+)
+async def get_room(
+    room: str,
+    user: PermanentUserDependency,
+    db: DatabaseDependency,
+):
+    db_user = User.model_validate(user)
+    db.psql_session.refresh(db_user)
+    stmt = (
+        select(StaticRoom)
+        .where(StaticRoom.name == room)
+        .where(or_(StaticRoom.owner == db_user, col(StaticRoom.users).in_(db_user)))
+    )
+    db_room = db.psql_session.exec(stmt).one_or_none()
+    if not db_room:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    stmt = (
+        select(Message)
+        .where(Message.room.name == db_room.name)
+        .order_by(col(Message.send_at))
+        .limit(10)
+    )
+    msgs = db.psql_session.exec(stmt).all()
+    return [MessagePublic.model_validate(msg) for msg in msgs]

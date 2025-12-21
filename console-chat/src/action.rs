@@ -1,6 +1,9 @@
 use crate::network::error::NetworkError;
+use openapi::models::UserPrivate;
 use serde::{Deserialize, Deserializer, Serialize};
 use strum::Display;
+
+pub(crate) type Result<T, E = AppError> = std::result::Result<T, E>;
 
 #[derive(Debug, Clone)]
 pub enum AppError {
@@ -28,29 +31,8 @@ impl std::fmt::Display for AppError {
 impl std::error::Error for AppError {}
 
 impl PartialEq for AppError {
-    fn eq(&self, other: &Self) -> bool {
-        match self {
-            Self::Error(e) => match other {
-                Self::Error(o) => e == o,
-                Self::NetworkError(_) => false,
-                Self::MissingActionTX => false,
-                Self::MissingPassword => false,
-                Self::MissingUsername => false,
-                Self::MissingPasswordAndUsername => false,
-            },
-            Self::NetworkError(error) => match other {
-                Self::Error(_) => false,
-                Self::NetworkError(e) => error == e,
-                Self::MissingActionTX => false,
-                Self::MissingPassword => false,
-                Self::MissingUsername => false,
-                Self::MissingPasswordAndUsername => false,
-            },
-            Self::MissingActionTX => matches!(other, Self::MissingActionTX),
-            Self::MissingPassword => matches!(other, Self::MissingPassword),
-            Self::MissingUsername => matches!(other, Self::MissingUsername),
-            Self::MissingPasswordAndUsername => matches!(other, Self::MissingPasswordAndUsername),
-        }
+    fn eq(&self, _: &Self) -> bool {
+        false // No error is equal
     }
 }
 impl Eq for AppError {}
@@ -81,13 +63,13 @@ impl From<String> for AppError {
     }
 }
 
-//impl From<NetworkError> for AppError {
-//    fn from(s: NetworkError) -> Self {
-//        AppError::NetworkError(s.to_owned())
-//    }
-//}
+impl From<NetworkError> for AppError {
+    fn from(s: NetworkError) -> Self {
+        AppError::NetworkError(s.to_owned())
+    }
+}
 
-#[derive(Debug, Clone, PartialEq, Eq, Display, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Display, Serialize, Deserialize)]
 pub enum Action {
     Tick,
     Render,
@@ -117,6 +99,7 @@ pub enum Action {
     TriggerJoin,
     PerformJoin(String),
     SendMessage(String),
+    Me(UserPrivate),
     //ReceivedMessage(Message),
     Leave,
 

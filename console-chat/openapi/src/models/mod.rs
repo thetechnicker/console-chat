@@ -26,8 +26,6 @@ pub mod online_response;
 pub use self::online_response::OnlineResponse;
 pub mod plaintext;
 pub use self::plaintext::Plaintext;
-pub mod register_data;
-pub use self::register_data::RegisterData;
 pub mod room_level;
 pub use self::room_level::RoomLevel;
 pub mod static_room_public;

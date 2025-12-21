@@ -32,3 +32,7 @@ def init_postgesql_connection():
     )
     SQLModel.metadata.create_all(engine)
     return engine
+
+
+User.model_rebuild()
+PermanentUserPrivate.model_rebuild()

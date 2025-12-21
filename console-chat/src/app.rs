@@ -1,11 +1,13 @@
 use crate::{
     action::Action,
+    //action::Result,
     cli::Cli,
     components::{
         Component, chat::Chat, editor::Editor, error_display::ErrorDisplay, fps::FpsCounter,
         home::Home, join::Join, login::Login, settings::Settings, sorted_components,
     },
     config::Config,
+    network,
     //    network::handle_network,
     tui::{Event, Tui},
 };
@@ -46,8 +48,6 @@ pub enum Mode {
 impl App {
     pub fn new(args: Cli) -> Result<Self> {
         let (action_tx, action_rx) = mpsc::unbounded_channel();
-        let config = Config::new()?;
-        //config.network.accept_danger = args.accept_invalid_certificate;
         Ok(Self {
             args,
             components: sorted_components(vec![
@@ -62,7 +62,7 @@ impl App {
             ]),
             should_quit: false,
             should_suspend: false,
-            config,
+            config: Config::new()?,
             mode: Mode::Home,
             last_mode: None,
             last_tick_key_events: Vec::new(),
@@ -72,7 +72,9 @@ impl App {
     }
 
     pub async fn run(&mut self) -> Result<()> {
-        crate::network::init(self.args.clone()).await?;
+        network::init(self.args.clone())
+            .await
+            .map_err(|e| color_eyre::Report::new(e))?;
         let mut tui = Tui::new()?
             .mouse(true) // uncomment this line to enable mouse support
             .tick_rate(self.args.tick_rate)
@@ -92,7 +94,7 @@ impl App {
         let action_tx = self.action_tx.clone();
         loop {
             self.handle_events(&mut tui).await?;
-            self.handle_actions(&mut tui)?;
+            self.handle_actions(&mut tui).await?;
             if self.should_suspend {
                 tui.suspend()?;
                 action_tx.send(Action::Resume)?;
@@ -219,7 +221,7 @@ impl App {
         Ok(())
     }
 
-    fn handle_actions(&mut self, tui: &mut Tui) -> Result<()> {
+    async fn handle_actions(&mut self, tui: &mut Tui) -> Result<()> {
         while let Ok(action) = self.action_rx.try_recv() {
             if action != Action::Tick && action != Action::Render {
                 debug!("{action:?}");
@@ -256,9 +258,9 @@ impl App {
                     self.action_tx.send(action)?
                 }
             }
-            //if let Some(action) = handle_network(action.clone())? {
-            //       self.action_tx.send(action)?
-            // };
+            if let Some(action) = network::handle_actions(action.clone()).await? {
+                self.action_tx.send(action)?
+            };
         }
         Ok(())
     }

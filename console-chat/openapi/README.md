@@ -66,7 +66,6 @@ Class | Method | HTTP request | Description
  - [MessageType](docs/MessageType.md)
  - [OnlineResponse](docs/OnlineResponse.md)
  - [Plaintext](docs/Plaintext.md)
- - [RegisterData](docs/RegisterData.md)
  - [RoomLevel](docs/RoomLevel.md)
  - [StaticRoomPublic](docs/StaticRoomPublic.md)
  - [SystemMessage](docs/SystemMessage.md)

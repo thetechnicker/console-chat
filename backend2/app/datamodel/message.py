@@ -4,7 +4,7 @@ from enum import StrEnum
 from typing import List, Literal, Optional, Union
 
 from fastapi import Body
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 from sqlmodel import (
     JSON,
     Column,
@@ -14,7 +14,6 @@ from sqlmodel import (
     SQLModel,
     UniqueConstraint,
 )
-from typing_extensions import Self
 
 from app.datamodel.user import User, UserPublic
 
@@ -101,7 +100,7 @@ class MessageBase(SQLModel):
         default=None, sa_column=Column(JSON), discriminator="type"
     )
     send_at: datetime = Field(default_factory=datetime.now, index=True)
-    data: Optional[Json] = Field(default=None, sa_column=Column(JSON))
+    data: Json = Field(default=None, sa_column=Column(JSON))
 
     # @model_validator(mode="after")
     # def check_passwords_match(self) -> Self:
@@ -154,8 +153,8 @@ class RoomBase(SQLModel):
 class StaticRoom(RoomBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
     owner_id: uuid.UUID | None = Field(default=None, foreign_key="user.id")
-    owner: "User" = Relationship(back_populates="static_rooms")
-    users: List["User"] = Relationship(link_model=StaticRoomUser)
+    owner: User = Relationship(back_populates="static_rooms")
+    users: List[User] = Relationship(link_model=StaticRoomUser)
     level: RoomLevel = Field(sa_column=Integer)
 
     __table_args__ = (UniqueConstraint("owner_id", "name"),)
@@ -163,8 +162,8 @@ class StaticRoom(RoomBase, table=True):
 
 class StaticRoomPublic(RoomBase):
     id: int
-    owner: "UserPublic"
-    users: List["UserPublic"]
+    owner: UserPublic
+    users: List[UserPublic]
     level: RoomLevel
 
 

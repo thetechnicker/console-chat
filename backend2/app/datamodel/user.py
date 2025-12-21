@@ -61,6 +61,22 @@ def generate_temp_username(id: Optional[str | uuid.UUID] = None):
     return f"{prefix}_{adj}{noun}_{suffix}"
 
 
+class AppearanceBase(SQLModel):
+    color: str = Field(max_length=7, min_length=7)
+
+
+class Appearance(AppearanceBase, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+
+
+class AppearancePublic(AppearanceBase):
+    pass
+
+
+class AppearanceUpdate(AppearanceBase):
+    color: str
+
+
 class UserType(StrEnum):
     GUEST = "GUEST"
     PERMANENT = "PERMANENT"
@@ -74,13 +90,13 @@ class UserBase(SQLModel):
 class User(UserBase, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
     password: Optional[str] = Field(default=None)  # use a hash in real applications
-    appearance: "Appearance" = Relationship()
+    appearance: Appearance = Relationship()
     appearance_id: int | None = Field(foreign_key="appearance.id", default=None)
     static_rooms: List["StaticRoom"] = Relationship(back_populates="owner")
 
 
 class UserPublic(UserBase):
-    appearance: "AppearancePublic"
+    appearance: AppearancePublic
 
 
 class UserPrivate(UserPublic):
@@ -94,20 +110,4 @@ class PermanentUserPrivate(UserPrivate):
 class UserUpdate(UserBase):
     password: str
     new_password: Optional[str]
-    appearance: Optional["AppearanceUpdate"]
-
-
-class AppearanceBase(SQLModel):
-    color: str = Field(max_length=7, min_length=7)
-
-
-class Appearance(AppearanceBase, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-
-
-class AppearancePublic(AppearanceBase):
-    pass
-
-
-class AppearanceUpdate(UserBase):
-    color: str
+    appearance: Optional[AppearanceUpdate]

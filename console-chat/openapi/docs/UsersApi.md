@@ -100,7 +100,7 @@ Name | Type | Description  | Required | Notes
 
 ## users_register
 
-> models::OnlineResponse users_register(register_data)
+> models::OnlineResponse users_register(login_data)
 Register
 
 Register a new user.  - **login**: Contains the username and password for registration. - **current_token**: An optional JWT token for authenticated registration.  Returns: - An access token and the user ID.  Raises: - HTTPException: If username is missing or user already exists.
@@ -110,7 +110,7 @@ Register a new user.  - **login**: Contains the username and password for regist
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**register_data** | [**RegisterData**](RegisterData.md) |  | [required] |
+**login_data** | [**LoginData**](LoginData.md) |  | [required] |
 
 ### Return type
 

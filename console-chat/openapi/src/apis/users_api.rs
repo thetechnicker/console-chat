@@ -172,9 +172,9 @@ pub async fn users_online(configuration: &configuration::Configuration, username
 }
 
 /// Register a new user.  - **login**: Contains the username and password for registration. - **current_token**: An optional JWT token for authenticated registration.  Returns: - An access token and the user ID.  Raises: - HTTPException: If username is missing or user already exists.
-pub async fn users_register(configuration: &configuration::Configuration, register_data: models::RegisterData) -> Result<models::OnlineResponse, Error<UsersRegisterError>> {
+pub async fn users_register(configuration: &configuration::Configuration, login_data: models::LoginData) -> Result<models::OnlineResponse, Error<UsersRegisterError>> {
     // add a prefix to parameters to efficiently prevent name collisions
-    let p_body_register_data = register_data;
+    let p_body_login_data = login_data;
 
     let uri_str = format!("{}/users/register", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::POST, &uri_str);
@@ -185,7 +185,7 @@ pub async fn users_register(configuration: &configuration::Configuration, regist
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder = req_builder.json(&p_body_register_data);
+    req_builder = req_builder.json(&p_body_login_data);
 
     let req = req_builder.build()?;
     let resp = configuration.client.execute(req).await?;

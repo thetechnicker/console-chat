@@ -5,7 +5,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from fastapi.exceptions import HTTPException
 from sqlmodel import select
 
-from app.datamodel.user import (
+from app.datamodel import (
     Appearance,
     AppearancePublic,
     User,
@@ -22,7 +22,6 @@ from app.dependencies import (
     LoginData,
     OnlineResponse,
     OptionalTokenDependency,
-    RegisterData,
     UserDependency,
     create_access_token,
     deterministic_color_from_string,
@@ -128,7 +127,7 @@ async def login(
     },
 )
 async def register(
-    login: Annotated[RegisterData, Body()],
+    login: Annotated[LoginData, Body()],
     db_context: DatabaseDependency,
     current_token: OptionalTokenDependency,
 ):
@@ -144,11 +143,11 @@ async def register(
     Raises:
     - HTTPException: If username is missing or user already exists.
     """
-    if login.username is None and (current_token is None):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="You can't register without a username",
-        )
+    # if login.username is None and (current_token is None):
+    #    raise HTTPException(
+    #        status_code=status.HTTP_400_BAD_REQUEST,
+    #        detail="You can't register without a username",
+    #    )
 
     stmt = select(User).where(User.username == login.username)
     existing_user = db_context.psql_session.exec(stmt).one_or_none()
@@ -163,23 +162,23 @@ async def register(
             current_token.credentials, db_context
         )
         print(user_from_token)
-    elif login.username:
-        password = secure_hash_argon2(login.username, login.password)
-        appearance = Appearance(color=deterministic_color_from_string(login.username))
-        db_context.psql_session.add(appearance)
-        db_context.psql_session.commit()
-        new_user = User(
-            username=login.username,
-            user_type=UserType.PERMANENT,
-            password=password,
-            appearance=appearance,
-        )
-        db_context.psql_session.add(new_user)
-        db_context.psql_session.commit()
-        db_context.psql_session.refresh(new_user)
-        token = create_access_token(new_user, TOKEN_TTL)
 
-        return OnlineResponse(token=token, user=new_user.id)
+    password = secure_hash_argon2(login.username, login.password)
+    appearance = Appearance(color=deterministic_color_from_string(login.username))
+    db_context.psql_session.add(appearance)
+    db_context.psql_session.commit()
+    new_user = User(
+        username=login.username,
+        user_type=UserType.PERMANENT,
+        password=password,
+        appearance=appearance,
+    )
+    db_context.psql_session.add(new_user)
+    db_context.psql_session.commit()
+    db_context.psql_session.refresh(new_user)
+    token = create_access_token(new_user, TOKEN_TTL)
+
+    return OnlineResponse(token=token, user=new_user.id)
 
 
 @router.get(

@@ -23,3 +23,4 @@
 #!docs/README.md
 src/apis/experimental_api.rs
 src/apis/mod.rs
+Cargo.toml

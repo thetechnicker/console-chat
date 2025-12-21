@@ -1,6 +1,7 @@
 use crate::util::TypeErasedWrapper;
 use openapi::apis::{Error as OpenapiError, ResponseContent};
 use reqwest_eventsource::{CannotCloneRequestError, Error as EventError};
+use std::error::Error;
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
@@ -10,34 +11,63 @@ pub enum NetworkError {
     Serde(Arc<serde_json::Error>),
     Io(Arc<std::io::Error>),
     ResponseError(Arc<ResponseContent<TypeErasedWrapper>>),
-    EventSourceError(CannotCloneRequestError),
+    CannotCloneRequestError(CannotCloneRequestError),
+}
+
+pub fn print_recursive_error(e: impl Error) -> String {
+    fn print_recursive_error_inner(e: impl Error, depth: usize) -> String {
+        if let Some(source) = e.source() {
+            format!(
+                "{}{}\nsource: {}",
+                "\t".repeat(depth),
+                e.to_string(),
+                print_recursive_error_inner(source, depth + 1)
+                    .replace("\n", &format!("\n{}", "\t".repeat(depth + 1)))
+            )
+        } else {
+            e.to_string()
+        }
+    }
+    print_recursive_error_inner(e, 0)
 }
 
 impl std::fmt::Display for NetworkError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let (module, e) = match self {
-            Self::Reqwest(e) => ("reqwest", e.to_string()),
-            Self::ReqwestEventSource(e) => ("reqwest-eventsource", e.to_string()),
-            Self::Serde(e) => ("serde", e.to_string()),
-            Self::Io(e) => ("IO", e.to_string()),
-            Self::EventSourceError(e) => ("event source", e.to_string()),
-            Self::ResponseError(e) => ("response", format!("status code {}", e.status)),
+            Self::Reqwest(e) => ("reqwest", print_recursive_error(e)),
+            Self::ReqwestEventSource(e) => ("reqwest-eventsource", print_recursive_error(e)),
+            Self::Serde(e) => ("serde", print_recursive_error(e)),
+            Self::Io(e) => ("IO", print_recursive_error(e)),
+            Self::CannotCloneRequestError(e) => ("event source", print_recursive_error(e)),
+            Self::ResponseError(e) => (
+                "response",
+                if let Some(entity) = e.entity.as_ref() {
+                    format!(
+                        "status code {}, contet: {}, data: {:?}",
+                        e.status, e.content, entity
+                    )
+                } else {
+                    format!("status code {}, contet: {}", e.status, e.content)
+                },
+            ),
         };
         write!(f, "error in {}: {}", module, e)
     }
 }
 
+/*
 impl PartialEq for NetworkError {
     fn eq(&self, other: &Self) -> bool {
         self.to_string() == other.to_string()
     }
 }
 impl Eq for NetworkError {}
+*/
 impl std::error::Error for NetworkError {}
 
 impl<T> From<OpenapiError<T>> for NetworkError
 where
-    T: 'static,
+    T: 'static + Clone + Sync + Send + std::fmt::Debug,
 {
     fn from(value: OpenapiError<T>) -> NetworkError {
         match value {
@@ -45,7 +75,7 @@ where
             OpenapiError::ReqwestEventSource(e) => NetworkError::ReqwestEventSource(Arc::new(e)),
             OpenapiError::Serde(e) => NetworkError::Serde(Arc::new(e)),
             OpenapiError::Io(e) => NetworkError::Io(Arc::new(e)),
-            OpenapiError::EventSourceError(e) => NetworkError::EventSourceError(e),
+            OpenapiError::EventSourceError(e) => NetworkError::CannotCloneRequestError(e),
             OpenapiError::ResponseError(e) => {
                 NetworkError::ResponseError(Arc::new(ResponseContent {
                     status: e.status,
