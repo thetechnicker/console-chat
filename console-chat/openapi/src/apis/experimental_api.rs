@@ -59,7 +59,7 @@ pub async fn experimental_listen(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    Ok(req_builder.eventsource().map_err(Error::EventSourceError)?)
+    req_builder.eventsource().map_err(Error::EventSourceError)
 }
 
 pub async fn experimental_listen_static(
@@ -83,7 +83,7 @@ pub async fn experimental_listen_static(
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
 
-    Ok(req_builder.eventsource().map_err(Error::EventSourceError)?)
+    req_builder.eventsource().map_err(Error::EventSourceError)
 }
 
 pub async fn experimental_send(
@@ -128,14 +128,14 @@ pub async fn experimental_send(
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
             ContentType::Text => {
-                return Err(Error::from(serde_json::Error::custom(
+                Err(Error::from(serde_json::Error::custom(
                     "Received `text/plain` content type response that cannot be converted to `serde_json::Value`",
-                )));
+                )))
             }
             ContentType::Unsupported(unknown_type) => {
-                return Err(Error::from(serde_json::Error::custom(format!(
+                Err(Error::from(serde_json::Error::custom(format!(
                     "Received `{unknown_type}` content type response that cannot be converted to `serde_json::Value`"
-                ))));
+                ))))
             }
         }
     } else {
@@ -191,14 +191,14 @@ pub async fn experimental_send_static(
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
             ContentType::Text => {
-                return Err(Error::from(serde_json::Error::custom(
+                Err(Error::from(serde_json::Error::custom(
                     "Received `text/plain` content type response that cannot be converted to `serde_json::Value`",
-                )));
+                )))
             }
             ContentType::Unsupported(unknown_type) => {
-                return Err(Error::from(serde_json::Error::custom(format!(
+                Err(Error::from(serde_json::Error::custom(format!(
                     "Received `{unknown_type}` content type response that cannot be converted to `serde_json::Value`"
-                ))));
+                ))))
             }
         }
     } else {
@@ -241,14 +241,14 @@ pub async fn rooms_random_room(
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
             ContentType::Text => {
-                return Err(Error::from(serde_json::Error::custom(
+                Err(Error::from(serde_json::Error::custom(
                     "Received `text/plain` content type response that cannot be converted to `serde_json::Value`",
-                )));
+                )))
             }
             ContentType::Unsupported(unknown_type) => {
-                return Err(Error::from(serde_json::Error::custom(format!(
+                Err(Error::from(serde_json::Error::custom(format!(
                     "Received `{unknown_type}` content type response that cannot be converted to `serde_json::Value`"
-                ))));
+                ))))
             }
         }
     } else {
