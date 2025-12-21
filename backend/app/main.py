@@ -86,7 +86,7 @@ def home():
     return HTMLResponse("Hello")
 
 
-ERROR_LOG_VERSION: int = 1
+ERROR_LOG_VERSION: int = 0
 
 
 @app.exception_handler(StarletteHTTPException)

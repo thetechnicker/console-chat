@@ -10,20 +10,12 @@ build = "build.rs"
 name = "basic_usage"
 
 [[example]]
-name = "websocket"
-required-features  = ["websocket"]
-
-[[example]]
 name = "sse_room"
 
 [workspace]
-members = [
-      "openapi",
-    "openapi-custom",
-]
+members = ["openapi"]
 
 [dependencies]
-openapi-custom = { path = "./openapi-custom", features=["native-tls"]} 
 openapi = { path = "./openapi", features=["native-tls"]} 
 alkali = "0.3.0"
 base64 = "0.22.1"

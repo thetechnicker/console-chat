@@ -496,7 +496,6 @@ dependencies = [
  "libc",
  "native-tls",
  "openapi",
- "openapi-custom",
  "pretty_assertions",
  "rand",
  "ratatui",
@@ -3006,21 +3005,6 @@ dependencies = [
  "serde_json",
  "serde_repr",
  "serde_with",
- "url",
- "uuid",
-]
-
-[[package]]
-name = "openapi-custom"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "reqwest",
- "serde",
- "serde_json",
- "serde_repr",
- "serde_with",
- "tokio",
  "url",
  "uuid",
 ]
