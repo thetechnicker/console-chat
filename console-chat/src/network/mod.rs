@@ -14,7 +14,7 @@ use tokio::task::JoinHandle;
 use tracing::debug;
 
 pub(crate) mod error;
-pub(self) type Result<T, E = error::NetworkError> = std::result::Result<T, E>;
+ type Result<T, E = error::NetworkError> = std::result::Result<T, E>;
 
 pub struct ListenData {
     pub thread: JoinHandle<Result<()>>,
@@ -82,7 +82,7 @@ async fn join(room: &str) -> Result<()> {
         let thread_room = room.clone();
         let task = ListenData {
             thread: tokio::task::spawn(async { listen(thread_room).await }),
-            room: room,
+            room,
         };
         *listen_task = Some(task);
     }
@@ -96,19 +96,16 @@ async fn listen(room: Arc<String>) -> Result<()> {
     let _ = action_tx.send(Action::OpenChat);
     while let Some(Ok(msg)) = stream.next().await {
         debug!("got message: {:#?}", msg);
-        match msg {
-            reqwest_eventsource::Event::Message(event) => {
-                match serde_json::from_str::<MessagePublic>(&event.data) {
-                    Ok(message) => {
-                        let _ = action_tx.send(Action::ReceivedMessage(message));
-                    }
-                    Err(e) => {
-                        let e: error::NetworkError = e.into();
-                        let _ = action_tx.send(Action::Error(e.into()));
-                    }
+        if let reqwest_eventsource::Event::Message(event) = msg {
+            match serde_json::from_str::<MessagePublic>(&event.data) {
+                Ok(message) => {
+                    let _ = action_tx.send(Action::ReceivedMessage(message));
+                }
+                Err(e) => {
+                    let e: error::NetworkError = e.into();
+                    let _ = action_tx.send(Action::Error(e.into()));
                 }
             }
-            _ => {}
         }
     }
     Ok(())
@@ -150,8 +147,8 @@ async fn login(username: &str, password: &str) -> Result<()> {
         }
         Err(e) => {
             // TODO: is it a good idea to register if login fails?
-            if let ApiError::ResponseError(ref e) = e {
-                if let Some(users_api::UsersLoginError::Status401(_)) = e.entity {
+            if let ApiError::ResponseError(ref e) = e
+                && let Some(users_api::UsersLoginError::Status401(_)) = e.entity {
                     if let Ok(string) = serde_json::to_string(&login) {
                         debug!("{}", string);
                     }
@@ -162,7 +159,6 @@ async fn login(username: &str, password: &str) -> Result<()> {
                     *user = Some(users_api::users_get_me(&conf).await?);
                     debug!("{:#?}", user);
                 }
-            }
             Err(e.into())
         }
     }

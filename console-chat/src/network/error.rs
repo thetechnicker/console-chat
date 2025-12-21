@@ -20,7 +20,7 @@ pub fn print_recursive_error(e: impl Error) -> String {
             format!(
                 "{}{}\nsource: {}",
                 "\t".repeat(depth),
-                e.to_string(),
+                e,
                 print_recursive_error_inner(source, depth + 1)
                     .replace("\n", &format!("\n{}", "\t".repeat(depth + 1)))
             )
