@@ -66,6 +66,10 @@ tracing-subscriber = { version = "0.3.22", features = ["env-filter", "serde", "j
 tui-textarea = "0.7.0"
 url = { version = "2.5.7", features = ["serde"] }
 uuid = { version = "1.19.0", features = ["serde"] }
+futures-util = "0.3.31"
+native-tls = { version = "0.2.14" }
+reqwest-eventsource = "0.6.0"
+tokio-tungstenite = { version = "0.28.0", optional = true}
 
 [features]
 websocket = ["dep:tokio-tungstenite"]
