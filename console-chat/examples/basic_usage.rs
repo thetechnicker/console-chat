@@ -1,4 +1,4 @@
-use openapi_custom::apis::{configuration, users_api};
+use openapi::apis::{configuration, users_api};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -6,10 +6,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     conf.client = reqwest::ClientBuilder::new()
         .danger_accept_invalid_certs(true)
         .build()?;
-    let token = users_api::online_users_online_get(&conf, Some("abc")).await?;
+    let token = users_api::users_online(&conf, Some("abc")).await?;
     println!("{:#?}", token);
     conf.bearer_access_token = Some(token.token.token);
-    let me = users_api::get_me_users_me_get(&conf).await?;
+    let me = users_api::users_get_me(&conf).await?;
     println!("{:#?}", me);
     Ok(())
 }

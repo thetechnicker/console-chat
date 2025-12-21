@@ -1,11 +1,10 @@
 use color_eyre::Result;
 use futures_util::StreamExt;
-use openapi_custom::apis::{configuration, users_api};
-use openapi_custom::models::{MessageSend, MessageType, Plaintext};
+use openapi::apis::{configuration, users_api};
+use openapi::models::{Content, MessageSend, MessageType, Plaintext};
 use reqwest_eventsource::{Event, EventSource};
 use std::io::{self, Write}; // Import for reading user input
 use std::sync::{Arc, Mutex}; // For shared mutable state
-use std::time::SystemTime;
 use tokio::sync::Notify; // Import Notify for async notifications
 
 #[tokio::main]
@@ -15,7 +14,7 @@ async fn main() -> Result<()> {
         .danger_accept_invalid_certs(true)
         .build()?;
 
-    let token = users_api::online_users_online_get(&conf, None).await?;
+    let token = users_api::users_online(&conf, None).await?;
     println!("Token: {:#?}", token);
     conf.bearer_access_token = Some(token.token.token.clone());
 
@@ -99,10 +98,12 @@ async fn read_input_and_send(
         println!("Exiting...");
         std::process::exit(0);
     }
+    let now: chrono::DateTime<chrono::Utc> = chrono::DateTime::from(std::time::SystemTime::now());
     let msg = MessageSend {
-        content: MessageType::Plaintext(Plaintext::new(input.trim().to_owned())),
-        send_at: SystemTime::now().into(),
-        data: None,
+        r#type: Some(MessageType::Plaintext),
+        content: Some(Content::Plaintext(Plaintext::new(input.trim().to_owned()))),
+        send_at: Some(now.to_rfc2822()),
+        data: Some(None),
     };
 
     let body = serde_json::json!(msg);
