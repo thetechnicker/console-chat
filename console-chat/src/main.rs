@@ -1,3 +1,5 @@
+#![deny(clippy::unwrap_used)]
+//#![deny(clippy::expect_used)]
 use crate::app::App;
 use clap::Parser;
 use cli::Cli;
@@ -9,6 +11,7 @@ mod app;
 mod cli;
 mod components;
 mod config;
+mod error;
 mod errors;
 mod logging;
 mod network;
@@ -19,7 +22,7 @@ mod util;
 async fn main() -> Result<()> {
     let res = actual_main().await;
     if res.is_err() {
-        error!("App exited with: {:#?}", res.as_ref().err().unwrap())
+        error!("App exited with: {:#?}", res.as_ref().err())
     }
     crate::logging::clear_logs();
     res

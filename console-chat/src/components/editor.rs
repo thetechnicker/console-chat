@@ -1,5 +1,6 @@
+use crate::action::{AppError, Result};
 use crate::components::vim::*;
-use color_eyre::Result;
+//use color_eyre::Result;
 use crossterm::event::KeyEvent;
 use ratatui::{prelude::*, widgets::*};
 use tokio::sync::mpsc::UnboundedSender;
@@ -56,15 +57,15 @@ impl Component for Editor<'_> {
                     Transition::Mode(mode) if this_vim.mode != mode => {
                         self.textinput.set_block(mode.block());
                         self.textinput.set_cursor_style(mode.cursor_style());
-                        match mode {
-                            VimMode::Insert => {
-                                self.command_tx.as_mut().unwrap().send(Action::Insert)?
-                            }
-                            VimMode::Normal if this_vim.mode == VimMode::Insert => {
-                                self.command_tx.as_mut().unwrap().send(Action::Normal)?
-                            }
-                            _ => {}
-                        };
+                        if let Some(command_tx) = self.command_tx.as_ref() {
+                            match mode {
+                                VimMode::Insert => command_tx.send(Action::Insert)?,
+                                VimMode::Normal if this_vim.mode == VimMode::Insert => {
+                                    command_tx.send(Action::Normal)?
+                                }
+                                _ => {}
+                            };
+                        }
                         this_vim.update_mode(mode)
                     }
                     Transition::Nop | Transition::Mode(_) => this_vim,
@@ -79,10 +80,11 @@ impl Component for Editor<'_> {
                         debug!("Storing new config");
                         self.config = serde_json::from_str(&self.textinput.lines().join("\n"))?;
                         self.config.save()?;
-                        self.command_tx
-                            .as_mut()
-                            .unwrap()
-                            .send(Action::ReloadConfig)?;
+                        if let Some(command_tx) = self.command_tx.as_ref() {
+                            command_tx.send(Action::ReloadConfig)?;
+                        } else {
+                            return Err(AppError::MissingActionTX);
+                        }
                         this_vim
                     }
                 })

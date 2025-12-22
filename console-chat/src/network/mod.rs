@@ -159,6 +159,7 @@ async fn login(username: &str, password: &str) -> Result<()> {
                 let mut user = USER.write().await;
                 *user = Some(users_api::users_get_me(&conf).await?);
                 debug!("{:#?}", user);
+                return Ok(());
             }
             Err(e.into())
         }

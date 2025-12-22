@@ -1,5 +1,5 @@
+use crate::action::Result;
 use crate::components::vim::*;
-use color_eyre::Result;
 use crossterm::event::KeyEvent;
 use openapi::models::{AppearancePublic, MessagePublic, UserPublic};
 use ratatui::{prelude::*, widgets::*};
@@ -133,18 +133,19 @@ impl Component for Chat<'_> {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
-        if self.active && self.index == 0 {
+        if let Some(command_tx) = self.command_tx.as_ref()
+            && self.active
+            && self.index == 0
+        {
             self.vim = if let Some(this_vim) = self.vim.take() {
                 Some(match this_vim.transition(key.into(), &mut self.textinput) {
                     Transition::Mode(mode) if this_vim.mode != mode => {
                         self.textinput.set_block(mode.highlight_block());
                         self.textinput.set_cursor_style(mode.cursor_style());
                         match mode {
-                            VimMode::Insert => {
-                                self.command_tx.as_mut().unwrap().send(Action::Insert)?
-                            }
+                            VimMode::Insert => command_tx.send(Action::Insert)?,
                             VimMode::Normal if this_vim.mode == VimMode::Insert => {
-                                self.command_tx.as_mut().unwrap().send(Action::Normal)?
+                                command_tx.send(Action::Normal)?
                             }
                             _ => {}
                         };
@@ -162,10 +163,7 @@ impl Component for Chat<'_> {
                     }
                     Transition::Enter(content) => {
                         debug!("{}", content);
-                        self.command_tx
-                            .as_mut()
-                            .unwrap()
-                            .send(Action::SendMessage(content.to_owned()))?;
+                        command_tx.send(Action::SendMessage(content.to_owned()))?;
                         self.textinput = TextArea::default();
                         self.textinput.set_block(this_vim.mode.highlight_block());
                         self.textinput
