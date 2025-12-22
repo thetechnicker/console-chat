@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]
 use color_eyre::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use derive_deref::{Deref, DerefMut};

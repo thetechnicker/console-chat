@@ -1,6 +1,6 @@
-use std::time::Instant;
-
-use color_eyre::Result;
+use super::Component;
+use crate::action::Action;
+use crate::action::Result;
 use ratatui::{
     Frame,
     layout::{Constraint, Layout, Rect},
@@ -8,10 +8,7 @@ use ratatui::{
     text::Span,
     widgets::Paragraph,
 };
-
-use super::Component;
-
-use crate::action::Action;
+use std::time::Instant;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FpsCounter {

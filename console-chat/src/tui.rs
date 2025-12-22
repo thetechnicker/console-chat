@@ -228,6 +228,7 @@ impl DerefMut for Tui {
 
 impl Drop for Tui {
     fn drop(&mut self) {
+        #[allow(clippy::unwrap_used)]
         self.exit().unwrap();
     }
 }

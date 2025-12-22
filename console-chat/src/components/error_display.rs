@@ -1,11 +1,8 @@
-use std::time::Instant;
-
-use color_eyre::Result;
-use ratatui::{prelude::*, widgets::*};
-
 use super::Component;
-
+use crate::action::Result;
 use crate::action::{Action, AppError};
+use ratatui::{prelude::*, widgets::*};
+use std::time::Instant;
 
 const ERROR_TIMEOUT: f64 = 5.0;
 
