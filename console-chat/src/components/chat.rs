@@ -1,7 +1,9 @@
 use crate::action::Result;
 use crate::components::vim::*;
+use crate::network::{Message, USERNAME};
+use chrono::Local;
 use crossterm::event::KeyEvent;
-use openapi::models::{AppearancePublic, MessagePublic, UserPublic};
+use openapi::models::{AppearancePublic, UserPublic};
 use ratatui::{prelude::*, widgets::*};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::debug;
@@ -10,14 +12,16 @@ use tui_textarea::TextArea;
 use super::Component;
 use crate::{action::Action, config::Config};
 
-struct MessageComponent {
-    content: MessagePublic,
+struct MessageComponent<'a> {
+    _content: Message,
+    precomputed: Paragraph<'a>,
     selected: bool,
 }
-impl MessageComponent {
-    fn new(content: MessagePublic) -> Self {
+impl<'a> MessageComponent<'a> {
+    fn new(content: Message) -> Self {
         Self {
-            content,
+            _content: content.clone(),
+            precomputed: content.into(),
             selected: false,
         }
     }
@@ -28,33 +32,53 @@ impl MessageComponent {
         self.selected = false;
     }
 }
-
-impl Widget for &MessageComponent {
-    fn render(self, area: Rect, buf: &mut Buffer) {
+impl<'a> Into<Paragraph<'a>> for Message {
+    fn into(self) -> Paragraph<'a> {
         let user = self
-            .content
-            .sender
+            .user
             .clone()
             .unwrap_or(UserPublic::new(AppearancePublic::new("#c0ffee".to_owned())));
-        let name = user.username.unwrap_or("System".to_owned());
+        let name = user.username.clone().unwrap_or("System".to_owned());
         let color = user.appearance.color.parse().unwrap_or(Color::Gray);
-        let message = match self.content.content.as_ref() {
-            Some(content) => format!("{:?}", content),
-            None => "".to_owned(),
+        let message = self.content.clone();
+
+        let mut block = Block::bordered()
+            .border_type(BorderType::Rounded)
+            .fg(color)
+            .title(name);
+
+        if let Some(send_time) = self.send_at {
+            let time_str = send_time
+                .with_timezone(&Local)
+                .format("%H:%M:%S %Y-%d-%m")
+                .to_string();
+
+            block = block.title_bottom(time_str);
+        }
+        let alignment = if let Ok(me) = USERNAME.read() {
+            if *me == user.username {
+                Alignment::Right
+            } else {
+                Alignment::Left
+            }
+        } else {
+            Alignment::Left
         };
-        Paragraph::new(message)
-            .block(
-                Block::bordered()
-                    .border_type(BorderType::Rounded)
-                    .fg(color)
-                    .title(name), //       .title_alignment(alignment),
-            )
-            //.alignment(alignment)
-            .render(area, buf);
+
+        block = block.title_alignment(alignment);
+
+        Paragraph::new(message).block(block).alignment(alignment)
     }
 }
-impl From<MessagePublic> for MessageComponent {
-    fn from(msg: MessagePublic) -> Self {
+
+impl Widget for &MessageComponent<'_> {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        self.precomputed.clone().render(area, buf);
+    }
+}
+
+impl<'a> From<Message> for MessageComponent<'a> {
+    fn from(msg: Message) -> Self {
         Self::new(msg)
     }
 }
@@ -67,7 +91,7 @@ pub struct Chat<'a> {
     textinput: TextArea<'a>,
     vim: Option<Vim>,
     index: usize,
-    msgs: Vec<MessageComponent>,
+    msgs: Vec<MessageComponent<'a>>,
 }
 
 impl Chat<'_> {

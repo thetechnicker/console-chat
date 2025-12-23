@@ -1,4 +1,6 @@
 use crate::util::TypeErasedWrapper;
+use alkali::AlkaliError;
+use base64::DecodeError;
 use openapi::apis::{Error as OpenapiError, ResponseContent};
 use reqwest_eventsource::{CannotCloneRequestError, Error as EventError};
 use std::error::Error;
@@ -12,6 +14,8 @@ pub enum NetworkError {
     Io(Arc<std::io::Error>),
     ResponseError(Arc<ResponseContent<TypeErasedWrapper>>),
     CannotCloneRequestError(CannotCloneRequestError),
+    AlkaliError(AlkaliError),
+    Base64Error(DecodeError),
 }
 
 pub fn print_recursive_error(e: impl Error) -> String {
@@ -35,6 +39,8 @@ impl std::fmt::Display for NetworkError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let (module, e) = match self {
             Self::Reqwest(e) => ("reqwest", print_recursive_error(e)),
+            Self::AlkaliError(e) => ("alkali", print_recursive_error(e)),
+            Self::Base64Error(e) => ("base64", print_recursive_error(e)),
             Self::ReqwestEventSource(e) => ("reqwest-eventsource", print_recursive_error(e)),
             Self::Serde(e) => ("serde", print_recursive_error(e)),
             Self::Io(e) => ("IO", print_recursive_error(e)),
@@ -55,14 +61,6 @@ impl std::fmt::Display for NetworkError {
     }
 }
 
-/*
-impl PartialEq for NetworkError {
-    fn eq(&self, other: &Self) -> bool {
-        self.to_string() == other.to_string()
-    }
-}
-impl Eq for NetworkError {}
-*/
 impl std::error::Error for NetworkError {}
 
 impl<T> From<OpenapiError<T>> for NetworkError
@@ -84,6 +82,18 @@ where
                 }))
             }
         }
+    }
+}
+
+impl From<DecodeError> for NetworkError {
+    fn from(value: DecodeError) -> NetworkError {
+        Self::Base64Error(value)
+    }
+}
+
+impl From<AlkaliError> for NetworkError {
+    fn from(value: AlkaliError) -> NetworkError {
+        Self::AlkaliError(value)
     }
 }
 

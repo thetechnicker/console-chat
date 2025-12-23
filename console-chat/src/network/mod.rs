@@ -1,17 +1,30 @@
 use crate::action::Action;
 use crate::cli::Cli;
+use alkali::asymmetric::cipher::{self, Keypair, PUBLIC_KEY_LENGTH, PublicKey};
+use alkali::mem::FullAccess;
+use alkali::symmetric::cipher::{self as symetric_cipher, Key};
+use base64::{Engine as _, engine::general_purpose};
+use chrono::{DateTime, Utc};
 use futures_util::stream::StreamExt;
 use lazy_static::lazy_static;
 use openapi::apis::Error as ApiError;
 use openapi::apis::configuration::Configuration;
 use openapi::apis::{experimental_api, users_api};
 use openapi::models::*;
+use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 use std::sync::Arc;
-//use tokio::sync::Mutex;
 use tokio::sync::RwLock;
 use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 use tokio::task::JoinHandle;
 use tracing::debug;
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub(crate) struct Message {
+    pub content: String,
+    pub user: Option<UserPublic>,
+    pub send_at: Option<DateTime<Utc>>,
+}
 
 pub(crate) mod error;
 type Result<T, E = error::NetworkError> = std::result::Result<T, E>;
@@ -25,9 +38,15 @@ lazy_static! {
     pub static ref CONFIGURATION: Arc<RwLock<Configuration>> =
         Arc::new(RwLock::new(Configuration::new()));
     pub static ref USER: Arc<RwLock<Option<UserPrivate>>> = Arc::new(RwLock::new(None));
+    pub static ref USERNAME: Arc<std::sync::RwLock<Option<String>>> =
+        Arc::new(std::sync::RwLock::new(None));
     pub static ref LISTEN_TASK: Arc<RwLock<Option<ListenData>>> = Arc::new(RwLock::new(None));
     pub static ref ACTION_TX: Arc<RwLock<UnboundedSender<Action>>> =
         Arc::new(RwLock::new(unbounded_channel().0));
+    pub static ref KEY_PAIR: Arc<RwLock<Keypair>> = Arc::new(RwLock::new(
+        Keypair::generate().expect("Cannot Generate Keypair")
+    ));
+    pub static ref SYMETRIC_KEY: Arc<RwLock<Option<Key<FullAccess>>>> = Arc::new(RwLock::new(None));
 }
 
 pub async fn init(config: Cli, action_tx: UnboundedSender<Action>) -> Result<()> {
@@ -40,10 +59,19 @@ pub async fn init(config: Cli, action_tx: UnboundedSender<Action>) -> Result<()>
     }
     let response = users_api::users_online(&client, None).await?;
     client.bearer_access_token = Some(response.token.token);
-    let mut user = USER.write().await;
-    *user = Some(users_api::users_get_me(&client).await?);
+    let user = users_api::users_get_me(&client).await?;
     debug!("{:#?}", user);
+    update_user(user).await;
     Ok(())
+}
+
+pub async fn update_user(new_user: UserPrivate) {
+    let mut user = USER.write().await;
+    *user = Some(new_user.clone());
+
+    if let Ok(mut user) = USERNAME.write() {
+        *user = new_user.username.clone();
+    }
 }
 
 pub async fn handle_actions(event: Action) -> Result<Option<Action>> {
@@ -99,7 +127,67 @@ async fn listen(room: Arc<String>) -> Result<()> {
         if let reqwest_eventsource::Event::Message(event) = msg {
             match serde_json::from_str::<MessagePublic>(&event.data) {
                 Ok(message) => {
-                    let _ = action_tx.send(Action::ReceivedMessage(message));
+                    let mut received_message = Message::default();
+                    received_message.user = message.sender;
+                    received_message.send_at = message
+                        .send_at
+                        .map_or(None, |time| DateTime::<Utc>::from_str(&time).ok());
+                    if let Some(content) = message.content {
+                        match content {
+                            Content::Encrypted(_) => {
+                                // TODO: Encryption
+                                todo!()
+                            }
+                            Content::KeyResponse(_) => {
+                                // TODO: KeyResponse
+                                todo!()
+                            }
+                            Content::KeyRequest(request_content) => {
+                                let key = SYMETRIC_KEY.read().await;
+                                let key_pair = KEY_PAIR.read().await;
+                                if let Some(key) = key.as_ref() {
+                                    let mut public_key: PublicKey = [0u8; PUBLIC_KEY_LENGTH];
+                                    let public_key_vec = from_base64(&request_content.public_key)?;
+                                    public_key.copy_from_slice(public_key_vec.as_slice());
+                                    let mut ciphertext = vec![0u8; key.len() + cipher::MAC_LENGTH];
+                                    let (_, nonce) = key_pair.encrypt(
+                                        key.as_slice(),
+                                        &public_key,
+                                        None,
+                                        &mut ciphertext,
+                                    )?;
+                                    let encrypted_key_str = to_base64(&ciphertext);
+                                    let my_public_key_str = to_base64(&key_pair.public_key);
+                                    let mut ciphertext = vec![0u8; key.len() + cipher::MAC_LENGTH];
+                                    symetric_cipher::encrypt(
+                                        "TEST".as_bytes(),
+                                        key,
+                                        None,
+                                        &mut ciphertext,
+                                    )?;
+                                    let test_msg = to_base64(&ciphertext);
+                                    let key_response = KeyResponse::new(
+                                        encrypted_key_str,
+                                        test_msg,
+                                        my_public_key_str,
+                                    );
+                                    send_message_from_content(Content::KeyResponse(key_response))
+                                        .await?;
+                                }
+                            }
+                            Content::Plaintext(plaintext) => {
+                                received_message.content = plaintext.content;
+                            }
+                            Content::System(system_message) => {
+                                received_message.content = system_message.content;
+                                if system_message.online_users == 1 {
+                                    let mut key = SYMETRIC_KEY.write().await;
+                                    *key = Some(Key::generate()?);
+                                }
+                            }
+                        }
+                    }
+                    let _ = action_tx.send(Action::ReceivedMessage(received_message));
                 }
                 Err(e) => {
                     let e: error::NetworkError = e.into();
@@ -110,6 +198,30 @@ async fn listen(room: Arc<String>) -> Result<()> {
     }
     Ok(())
 }
+
+async fn send_message_from_content(message_content: Content) -> Result<()> {
+    let r#type = match message_content {
+        Content::Encrypted(_) => MessageType::Encrypted,
+        Content::KeyResponse(_) => MessageType::KeyResponse,
+        Content::KeyRequest(_) => MessageType::KeyRequest,
+        Content::Plaintext(_) => MessageType::Plaintext,
+        Content::System(_) => MessageType::System,
+    };
+    let now: chrono::DateTime<chrono::Utc> = chrono::DateTime::from(std::time::SystemTime::now());
+    let msg = MessageSend {
+        r#type: Some(r#type),
+        content: Some(message_content),
+        send_at: Some(now.to_rfc2822()),
+        data: Some(None),
+    };
+    let listen_task = LISTEN_TASK.read().await;
+    if let Some(task) = listen_task.as_ref() {
+        let conf = CONFIGURATION.read().await;
+        experimental_api::experimental_send(&conf, &task.room, msg).await?;
+    }
+    Ok(())
+}
+
 async fn send_message(message_content: &str) -> Result<()> {
     let listen_task = LISTEN_TASK.read().await;
     if let Some(task) = listen_task.as_ref() {
@@ -140,9 +252,9 @@ async fn login(username: &str, password: &str) -> Result<()> {
         Ok(response) => {
             conf.bearer_access_token = Some(response.token.token);
 
-            let mut user = USER.write().await;
-            *user = Some(users_api::users_get_me(&conf).await?);
+            let user = users_api::users_get_me(&conf).await?;
             debug!("{:#?}", user);
+            update_user(user).await;
             Ok(())
         }
         Err(e) => {
@@ -156,12 +268,20 @@ async fn login(username: &str, password: &str) -> Result<()> {
                 let response = users_api::users_register(&conf, login).await?;
                 conf.bearer_access_token = Some(response.token.token);
 
-                let mut user = USER.write().await;
-                *user = Some(users_api::users_get_me(&conf).await?);
+                let user = users_api::users_get_me(&conf).await?;
                 debug!("{:#?}", user);
+                update_user(user).await;
+
                 return Ok(());
             }
             Err(e.into())
         }
     }
+}
+pub fn to_base64(arg: &[u8]) -> String {
+    general_purpose::STANDARD.encode(arg)
+}
+
+pub fn from_base64(arg: &str) -> Result<Vec<u8>> {
+    Ok(general_purpose::STANDARD.decode(arg)?)
 }

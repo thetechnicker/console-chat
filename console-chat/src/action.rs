@@ -1,5 +1,6 @@
 pub(crate) use crate::error::{AppError, Result};
-use openapi::models::{MessagePublic, UserPrivate};
+use crate::network::Message;
+use openapi::models::UserPrivate;
 use serde::{Deserialize, Serialize};
 use strum::Display;
 
@@ -34,7 +35,7 @@ pub enum Action {
     PerformJoin(String),
     SendMessage(String),
     Me(UserPrivate),
-    ReceivedMessage(MessagePublic),
+    ReceivedMessage(Message),
     Leave,
 
     SyncProfile,
