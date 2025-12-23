@@ -72,9 +72,18 @@ async def log_requests(request: Request, call_next: Any):
     start_time = time.perf_counter()
     response = await call_next(request)
     response_time = time.perf_counter() - start_time
-    LOG.info(
-        f"{request.method} {request.url.path} {response.status_code} {response_time:.3f}s"
-    )
+    if response.status_code < 400:
+        LOG.info(
+            f"{request.method} {request.url.path} {response.status_code} {response_time:.3f}s"
+        )
+    elif response.status_code < 500:
+        LOG.warning(
+            f"{request.method} {request.url.path} {response.status_code} {response_time:.3f}s"
+        )
+    else:
+        LOG.error(
+            f"{request.method} {request.url.path} {response.status_code} {response_time:.3f}s"
+        )
     return response
 
 
@@ -121,6 +130,12 @@ async def http_exception_handler(request: Request, exc: Any):
                 except:
                     body_str = (await request.body()).decode().replace("\n", "\n\t")
                 LOG.error(f"HTTP Exeption,\nBody:\n\t{body_str}")
+        case 4:
+            header_str = "\n\t".join(
+                f"{key}: {value}" for key, value in request.headers.items()
+            )
+
+            LOG.error(f"HTTP Exeption,\nheaders:\n\t{header_str}")
         case _:
             pass
     error = jsonable_encoder(

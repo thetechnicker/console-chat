@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub enum NetworkError {
+    Eyre(Arc<color_eyre::Report>),
     Reqwest(Arc<reqwest::Error>),
     ReqwestEventSource(Arc<EventError>),
     Serde(Arc<serde_json::Error>),
@@ -39,6 +40,7 @@ pub fn print_recursive_error(e: impl Error) -> String {
 impl std::fmt::Display for NetworkError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let (module, e) = match self {
+            Self::Eyre(e) => ("network", print_recursive_error(e.root_cause())),
             Self::Reqwest(e) => ("reqwest", print_recursive_error(e)),
             Self::Utf8Error(e) => ("utf8", print_recursive_error(e)),
             Self::AlkaliError(e) => ("alkali", print_recursive_error(e)),
@@ -119,5 +121,11 @@ where
     fn from(value: T) -> NetworkError {
         let x: OpenapiError<()> = value.into();
         x.into()
+    }
+}
+
+impl From<color_eyre::Report> for NetworkError {
+    fn from(value: color_eyre::Report) -> NetworkError {
+        Self::Eyre(Arc::new(value))
     }
 }
