@@ -16,6 +16,7 @@ pub enum NetworkError {
     CannotCloneRequestError(CannotCloneRequestError),
     AlkaliError(AlkaliError),
     Base64Error(DecodeError),
+    Utf8Error(std::str::Utf8Error),
 }
 
 pub fn print_recursive_error(e: impl Error) -> String {
@@ -39,6 +40,7 @@ impl std::fmt::Display for NetworkError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let (module, e) = match self {
             Self::Reqwest(e) => ("reqwest", print_recursive_error(e)),
+            Self::Utf8Error(e) => ("utf8", print_recursive_error(e)),
             Self::AlkaliError(e) => ("alkali", print_recursive_error(e)),
             Self::Base64Error(e) => ("base64", print_recursive_error(e)),
             Self::ReqwestEventSource(e) => ("reqwest-eventsource", print_recursive_error(e)),
@@ -94,6 +96,12 @@ impl From<DecodeError> for NetworkError {
 impl From<AlkaliError> for NetworkError {
     fn from(value: AlkaliError) -> NetworkError {
         Self::AlkaliError(value)
+    }
+}
+
+impl From<std::str::Utf8Error> for NetworkError {
+    fn from(value: std::str::Utf8Error) -> NetworkError {
+        Self::Utf8Error(value)
     }
 }
 

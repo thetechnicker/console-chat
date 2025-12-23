@@ -2,7 +2,7 @@ use crate::action::Action;
 use crate::cli::Cli;
 use alkali::asymmetric::cipher::{self, Keypair, PUBLIC_KEY_LENGTH, PublicKey};
 use alkali::mem::FullAccess;
-use alkali::symmetric::cipher::{self as symetric_cipher, Key};
+use alkali::symmetric::cipher::{self as symetric_cipher, Key, NONCE_LENGTH};
 use base64::{Engine as _, engine::general_purpose};
 use chrono::{DateTime, Utc};
 use futures_util::stream::StreamExt;
@@ -33,6 +33,32 @@ pub struct ListenData {
     pub thread: JoinHandle<Result<()>>,
     pub room: Arc<String>,
 }
+
+//pub struct CustomLock<T>(RwLock<T>);
+//
+//impl<T> CustomLock<T> {
+//    pub fn new(v: T) -> Self {
+//        Self(RwLock::new(v))
+//    }
+//    async fn read(&self) -> tokio::sync::RwLockReadGuard<'_, T> {
+//        self.0.read().await
+//    }
+//    async fn write(&mut self) -> tokio::sync::RwLockWriteGuard<'_, T> {
+//        self.0.write().await
+//    }
+//}
+//impl<T> std::ops::Deref for CustomLock<T> {
+//    type Target = RwLock<T>;
+//    fn deref(&self) -> &Self::Target {
+//        &self.0
+//    }
+//}
+//
+//impl<T> std::ops::DerefMut for CustomLock<T> {
+//    fn deref_mut(&mut self) -> &mut Self::Target {
+//        &mut self.0
+//    }
+//}
 
 lazy_static! {
     pub static ref CONFIGURATION: Arc<RwLock<Configuration>> =
@@ -117,11 +143,13 @@ async fn join(room: &str) -> Result<()> {
     Ok(())
 }
 
+#[tracing::instrument]
 async fn listen(room: Arc<String>) -> Result<()> {
     let conf = CONFIGURATION.read().await.clone();
     let mut stream = experimental_api::experimental_listen(&conf, &room).await?;
     let action_tx = ACTION_TX.read().await.clone();
     let _ = action_tx.send(Action::OpenChat);
+    debug!("starting listening");
     while let Some(Ok(msg)) = stream.next().await {
         debug!("got message: {:#?}", msg);
         if let reqwest_eventsource::Event::Message(event) = msg {
@@ -134,22 +162,39 @@ async fn listen(room: Arc<String>) -> Result<()> {
                         .map_or(None, |time| DateTime::<Utc>::from_str(&time).ok());
                     if let Some(content) = message.content {
                         match content {
-                            Content::Encrypted(_) => {
-                                // TODO: Encryption
-                                todo!()
+                            Content::Encrypted(encrypted) => {
+                                let key = SYMETRIC_KEY.read().await;
+                                match key.as_ref() {
+                                    Some(key) => {
+                                        let mut nonce = [0u8; NONCE_LENGTH];
+                                        let nonce_vec = from_base64(&encrypted.nonce)?;
+                                        let msg_vec = from_base64(&encrypted.content_base64)?;
+                                        let mut x =
+                                            vec![0u8; msg_vec.len() - symetric_cipher::MAC_LENGTH];
+                                        nonce.copy_from_slice(&nonce_vec);
+                                        symetric_cipher::decrypt(&msg_vec, key, &nonce, &mut x)?;
+                                        let msg = str::from_utf8(&x)?;
+                                        received_message.content = msg.to_owned();
+                                    }
+                                    None => {
+                                        let key_pair = KEY_PAIR.read().await;
+                                        let msg = KeyRequest::new(to_base64(&key_pair.public_key));
+                                        send_message_from_content(Content::KeyRequest(msg)).await?;
+                                    }
+                                }
                             }
                             Content::KeyResponse(_) => {
-                                // TODO: KeyResponse
-                                todo!()
+                                //let _key_pair = KEY_PAIR.read().await;
+                                //let mut _key = SYMETRIC_KEY.write().await;
                             }
                             Content::KeyRequest(request_content) => {
                                 let key = SYMETRIC_KEY.read().await;
-                                let key_pair = KEY_PAIR.read().await;
                                 if let Some(key) = key.as_ref() {
                                     let mut public_key: PublicKey = [0u8; PUBLIC_KEY_LENGTH];
                                     let public_key_vec = from_base64(&request_content.public_key)?;
                                     public_key.copy_from_slice(public_key_vec.as_slice());
                                     let mut ciphertext = vec![0u8; key.len() + cipher::MAC_LENGTH];
+                                    let key_pair = KEY_PAIR.read().await;
                                     let (_, nonce) = key_pair.encrypt(
                                         key.as_slice(),
                                         &public_key,
@@ -185,6 +230,10 @@ async fn listen(room: Arc<String>) -> Result<()> {
                                 if system_message.online_users == 1 {
                                     let mut key = SYMETRIC_KEY.write().await;
                                     *key = Some(Key::generate()?);
+                                } else {
+                                    let key_pair = KEY_PAIR.read().await;
+                                    let msg = KeyRequest::new(to_base64(&key_pair.public_key));
+                                    send_message_from_content(Content::KeyRequest(msg)).await?;
                                 }
                             }
                         }
