@@ -21,6 +21,8 @@ pub struct KeyResponse {
     pub check_msg: String,
     #[serde(rename = "sender_public_key")]
     pub sender_public_key: String,
+    #[serde(rename = "nonce")]
+    pub nonce: String,
 }
 
 impl KeyResponse {
@@ -28,21 +30,26 @@ impl KeyResponse {
         encrypted_symmetric_key: String,
         check_msg: String,
         sender_public_key: String,
+        nonce: String,
     ) -> KeyResponse {
         KeyResponse {
             r#type: None,
             encrypted_symmetric_key,
             check_msg,
             sender_public_key,
+            nonce,
         }
     }
 }
-
-#[derive(
-    Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize, Default,
-)]
+///
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Type {
     #[serde(rename = "KEY_RESPONSE")]
-    #[default]
     KeyResponse,
+}
+
+impl Default for Type {
+    fn default() -> Type {
+        Self::KeyResponse
+    }
 }

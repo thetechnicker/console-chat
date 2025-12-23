@@ -158,6 +158,7 @@ async fn listen(room: Arc<String>) -> Result<()> {
                                     )?;
                                     let encrypted_key_str = to_base64(&ciphertext);
                                     let my_public_key_str = to_base64(&key_pair.public_key);
+                                    let nonse_str = to_base64(&nonce);
                                     let mut ciphertext = vec![0u8; key.len() + cipher::MAC_LENGTH];
                                     symetric_cipher::encrypt(
                                         "TEST".as_bytes(),
@@ -170,6 +171,7 @@ async fn listen(room: Arc<String>) -> Result<()> {
                                         encrypted_key_str,
                                         test_msg,
                                         my_public_key_str,
+                                        nonse_str,
                                     );
                                     send_message_from_content(Content::KeyResponse(key_response))
                                         .await?;

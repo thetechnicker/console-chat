@@ -55,6 +55,7 @@ class KeyResponse(BaseMessage):
     encrypted_symmetric_key: str
     check_msg: str
     sender_public_key: str
+    nonce: str
 
 
 class SystemMessage(BaseMessage):

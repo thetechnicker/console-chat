@@ -27,12 +27,15 @@ impl Plaintext {
         }
     }
 }
-
-#[derive(
-    Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize, Default,
-)]
+///
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Type {
     #[serde(rename = "PLAINTEXT")]
-    #[default]
     Plaintext,
+}
+
+impl Default for Type {
+    fn default() -> Type {
+        Self::Plaintext
+    }
 }
