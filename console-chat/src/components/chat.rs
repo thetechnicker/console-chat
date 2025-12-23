@@ -2,7 +2,7 @@ use crate::action::Result;
 use crate::components::vim::*;
 use crate::network::{Message, USERNAME};
 use chrono::Local;
-use crossterm::event::KeyEvent;
+use crossterm::event::{KeyCode, KeyEvent};
 use openapi::models::{AppearancePublic, UserPublic};
 use ratatui::{prelude::*, widgets::*};
 use tokio::sync::mpsc::UnboundedSender;
@@ -13,14 +13,14 @@ use super::Component;
 use crate::{action::Action, config::Config};
 
 struct MessageComponent<'a> {
-    _content: Message,
+    content: Message,
     precomputed: Paragraph<'a>,
     selected: bool,
 }
 impl<'a> MessageComponent<'a> {
     fn new(content: Message) -> Self {
         Self {
-            _content: content.clone(),
+            content: content.clone(),
             precomputed: content.into(),
             selected: false,
         }
@@ -67,7 +67,10 @@ impl<'a> Into<Paragraph<'a>> for Message {
 
         block = block.title_alignment(alignment);
 
-        Paragraph::new(message).block(block).alignment(alignment)
+        Paragraph::new(message)
+            .wrap(Wrap { trim: false })
+            .block(block)
+            .alignment(alignment)
     }
 }
 
@@ -159,44 +162,51 @@ impl Component for Chat<'_> {
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
         if let Some(command_tx) = self.command_tx.as_ref()
             && self.active
-            && self.index == 0
         {
-            self.vim = if let Some(this_vim) = self.vim.take() {
-                Some(match this_vim.transition(key.into(), &mut self.textinput) {
-                    Transition::Mode(mode) if this_vim.mode != mode => {
-                        self.textinput.set_block(mode.highlight_block());
-                        self.textinput.set_cursor_style(mode.cursor_style());
-                        match mode {
-                            VimMode::Insert => command_tx.send(Action::Insert)?,
-                            VimMode::Normal if this_vim.mode == VimMode::Insert => {
-                                command_tx.send(Action::Normal)?
-                            }
-                            _ => {}
-                        };
-                        this_vim.update_mode(mode)
-                    }
-                    Transition::Store | Transition::Nop | Transition::Mode(_) => this_vim,
-                    Transition::Pending(input) => this_vim.with_pending(input),
-                    Transition::Up => {
-                        self.up();
-                        this_vim
-                    }
-                    Transition::Down => {
-                        self.down();
-                        this_vim
-                    }
-                    Transition::Enter(content) => {
-                        debug!("{}", content);
-                        command_tx.send(Action::SendMessage(content.to_owned()))?;
-                        self.textinput = TextArea::default();
-                        self.textinput.set_block(this_vim.mode.highlight_block());
-                        self.textinput
-                            .set_cursor_style(this_vim.mode.cursor_style());
-                        this_vim
-                    }
-                })
+            if self.index == 0 {
+                self.vim = if let Some(this_vim) = self.vim.take() {
+                    Some(match this_vim.transition(key.into(), &mut self.textinput) {
+                        Transition::Mode(mode) if this_vim.mode != mode => {
+                            self.textinput.set_block(mode.highlight_block());
+                            self.textinput.set_cursor_style(mode.cursor_style());
+                            match mode {
+                                VimMode::Insert => command_tx.send(Action::Insert)?,
+                                VimMode::Normal if this_vim.mode == VimMode::Insert => {
+                                    command_tx.send(Action::Normal)?
+                                }
+                                _ => {}
+                            };
+                            this_vim.update_mode(mode)
+                        }
+                        Transition::Store | Transition::Nop | Transition::Mode(_) => this_vim,
+                        Transition::Pending(input) => this_vim.with_pending(input),
+                        Transition::Up => {
+                            self.up();
+                            this_vim
+                        }
+                        Transition::Down => {
+                            self.down();
+                            this_vim
+                        }
+                        Transition::Enter(content) => {
+                            debug!("{}", content);
+                            command_tx.send(Action::SendMessage(content.to_owned()))?;
+                            self.textinput = TextArea::default();
+                            self.textinput.set_block(this_vim.mode.highlight_block());
+                            self.textinput
+                                .set_cursor_style(this_vim.mode.cursor_style());
+                            this_vim
+                        }
+                    })
+                } else {
+                    Some(Vim::default())
+                };
             } else {
-                Some(Vim::default())
+                match key.code {
+                    KeyCode::Char('k') => self.up(),
+                    KeyCode::Char('j') => self.down(),
+                    _ => {}
+                }
             }
         }
         Ok(None)
@@ -234,8 +244,11 @@ impl Component for Chat<'_> {
                     .split(area)[1],
                 );
             for msg in self.msgs.iter().rev() {
+                let a = msg.content.content.len() as u16;
+                let b = chat.width;
+                let rows = (a + b - 1) / b; // AI says this is division with rounding up
                 let [new_chat, msg_area] =
-                    Layout::vertical([Constraint::Fill(1), Constraint::Max(3)]).areas(chat);
+                    Layout::vertical([Constraint::Fill(1), Constraint::Max(rows + 2)]).areas(chat);
                 msg.render(msg_area, buf);
                 chat = new_chat;
             }
