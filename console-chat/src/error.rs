@@ -1,9 +1,27 @@
 use crate::network::error::NetworkError;
 use serde::{Deserialize, Deserializer};
+use std::error::Error;
 use std::sync::Arc;
 //use strum::Display;
 
 pub(crate) type Result<T, E = AppError> = std::result::Result<T, E>;
+
+pub fn print_recursive_error(e: impl Error) -> String {
+    fn print_recursive_error_inner(e: impl Error, depth: usize) -> String {
+        if let Some(source) = e.source() {
+            format!(
+                "{}{}\nsource: {}",
+                "\t".repeat(depth),
+                e,
+                print_recursive_error_inner(source, depth + 1)
+                    .replace("\n", &format!("\n{}", "\t".repeat(depth + 1)))
+            )
+        } else {
+            e.to_string()
+        }
+    }
+    print_recursive_error_inner(e, 0)
+}
 
 #[derive(Debug, Clone)]
 pub enum AppError {
@@ -18,14 +36,23 @@ pub enum AppError {
 
 impl std::fmt::Display for AppError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            Self::MissingActionTX => write!(f, "MissingActionTX"),
-            Self::MissingPassword => write!(f, "MissingPassword"),
-            Self::MissingUsername => write!(f, "MissingUsername"),
-            Self::MissingPasswordAndUsername => write!(f, "MissingPasswordAndUsername"),
-            Self::NetworkError(e) => write!(f, "Network Error: {e}"),
-            Self::Error(s) => write!(f, "Error: {s}"),
-            Self::Eyre(e) => write!(f, "Eyre: {e}"),
+        let (module, body) = match self {
+            Self::MissingActionTX => ("Components", "Component cannot invoce actions".to_string()),
+            Self::MissingPassword => ("Login", "Please enter Password to login".to_string()),
+            Self::MissingUsername => ("Login", "Please enter Username to Login".to_string()),
+            Self::MissingPasswordAndUsername => (
+                "Login",
+                "Please enter Username and Password to Login".to_string(),
+            ),
+            Self::NetworkError(e) => ("", print_recursive_error(e)),
+            Self::Error(s) => ("", s.clone()),
+            Self::Eyre(e) => ("", format!("{:#}", e)),
+        };
+        if body.contains('\n') {
+            writeln!(f, "error in {}:", module)?;
+            write!(f, "{}", body)
+        } else {
+            write!(f, "error in {}: {}", module, body)
         }
     }
 }

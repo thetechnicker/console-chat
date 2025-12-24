@@ -12,16 +12,29 @@ use tui_textarea::TextArea;
 use super::Component;
 use crate::{action::Action, config::Config};
 
-struct MessageComponent<'a> {
+struct MessageComponent {
     content: Message,
-    precomputed: Paragraph<'a>,
+    alignment: Alignment,
     selected: bool,
 }
-impl<'a> MessageComponent<'a> {
+impl MessageComponent {
     fn new(content: Message) -> Self {
+        let user = content
+            .user
+            .clone()
+            .unwrap_or(UserPublic::new(AppearancePublic::new("#c0ffee".to_owned())));
+        let alignment = if let Ok(me) = USERNAME.read() {
+            if *me == user.username {
+                Alignment::Right
+            } else {
+                Alignment::Left
+            }
+        } else {
+            Alignment::Left
+        };
         Self {
-            content: content.clone(),
-            precomputed: content.into(),
+            content,
+            alignment,
             selected: false,
         }
     }
@@ -32,55 +45,47 @@ impl<'a> MessageComponent<'a> {
         self.selected = false;
     }
 }
-impl<'a> Into<Paragraph<'a>> for Message {
-    fn into(self) -> Paragraph<'a> {
+
+impl Widget for &MessageComponent {
+    fn render(self, area: Rect, buf: &mut Buffer) {
         let user = self
+            .content
             .user
             .clone()
             .unwrap_or(UserPublic::new(AppearancePublic::new("#c0ffee".to_owned())));
         let name = user.username.clone().unwrap_or("System".to_owned());
         let color = user.appearance.color.parse().unwrap_or(Color::Gray);
-        let message = self.content.clone();
+        let message = self.content.content.clone();
 
         let mut block = Block::bordered()
             .border_type(BorderType::Rounded)
             .fg(color)
             .title(name);
 
-        if let Some(send_time) = self.send_at {
+        if self.selected {
+            block = block.style(Style::default().bg(color).fg(Color::LightMagenta))
+        }
+
+        if let Some(send_time) = self.content.send_at {
             let time_str = send_time
                 .with_timezone(&Local)
                 .format("%H:%M:%S %Y-%d-%m")
                 .to_string();
-
             block = block.title_bottom(time_str);
         }
-        let alignment = if let Ok(me) = USERNAME.read() {
-            if *me == user.username {
-                Alignment::Right
-            } else {
-                Alignment::Left
-            }
-        } else {
-            Alignment::Left
-        };
 
-        block = block.title_alignment(alignment);
+        block = block.title_alignment(self.alignment);
 
-        Paragraph::new(message)
+        let para: Paragraph = Paragraph::new(message)
             .wrap(Wrap { trim: false })
             .block(block)
-            .alignment(alignment)
+            .alignment(self.alignment);
+
+        para.render(area, buf);
     }
 }
 
-impl Widget for &MessageComponent<'_> {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        self.precomputed.clone().render(area, buf);
-    }
-}
-
-impl<'a> From<Message> for MessageComponent<'a> {
+impl From<Message> for MessageComponent {
     fn from(msg: Message) -> Self {
         Self::new(msg)
     }
@@ -93,8 +98,8 @@ pub struct Chat<'a> {
     config: Config,
     textinput: TextArea<'a>,
     vim: Option<Vim>,
-    index: usize,
-    msgs: Vec<MessageComponent<'a>>,
+    index: usize, // index of currently selected message in msgs (0 means none / input)
+    msgs: Vec<MessageComponent>,
 }
 
 impl Chat<'_> {
@@ -102,36 +107,53 @@ impl Chat<'_> {
         Self::default()
     }
 
+    fn safe_len(&self) -> usize {
+        self.msgs.len().max(1) // ensure math using len doesn't underflow; index 0 is input
+    }
+
     fn up(&mut self) {
-        let i = self.index;
+        // navigate messages; index==0 is input; messages are 1..=msgs.len()
+        let max = self.safe_len();
         self.index = if self.index == 0 {
-            self.msgs.len() - 1
+            // move to last message if any
+            if self.msgs.is_empty() {
+                0
+            } else {
+                self.msgs.len()
+            }
         } else {
-            self.index - 1
+            (self.index - 1) % max
         };
-        self.update_selection(i);
+        // update selection
+        self.update_selection();
     }
 
     fn down(&mut self) {
-        let i = self.index;
-        self.index = (self.index + 1) % self.msgs.len();
-        self.update_selection(i);
+        let max = self.safe_len();
+        self.index = (self.index + 1) % max;
+        self.update_selection();
     }
 
-    fn update_selection(&mut self, prev: usize) {
-        if prev > 0
-            && let Some(m) = self.msgs.get_mut(prev - 1)
-        {
-            m.unselect()
+    fn update_selection(&mut self) {
+        // unselect all, then select the message at self.index (if > 0)
+        for m in &mut self.msgs {
+            m.unselect();
         }
-        if self.index > 0
-            && let Some(m) = self.msgs.get_mut(self.index - 1)
-        {
-            m.select()
-        }
-        if self.index != 0 {
+        if self.index > 0 {
+            if let Some(m) = self.msgs.get_mut(self.index - 1) {
+                m.select();
+            }
+            // when a message is selected, style textarea as normal (no special)
             self.textinput
                 .set_block(Block::default().borders(Borders::ALL).title("Chat"));
+        } else {
+            // input selected -> ensure textarea block reflects vim mode if present
+            if let Some(v) = &self.vim {
+                self.textinput.set_block(v.mode.highlight_block());
+            } else {
+                self.textinput
+                    .set_block(Block::default().borders(Borders::ALL).title("Chat"));
+            }
         }
     }
 }
@@ -214,15 +236,26 @@ impl Component for Chat<'_> {
 
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
-            Action::OpenChat => self.active = true,
-            Action::ReceivedMessage(msg) => self.msgs.push(msg.into()),
-            Action::Leave => self.msgs.clear(),
-            Action::Tick => {
-                // add any logic here that should run on every tick
+            Action::OpenChat => {
+                self.active = true;
+                // ensure selection reset to input on open
+                self.index = 0;
+                self.update_selection();
             }
-            Action::Render => {
-                // add any logic here that should run on every render
+            Action::ReceivedMessage(msg) => {
+                self.msgs.push(msg.into());
+                // keep selection on input, but if a message was selected keep it
+                if self.index > self.msgs.len() {
+                    self.index = self.msgs.len();
+                }
+                self.update_selection();
             }
+            Action::Leave => {
+                self.msgs.clear();
+                self.index = 0;
+            }
+            Action::Tick => {}
+            Action::Render => {}
             _ => {}
         }
         Ok(None)
@@ -234,8 +267,8 @@ impl Component for Chat<'_> {
             let block = Block::new().bg(Color::Blue);
             block.render(area, buf);
 
-            let [mut chat, input] = Layout::vertical([Constraint::Fill(1), Constraint::Max(3)])
-                .areas(
+            let [mut chat_area, input_area] =
+                Layout::vertical([Constraint::Fill(1), Constraint::Max(3)]).areas(
                     Layout::horizontal([
                         Constraint::Fill(1),
                         Constraint::Percentage(60),
@@ -243,19 +276,23 @@ impl Component for Chat<'_> {
                     ])
                     .split(area)[1],
                 );
+
+            // render messages from newest at bottom; compute rows conservatively
             for msg in self.msgs.iter().rev() {
+                // approximate rows needed: message length divided by width, plus padding
                 let a = msg.content.content.len() as u16;
-                let b = chat.width;
-                let rows = (a + b - 1) / b; // AI says this is division with rounding up
+                let b = chat_area.width.max(1);
+                let rows = (a + b - 1) / b;
+                let max_rows = rows.saturating_add(2);
                 let [new_chat, msg_area] =
-                    Layout::vertical([Constraint::Fill(1), Constraint::Max(rows + 2)]).areas(chat);
+                    Layout::vertical([Constraint::Fill(1), Constraint::Max(max_rows)])
+                        .areas(chat_area);
                 msg.render(msg_area, buf);
-                chat = new_chat;
+                chat_area = new_chat;
             }
 
-            self.textinput.render(input, buf);
+            self.textinput.render(input_area, buf);
         }
-
         Ok(())
     }
 }

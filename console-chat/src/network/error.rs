@@ -1,9 +1,9 @@
+use crate::error::print_recursive_error;
 use crate::util::TypeErasedWrapper;
 use alkali::AlkaliError;
 use base64::DecodeError;
 use openapi::apis::{Error as OpenapiError, ResponseContent};
 use reqwest_eventsource::{CannotCloneRequestError, Error as EventError};
-use std::error::Error;
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
@@ -18,23 +18,6 @@ pub enum NetworkError {
     AlkaliError(AlkaliError),
     Base64Error(DecodeError),
     Utf8Error(std::str::Utf8Error),
-}
-
-pub fn print_recursive_error(e: impl Error) -> String {
-    fn print_recursive_error_inner(e: impl Error, depth: usize) -> String {
-        if let Some(source) = e.source() {
-            format!(
-                "{}{}\nsource: {}",
-                "\t".repeat(depth),
-                e,
-                print_recursive_error_inner(source, depth + 1)
-                    .replace("\n", &format!("\n{}", "\t".repeat(depth + 1)))
-            )
-        } else {
-            e.to_string()
-        }
-    }
-    print_recursive_error_inner(e, 0)
 }
 
 impl std::fmt::Display for NetworkError {

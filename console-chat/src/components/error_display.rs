@@ -1,6 +1,7 @@
 use super::Component;
 use crate::action::Result;
 use crate::action::{Action, AppError};
+use crossterm::event::KeyEvent;
 use ratatui::{prelude::*, widgets::*};
 use std::time::Instant;
 
@@ -42,6 +43,15 @@ impl ErrorDisplay {
 
 impl Component for ErrorDisplay {
     fn hide(&mut self) {}
+
+    fn handle_key_event(&mut self, _: KeyEvent) -> Result<Option<Action>> {
+        self.current_error = self.errors.pop();
+        if self.current_error.is_some() {
+            self.last_error = Instant::now();
+        }
+        Ok(None)
+    }
+
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
             Action::Error(msg) => {
@@ -71,8 +81,9 @@ impl Component for ErrorDisplay {
 
             frame.render_widget(Clear, center);
 
-            let display = Paragraph::new(format!("{error}"))
-                .centered()
+            let display = Paragraph::new(format!("{error:#?}"))
+                //.centered()
+                .wrap(Wrap { trim: false })
                 .block(Block::bordered().border_type(BorderType::QuadrantInside))
                 .on_red();
             frame.render_widget(display, center);
