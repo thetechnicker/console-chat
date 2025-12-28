@@ -1,8 +1,10 @@
+use crate::LockErrorExt;
 use crate::action::Result;
 use crate::components::{button::*, theme::*};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{prelude::*, widgets::*};
 use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc::UnboundedSender;
 
 use super::Component;
@@ -63,7 +65,7 @@ impl From<&mut HashMap<String, Theme>> for HomeTheme {
 pub struct Home {
     active: bool,
     command_tx: Option<UnboundedSender<Action>>,
-    config: Config,
+    config: Arc<RwLock<Config>>,
 
     join: Button,
     login: Button,
@@ -123,20 +125,16 @@ impl Component for Home {
     }
     fn init(&mut self, _: Size) -> Result<()> {
         self.active = true;
-        let themes = match self.config.themes.get_mut(&STYLE_KEY) {
+        let conf_arc = self.config.clone();
+        let mut config = conf_arc.write().error()?;
+        let themes = match config.themes.get_mut(&STYLE_KEY) {
             Some(themes) => themes,
             None => {
-                self.config.themes.insert(STYLE_KEY, HashMap::new());
-                self.config
-                    .themes
-                    .get_mut(&STYLE_KEY)
-                    .ok_or("This is bad")?
+                config.themes.insert(STYLE_KEY, HashMap::new());
+                config.themes.get_mut(&STYLE_KEY).ok_or("This is bad")?
             }
         };
         let theme = HomeTheme::from(themes);
-        if theme.is_new {
-            let _ = self.config.save();
-        }
 
         self.theme = theme.root;
         self.login = Button::new("Login", "", theme.login, Action::OpenLogin);
@@ -178,7 +176,7 @@ impl Component for Home {
         Ok(())
     }
 
-    fn register_config_handler(&mut self, config: Config) -> Result<()> {
+    fn register_config_handler(&mut self, config: Arc<RwLock<Config>>) -> Result<()> {
         self.config = config;
         Ok(())
     }

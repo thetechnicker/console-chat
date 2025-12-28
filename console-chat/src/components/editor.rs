@@ -1,5 +1,7 @@
+use crate::LockErrorExt;
 use crate::action::{AppError, Result};
 use crate::components::vim::*;
+use std::sync::{Arc, RwLock};
 //use color_eyre::Result;
 use crossterm::event::KeyEvent;
 use ratatui::{prelude::*, widgets::*};
@@ -14,7 +16,7 @@ use crate::{action::Action, config::Config};
 pub struct Editor<'a> {
     active: bool,
     command_tx: Option<UnboundedSender<Action>>,
-    config: Config,
+    config: Arc<RwLock<Config>>,
     textinput: TextArea<'a>,
     vim: Option<Vim>,
 }
@@ -30,8 +32,8 @@ impl Component for Editor<'_> {
         self.active = false;
     }
     fn init(&mut self, _: Size) -> Result<()> {
-        let _themes = self.config.themes.get(&crate::app::Mode::RawSettings);
-        let lines = serde_json::to_string_pretty(&self.config)?;
+        let themes = self.config.read().error()?;
+        let lines = serde_json::to_string_pretty(&*themes)?;
         let vim = Vim::new(VimMode::Normal, VimType::MultiLine);
         self.textinput = TextArea::from(lines.split("\n"));
         self.textinput.set_block(vim.mode.block());
@@ -45,7 +47,7 @@ impl Component for Editor<'_> {
         Ok(())
     }
 
-    fn register_config_handler(&mut self, config: Config) -> Result<()> {
+    fn register_config_handler(&mut self, config: Arc<RwLock<Config>>) -> Result<()> {
         self.config = config;
         Ok(())
     }
@@ -78,8 +80,9 @@ impl Component for Editor<'_> {
                     }
                     Transition::Store => {
                         debug!("Storing new config");
-                        self.config = serde_json::from_str(&self.textinput.lines().join("\n"))?;
-                        self.config.save()?;
+                        let mut config = self.config.write().error()?;
+                        *config = serde_json::from_str(&self.textinput.lines().join("\n"))?;
+                        config.save()?;
                         if let Some(command_tx) = self.command_tx.as_ref() {
                             command_tx.send(Action::ReloadConfig)?;
                         } else {

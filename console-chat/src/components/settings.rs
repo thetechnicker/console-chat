@@ -1,7 +1,9 @@
 //use color_eyre::Result;
+use crate::LockErrorExt;
 use crate::action::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{prelude::*, widgets::*};
+use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc::UnboundedSender;
 
 use super::Component;
@@ -11,7 +13,8 @@ use crate::{action::Action, config::Config};
 pub struct Settings {
     active: bool,
     command_tx: Option<UnboundedSender<Action>>,
-    config: Config,
+    content: String,
+    config: Arc<RwLock<Config>>,
     scroll: usize,
 }
 
@@ -23,7 +26,10 @@ impl Settings {
 
 impl Component for Settings {
     fn init(&mut self, _: Size) -> Result<()> {
-        let _themes = self.config.themes.get(&crate::app::Mode::Settings);
+        let conf_arc = self.config.clone();
+        let config = conf_arc.read().error()?;
+        //let _themes = config.themes.get(&crate::app::Mode::Login);
+        self.content = serde_json::to_string_pretty(&*config)?;
         Ok(())
     }
 
@@ -36,7 +42,7 @@ impl Component for Settings {
         self.active = false;
     }
 
-    fn register_config_handler(&mut self, config: Config) -> Result<()> {
+    fn register_config_handler(&mut self, config: Arc<RwLock<Config>>) -> Result<()> {
         self.config = config;
         Ok(())
     }
@@ -88,7 +94,7 @@ impl Component for Settings {
                 ])
                 .split(area)[1],
             )[1];
-            let paragraph = Paragraph::new(serde_json::to_string_pretty(&self.config)?)
+            let paragraph = Paragraph::new(self.content.clone())
                 .style(Style::default().bg(Color::Blue))
                 .wrap(Wrap { trim: true })
                 .scroll((self.scroll as u16, 0));

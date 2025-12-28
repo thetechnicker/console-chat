@@ -1,4 +1,5 @@
 use super::Component;
+use crate::LockErrorExt;
 use crate::action::Result;
 use crate::components::ui_utils::theme::Theme;
 use crate::components::vim::*;
@@ -9,6 +10,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use openapi::models::{AppearancePublic, UserPublic};
 use ratatui::{prelude::*, widgets::*};
 use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::debug;
 use tui_textarea::TextArea;
@@ -100,7 +102,8 @@ impl From<Message> for MessageComponent {
 pub struct Chat<'a> {
     active: bool,
     command_tx: Option<UnboundedSender<Action>>,
-    config: Config,
+    config: Arc<RwLock<Config>>,
+    selected_theme: Theme,
     textinput: TextArea<'a>,
     vim: Option<Vim>,
     index: usize, // index of currently selected message in msgs (0 means none / input)
@@ -168,11 +171,29 @@ impl Component for Chat<'_> {
         self.active = false;
     }
     fn init(&mut self, _: Size) -> Result<()> {
-        //let themes = self.config.themes.get(&crate::app::Mode::Chat);
+        let mut config = self.config.write().error()?;
+        let themes: &mut HashMap<String, Theme> = match config.themes.get_mut(&STYLE_KEY) {
+            Some(themes) => themes,
+            None => {
+                config.themes.insert(STYLE_KEY, HashMap::new());
+                config.themes.get_mut(&STYLE_KEY).ok_or("This is bad")?
+            }
+        };
         let vim = Vim::new(VimMode::Normal, VimType::SingleLine);
         self.textinput.set_block(vim.mode.highlight_block());
         self.textinput.set_cursor_style(vim.mode.cursor_style());
         self.vim = Some(vim);
+        let selected_theme_option = themes.get("selected").cloned();
+        let selected_theme = selected_theme_option.unwrap_or(Theme {
+            text: Color::LightMagenta,
+            background: Color::DarkGray,
+            highlight: Color::Gray,
+            shadow: Color::Black,
+        });
+        if selected_theme_option.is_none() {
+            themes.insert("selected".to_owned(), selected_theme);
+        }
+        self.selected_theme = selected_theme;
         Ok(())
     }
 
@@ -181,7 +202,7 @@ impl Component for Chat<'_> {
         Ok(())
     }
 
-    fn register_config_handler(&mut self, config: Config) -> Result<()> {
+    fn register_config_handler(&mut self, config: Arc<RwLock<Config>>) -> Result<()> {
         self.config = config;
         Ok(())
     }
@@ -282,27 +303,6 @@ impl Component for Chat<'_> {
                     .split(area)[1],
                 );
 
-            let themes: &mut HashMap<String, Theme> = match self.config.themes.get_mut(&STYLE_KEY) {
-                Some(themes) => themes,
-                None => {
-                    self.config.themes.insert(STYLE_KEY, HashMap::new());
-                    self.config
-                        .themes
-                        .get_mut(&STYLE_KEY)
-                        .ok_or("This is bad")?
-                }
-            };
-            let selected_theme_option = themes.get("selected").cloned();
-            let mut selected_theme = selected_theme_option.unwrap_or(Theme {
-                text: Color::LightMagenta,
-                background: Color::DarkGray,
-                highlight: Color::Gray,
-                shadow: Color::Black,
-            });
-            if selected_theme_option.is_none() {
-                themes.insert("selected".to_owned(), selected_theme);
-                self.config.save()?;
-            }
             // render messages from newest at bottom; compute rows conservatively
             for msg in self.msgs.iter().rev() {
                 // approximate rows needed: message length divided by width, plus padding
@@ -313,7 +313,7 @@ impl Component for Chat<'_> {
                 let [new_chat, msg_area] =
                     Layout::vertical([Constraint::Fill(1), Constraint::Max(max_rows)])
                         .areas(chat_area);
-                msg.render(msg_area, buf, &mut selected_theme);
+                msg.render(msg_area, buf, &mut self.selected_theme);
                 chat_area = new_chat;
             }
 

@@ -1,4 +1,5 @@
 use crate::{
+    LockErrorExt,
     action::Action,
     //action::Result,
     cli::Cli,
@@ -7,6 +8,7 @@ use crate::{
         home::Home, join::Join, login::Login, settings::Settings, sorted_components,
     },
     config::Config,
+    error::AppError,
     network,
     //    network::handle_network,
     tui::{Event, Tui},
@@ -15,11 +17,12 @@ use color_eyre::Result;
 use crossterm::event::KeyEvent;
 use ratatui::prelude::Rect;
 use serde::{Deserialize, Serialize};
+use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
 
 pub struct App {
-    config: Config,
+    config: Arc<RwLock<Config>>,
     args: Cli,
     //tick_rate: f64,
     //frame_rate: f64,
@@ -62,7 +65,7 @@ impl App {
             ]),
             should_quit: false,
             should_suspend: false,
-            config: Config::new()?,
+            config: Config::new_locked()?,
             mode: Mode::Home,
             last_mode: None,
             last_tick_key_events: Vec::new(),
@@ -117,11 +120,9 @@ impl App {
     }
 
     fn reload_config(&mut self, tui: &mut Tui) -> Result<()> {
-        self.config = Config::new()?;
+        self.config = Config::new_locked()?;
         for component in self.components.iter_mut() {
             component.register_config_handler(self.config.clone())?;
-        }
-        for component in self.components.iter_mut() {
             component.init(tui.size()?)?;
         }
         self.hide_all();
@@ -185,8 +186,10 @@ impl App {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<()> {
+        let conf_arc = self.config.clone();
+        let config = conf_arc.read().error().map_err(|e| AppError::Error(e))?;
         let action_tx = self.action_tx.clone();
-        let Some(keymap) = self.config.keybindings.get(&self.mode) else {
+        let Some(keymap) = config.keybindings.get(&self.mode) else {
             return Ok(());
         };
         match keymap.get(&vec![key]) {
@@ -252,10 +255,17 @@ impl App {
                 Action::Normal => self.restore_prev_mode()?,
                 Action::Error(e) => error!("{e}"),
                 Action::ResetConfig => {
-                    std::fs::remove_file(self.config.config.safe_file.clone())?;
-                    self.config = Config::new()?;
-                    self.reload_config(tui)?;
-                    self.config.save()?;
+                    {
+                        let mut config = self
+                            .config
+                            .write()
+                            .error()
+                            .map_err(|e| AppError::Error(e))?;
+                        std::fs::remove_file(config.config.safe_file.clone())?;
+                        *config = Config::new()?;
+                        config.save()?;
+                        debug!("Reloading config");
+                    }
                     self.reload_config(tui)?;
                 }
                 _ => {}

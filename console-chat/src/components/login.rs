@@ -1,5 +1,7 @@
+use crate::LockErrorExt;
 use crate::action::AppError;
 use crate::components::{button::*, theme::*, vim::*};
+use std::sync::{Arc, RwLock};
 //use color_eyre::Result;
 use crate::action::Result;
 use crossterm::event::{KeyCode, KeyEvent};
@@ -15,7 +17,7 @@ use crate::{action::Action, config::Config};
 pub struct Login<'a> {
     active: bool,
     command_tx: Option<UnboundedSender<Action>>,
-    config: Config,
+    config: Arc<RwLock<Config>>,
     username: TextArea<'a>,
     password: TextArea<'a>,
     login: Button,
@@ -96,7 +98,9 @@ impl Component for Login<'_> {
         self.active = false;
     }
     fn init(&mut self, _: Size) -> Result<()> {
-        let _themes = self.config.themes.get(&crate::app::Mode::Login);
+        let conf_arc = self.config.clone();
+        let config = conf_arc.write().error()?;
+        let _themes = config.themes.get(&crate::app::Mode::Login);
         self.vim = [Some(Vim::default()), Some(Vim::default())];
         self.username.set_cursor_line_style(Style::default());
         self.username
@@ -186,7 +190,7 @@ impl Component for Login<'_> {
         Ok(())
     }
 
-    fn register_config_handler(&mut self, config: Config) -> Result<()> {
+    fn register_config_handler(&mut self, config: Arc<RwLock<Config>>) -> Result<()> {
         self.config = config;
         Ok(())
     }
