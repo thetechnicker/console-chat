@@ -49,25 +49,5 @@
       "<Ctrl-c>": "Quit",
       "<Ctrl-z>": "Suspend"
     }
-  },
-  "themes": {
-    "Home": {
-      "root":"DARK_GRAY",
-      "join": "GREEN",
-      "login": "BLUE",
-      "settings": "GRAY",
-      "raw_settings": {
-        "text": "#303030",
-        "background": "#030303",
-        "highlight": "#c0ffee",
-        "shadow": "Red"
-      },
-      "exit": "RED"
-    },
-    "Login": {},
-    "Join": {},
-    "Chat": {},
-    "Settings": {},
-    "RawSettings": {}
   }
 }

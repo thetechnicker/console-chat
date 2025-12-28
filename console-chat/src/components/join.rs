@@ -1,4 +1,5 @@
 use crate::components::{button::*, theme::*, vim::*};
+use std::collections::HashMap;
 //use color_eyre::Result;
 use crate::action::Result;
 use crossterm::event::{KeyCode, KeyEvent};
@@ -10,6 +11,43 @@ use tui_textarea::TextArea;
 
 use super::Component;
 use crate::{action::Action, action::AppError, config::Config};
+
+// TODO: May be great to be done with a proc-macro, to generalize for all Screens that have themed
+// components
+#[derive(serde::Serialize, serde::Deserialize)]
+struct JoinTheme {
+    pub root: Theme,
+    pub join: Theme,
+    pub cancel: Theme,
+    pub is_new: bool,
+}
+
+impl From<&mut HashMap<String, Theme>> for JoinTheme {
+    fn from(map: &mut HashMap<String, Theme>) -> Self {
+        // helper macro to insert default if key missing and track changes
+        macro_rules! ensure {
+            ($map:expr, $key:expr, $default:expr, $flag:ident) => {{
+                if !$map.contains_key($key) {
+                    $map.insert($key.to_string(), $default);
+                    $flag = true;
+                }
+            }};
+        }
+
+        let mut inserted = false;
+
+        ensure!(map, "join", GREEN, inserted);
+        ensure!(map, "cancel", RED, inserted);
+
+        // Now build HomeTheme from the (possibly updated) map.
+        JoinTheme {
+            root: map.get("root").cloned().unwrap_or(DARK_GRAY),
+            join: map.get("join").cloned().unwrap_or(BLUE),
+            cancel: map.get("cancel").cloned().unwrap_or(GRAY),
+            is_new: inserted,
+        }
+    }
+}
 
 #[derive(Default, Debug)]
 pub struct Join<'a> {

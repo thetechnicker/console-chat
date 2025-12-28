@@ -1,4 +1,4 @@
-use ratatui::style::Color;
+use ratatui::style::{Color, Style};
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
@@ -9,6 +9,12 @@ pub struct Theme {
     pub background: Color,
     pub highlight: Color,
     pub shadow: Color,
+}
+impl Into<Style> for Theme {
+    fn into(self) -> Style {
+        let style: Style = self.text.into();
+        style.bg(self.background)
+    }
 }
 
 impl Default for Theme {
@@ -55,11 +61,6 @@ pub const DARK_GRAY: Theme = Theme {
 pub const fn colors(theme: Theme) -> (Color, Color, Color, Color) {
     (theme.background, theme.text, theme.shadow, theme.highlight)
 }
-
-/*pub enum SerializedTheme {
-    Const(String),
-    Custom(Theme),
-}*/
 
 impl Serialize for Theme {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>

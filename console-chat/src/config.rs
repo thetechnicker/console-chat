@@ -4,7 +4,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use derive_deref::{Deref, DerefMut};
 use directories::ProjectDirs;
 use lazy_static::lazy_static;
-use ratatui::style::{Color, Modifier, Style};
+//use ratatui::style::{Color, Modifier, Style};
 use serde::{Deserialize, Serialize, Serializer, de::Deserializer};
 use std::{collections::HashMap, env, path::PathBuf};
 use tracing::error;
@@ -20,6 +20,8 @@ pub struct AppConfig {
     pub data_dir: PathBuf,
     #[serde(default)]
     pub config_dir: PathBuf,
+    #[serde(default)]
+    pub safe_file: PathBuf,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -30,8 +32,8 @@ pub struct Config {
     //pub network: NetworkConfig,
     #[serde(default)]
     pub keybindings: KeyBindings,
-    #[serde(default)]
-    pub styles: Styles,
+    //#[serde(default)]
+    //pub styles: Styles,
     #[serde(default)]
     pub themes: Themes,
 }
@@ -70,7 +72,6 @@ impl Config {
         let mut builder = config::Config::builder()
             .set_default("data_dir", data_dir.to_str().unwrap())?
             .set_default("config_dir", config_dir.to_str().unwrap())?;
-
         let config_files = [
             ("config.json5", config::FileFormat::Json5),
             ("config.json", config::FileFormat::Json),
@@ -79,12 +80,15 @@ impl Config {
             ("config.ini", config::FileFormat::Ini),
         ];
         let mut found_config = false;
+        let mut config_file = config_dir.join("config.json5");
         for (file, format) in &config_files {
-            let source = config::File::from(config_dir.join(file))
+            let config_file_inner = config_dir.join(file);
+            let source = config::File::from(config_file_inner.clone())
                 .format(*format)
                 .required(false);
             builder = builder.add_source(source);
             if config_dir.join(file).exists() {
+                config_file = config_file_inner.clone();
                 found_config = true
             }
         }
@@ -93,6 +97,7 @@ impl Config {
         }
 
         let mut cfg: Self = builder.build()?.try_deserialize()?;
+        cfg.config.safe_file = config_file;
 
         for (mode, default_bindings) in default_config.keybindings.iter() {
             let user_bindings = cfg.keybindings.entry(*mode).or_default();
@@ -102,19 +107,6 @@ impl Config {
                     .or_insert_with(|| cmd.clone());
             }
         }
-        for (mode, default_styles) in default_config.styles.iter() {
-            let user_styles = cfg.styles.entry(*mode).or_default();
-            for (style_key, style) in default_styles.iter() {
-                user_styles.entry(style_key.clone()).or_insert(*style);
-            }
-        }
-
-        for (mode, default_theme) in default_config.themes.iter() {
-            let user_themes = cfg.themes.entry(*mode).or_default();
-            for (theme_key, theme) in default_theme.iter() {
-                user_themes.entry(theme_key.clone()).or_insert(*theme);
-            }
-        }
 
         Ok(cfg)
     }
@@ -122,10 +114,10 @@ impl Config {
     pub fn save(&self) -> std::io::Result<()> {
         let x = serde_json::to_string_pretty(self)?;
         if !self.config.config_dir.exists() {
-            std::fs::create_dir_all(self.config.config_dir.clone())?;
+            std::fs::create_dir_all(&self.config.safe_file)?;
         }
-        let path = self.config.config_dir.join("config.json");
-        std::fs::write(path, x)
+        //
+        std::fs::write(&self.config.safe_file, x)
     }
 }
 
@@ -349,134 +341,134 @@ pub fn parse_key_sequence(raw: &str) -> Result<Vec<KeyEvent>, String> {
     sequences.into_iter().map(parse_key_event).collect()
 }
 
-#[derive(Clone, Debug, Default, Deref, DerefMut)]
-pub struct Styles(pub HashMap<Mode, HashMap<String, Style>>);
+//#[derive(Clone, Debug, Default, Deref, DerefMut)]
+//pub struct Styles(pub HashMap<Mode, HashMap<String, Style>>);
 
-impl<'de> Deserialize<'de> for Styles {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let parsed_map = HashMap::<Mode, HashMap<String, String>>::deserialize(deserializer)?;
+//impl<'de> Deserialize<'de> for Styles {
+//    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+//    where
+//        D: Deserializer<'de>,
+//    {
+//        let parsed_map = HashMap::<Mode, HashMap<String, String>>::deserialize(deserializer)?;
+//
+//        let styles = parsed_map
+//            .into_iter()
+//            .map(|(mode, inner_map)| {
+//                let converted_inner_map = inner_map
+//                    .into_iter()
+//                    .map(|(str, style)| (str, parse_style(&style)))
+//                    .collect();
+//                (mode, converted_inner_map)
+//            })
+//            .collect();
+//
+//        Ok(Styles(styles))
+//    }
+//}
 
-        let styles = parsed_map
-            .into_iter()
-            .map(|(mode, inner_map)| {
-                let converted_inner_map = inner_map
-                    .into_iter()
-                    .map(|(str, style)| (str, parse_style(&style)))
-                    .collect();
-                (mode, converted_inner_map)
-            })
-            .collect();
-
-        Ok(Styles(styles))
-    }
-}
-
-pub fn parse_style(line: &str) -> Style {
-    let (foreground, background) =
-        line.split_at(line.to_lowercase().find("on ").unwrap_or(line.len()));
-    let foreground = process_color_string(foreground);
-    let background = process_color_string(&background.replace("on ", ""));
-
-    let mut style = Style::default();
-    if let Some(fg) = parse_color(&foreground.0) {
-        style = style.fg(fg);
-    }
-    if let Some(bg) = parse_color(&background.0) {
-        style = style.bg(bg);
-    }
-    style = style.add_modifier(foreground.1 | background.1);
-    style
-}
-
-fn process_color_string(color_str: &str) -> (String, Modifier) {
-    let color = color_str
-        .replace("grey", "gray")
-        .replace("bright ", "")
-        .replace("bold ", "")
-        .replace("underline ", "")
-        .replace("inverse ", "");
-
-    let mut modifiers = Modifier::empty();
-    if color_str.contains("underline") {
-        modifiers |= Modifier::UNDERLINED;
-    }
-    if color_str.contains("bold") {
-        modifiers |= Modifier::BOLD;
-    }
-    if color_str.contains("inverse") {
-        modifiers |= Modifier::REVERSED;
-    }
-
-    (color, modifiers)
-}
-
-fn parse_color(s: &str) -> Option<Color> {
-    let s = s.trim_start();
-    let s = s.trim_end();
-    if s.contains("bright color") {
-        let s = s.trim_start_matches("bright ");
-        let c = s
-            .trim_start_matches("color")
-            .parse::<u8>()
-            .unwrap_or_default();
-        Some(Color::Indexed(c.wrapping_shl(8)))
-    } else if s.contains("color") {
-        let c = s
-            .trim_start_matches("color")
-            .parse::<u8>()
-            .unwrap_or_default();
-        Some(Color::Indexed(c))
-    } else if s.contains("gray") {
-        let c = 232
-            + s.trim_start_matches("gray")
-                .parse::<u8>()
-                .unwrap_or_default();
-        Some(Color::Indexed(c))
-    } else if s.contains("rgb") {
-        let red = (s.as_bytes()[3] as char).to_digit(10).unwrap_or_default() as u8;
-        let green = (s.as_bytes()[4] as char).to_digit(10).unwrap_or_default() as u8;
-        let blue = (s.as_bytes()[5] as char).to_digit(10).unwrap_or_default() as u8;
-        let c = 16 + red * 36 + green * 6 + blue;
-        Some(Color::Indexed(c))
-    } else if s == "bold black" {
-        Some(Color::Indexed(8))
-    } else if s == "bold red" {
-        Some(Color::Indexed(9))
-    } else if s == "bold green" {
-        Some(Color::Indexed(10))
-    } else if s == "bold yellow" {
-        Some(Color::Indexed(11))
-    } else if s == "bold blue" {
-        Some(Color::Indexed(12))
-    } else if s == "bold magenta" {
-        Some(Color::Indexed(13))
-    } else if s == "bold cyan" {
-        Some(Color::Indexed(14))
-    } else if s == "bold white" {
-        Some(Color::Indexed(15))
-    } else if s == "black" {
-        Some(Color::Indexed(0))
-    } else if s == "red" {
-        Some(Color::Indexed(1))
-    } else if s == "green" {
-        Some(Color::Indexed(2))
-    } else if s == "yellow" {
-        Some(Color::Indexed(3))
-    } else if s == "blue" {
-        Some(Color::Indexed(4))
-    } else if s == "magenta" {
-        Some(Color::Indexed(5))
-    } else if s == "cyan" {
-        Some(Color::Indexed(6))
-    } else if s == "white" {
-        Some(Color::Indexed(7))
-    } else {
-        None
-    }
-}
+//pub fn parse_style(line: &str) -> Style {
+//    let (foreground, background) =
+//        line.split_at(line.to_lowercase().find("on ").unwrap_or(line.len()));
+//    let foreground = process_color_string(foreground);
+//    let background = process_color_string(&background.replace("on ", ""));
+//
+//    let mut style = Style::default();
+//    if let Some(fg) = parse_color(&foreground.0) {
+//        style = style.fg(fg);
+//    }
+//    if let Some(bg) = parse_color(&background.0) {
+//        style = style.bg(bg);
+//    }
+//    style = style.add_modifier(foreground.1 | background.1);
+//    style
+//}
+//
+//fn process_color_string(color_str: &str) -> (String, Modifier) {
+//    let color = color_str
+//        .replace("grey", "gray")
+//        .replace("bright ", "")
+//        .replace("bold ", "")
+//        .replace("underline ", "")
+//        .replace("inverse ", "");
+//
+//    let mut modifiers = Modifier::empty();
+//    if color_str.contains("underline") {
+//        modifiers |= Modifier::UNDERLINED;
+//    }
+//    if color_str.contains("bold") {
+//        modifiers |= Modifier::BOLD;
+//    }
+//    if color_str.contains("inverse") {
+//        modifiers |= Modifier::REVERSED;
+//    }
+//
+//    (color, modifiers)
+//}
+//
+//fn parse_color(s: &str) -> Option<Color> {
+//    let s = s.trim_start();
+//    let s = s.trim_end();
+//    if s.contains("bright color") {
+//        let s = s.trim_start_matches("bright ");
+//        let c = s
+//            .trim_start_matches("color")
+//            .parse::<u8>()
+//            .unwrap_or_default();
+//        Some(Color::Indexed(c.wrapping_shl(8)))
+//    } else if s.contains("color") {
+//        let c = s
+//            .trim_start_matches("color")
+//            .parse::<u8>()
+//            .unwrap_or_default();
+//        Some(Color::Indexed(c))
+//    } else if s.contains("gray") {
+//        let c = 232
+//            + s.trim_start_matches("gray")
+//                .parse::<u8>()
+//                .unwrap_or_default();
+//        Some(Color::Indexed(c))
+//    } else if s.contains("rgb") {
+//        let red = (s.as_bytes()[3] as char).to_digit(10).unwrap_or_default() as u8;
+//        let green = (s.as_bytes()[4] as char).to_digit(10).unwrap_or_default() as u8;
+//        let blue = (s.as_bytes()[5] as char).to_digit(10).unwrap_or_default() as u8;
+//        let c = 16 + red * 36 + green * 6 + blue;
+//        Some(Color::Indexed(c))
+//    } else if s == "bold black" {
+//        Some(Color::Indexed(8))
+//    } else if s == "bold red" {
+//        Some(Color::Indexed(9))
+//    } else if s == "bold green" {
+//        Some(Color::Indexed(10))
+//    } else if s == "bold yellow" {
+//        Some(Color::Indexed(11))
+//    } else if s == "bold blue" {
+//        Some(Color::Indexed(12))
+//    } else if s == "bold magenta" {
+//        Some(Color::Indexed(13))
+//    } else if s == "bold cyan" {
+//        Some(Color::Indexed(14))
+//    } else if s == "bold white" {
+//        Some(Color::Indexed(15))
+//    } else if s == "black" {
+//        Some(Color::Indexed(0))
+//    } else if s == "red" {
+//        Some(Color::Indexed(1))
+//    } else if s == "green" {
+//        Some(Color::Indexed(2))
+//    } else if s == "yellow" {
+//        Some(Color::Indexed(3))
+//    } else if s == "blue" {
+//        Some(Color::Indexed(4))
+//    } else if s == "magenta" {
+//        Some(Color::Indexed(5))
+//    } else if s == "cyan" {
+//        Some(Color::Indexed(6))
+//    } else if s == "white" {
+//        Some(Color::Indexed(7))
+//    } else {
+//        None
+//    }
+//}
 
 #[derive(Clone, Serialize, Debug, Default, Deserialize, Deref, DerefMut)]
 pub struct Themes(pub HashMap<Mode, HashMap<String, crate::components::theme::Theme>>);
@@ -514,68 +506,69 @@ impl Serialize for KeyBindings {
     }
 }
 
-impl Serialize for Styles {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut map = HashMap::new();
-        for (mode, inner) in self.0.iter() {
-            let mut inner_map = HashMap::new();
-            for (key, style) in inner.iter() {
-                // Convert Style to string representation
-                let style_str = style_to_string(style);
-                inner_map.insert(key.clone(), style_str);
-            }
-            map.insert(mode, inner_map);
-        }
-        map.serialize(serializer)
-    }
-}
+//impl Serialize for Styles {
+//    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+//    where
+//        S: Serializer,
+//    {
+//        let mut map = HashMap::new();
 
-pub fn style_to_string(style: &Style) -> String {
-    let mut parts = Vec::new();
+//        for (mode, inner) in self.0.iter() {
+//            let mut inner_map = HashMap::new();
+//            for (key, style) in inner.iter() {
+//                // Convert Style to string representation
+//                let style_str = style_to_string(style);
+//                inner_map.insert(key.clone(), style_str);
+//            }
+//            map.insert(mode, inner_map);
+//        }
+//        map.serialize(serializer)
+//    }
+//}
 
-    // Helper closure to convert Color to string
-    let color_to_string = |color: &Color| -> String {
-        match color {
-            Color::Indexed(idx) => format!("color{}", idx),
-            Color::Rgb(r, g, b) => format!("rgb{}{}{}", r, g, b),
-            Color::Black => "black".to_string(),
-            Color::Red => "red".to_string(),
-            Color::Green => "green".to_string(),
-            Color::Yellow => "yellow".to_string(),
-            Color::Blue => "blue".to_string(),
-            Color::Magenta => "magenta".to_string(),
-            Color::Cyan => "cyan".to_string(),
-            Color::White => "white".to_string(),
-            _ => "".to_string(),
-        }
-    };
-
-    // Add modifiers as strings like "underline", "bold", "inverse"
-    if style.add_modifier.contains(Modifier::UNDERLINED) {
-        parts.push("underline".to_string());
-    }
-    if style.add_modifier.contains(Modifier::BOLD) {
-        parts.push("bold".to_string());
-    }
-    if style.add_modifier.contains(Modifier::REVERSED) {
-        parts.push("inverse".to_string());
-    }
-
-    // Add foreground color string
-    if let Some(fg) = style.fg {
-        parts.push(color_to_string(&fg));
-    }
-
-    // Add background color string with "on " prefix if present
-    if let Some(bg) = style.bg {
-        parts.push(format!("on {}", color_to_string(&bg)));
-    }
-
-    parts.join(" ")
-}
+//pub fn style_to_string(style: &Style) -> String {
+//    let mut parts = Vec::new();
+//
+//    // Helper closure to convert Color to string
+//    let color_to_string = |color: &Color| -> String {
+//        match color {
+//            Color::Indexed(idx) => format!("color{}", idx),
+//            Color::Rgb(r, g, b) => format!("rgb{}{}{}", r, g, b),
+//            Color::Black => "black".to_string(),
+//            Color::Red => "red".to_string(),
+//            Color::Green => "green".to_string(),
+//            Color::Yellow => "yellow".to_string(),
+//            Color::Blue => "blue".to_string(),
+//            Color::Magenta => "magenta".to_string(),
+//            Color::Cyan => "cyan".to_string(),
+//            Color::White => "white".to_string(),
+//            _ => "".to_string(),
+//        }
+//    };
+//
+//    // Add modifiers as strings like "underline", "bold", "inverse"
+//    if style.add_modifier.contains(Modifier::UNDERLINED) {
+//        parts.push("underline".to_string());
+//    }
+//    if style.add_modifier.contains(Modifier::BOLD) {
+//        parts.push("bold".to_string());
+//    }
+//    if style.add_modifier.contains(Modifier::REVERSED) {
+//        parts.push("inverse".to_string());
+//    }
+//
+//    // Add foreground color string
+//    if let Some(fg) = style.fg {
+//        parts.push(color_to_string(&fg));
+//    }
+//
+//    // Add background color string with "on " prefix if present
+//    if let Some(bg) = style.bg {
+//        parts.push(format!("on {}", color_to_string(&bg)));
+//    }
+//
+//    parts.join(" ")
+//}
 
 #[cfg(test)]
 mod tests {
@@ -583,52 +576,52 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn test_parse_style_default() {
-        let style = parse_style("");
-        assert_eq!(style, Style::default());
-    }
+    //#[test]
+    //fn test_parse_style_default() {
+    //    let style = parse_style("");
+    //    assert_eq!(style, Style::default());
+    //}
 
-    #[test]
-    fn test_parse_style_foreground() {
-        let style = parse_style("red");
-        assert_eq!(style.fg, Some(Color::Indexed(1)));
-    }
+    //#[test]
+    //fn test_parse_style_foreground() {
+    //    let style = parse_style("red");
+    //    assert_eq!(style.fg, Some(Color::Indexed(1)));
+    //}
 
-    #[test]
-    fn test_parse_style_background() {
-        let style = parse_style("on blue");
-        assert_eq!(style.bg, Some(Color::Indexed(4)));
-    }
+    //#[test]
+    //fn test_parse_style_background() {
+    //    let style = parse_style("on blue");
+    //    assert_eq!(style.bg, Some(Color::Indexed(4)));
+    //}
 
-    #[test]
-    fn test_parse_style_modifiers() {
-        let style = parse_style("underline red on blue");
-        assert_eq!(style.fg, Some(Color::Indexed(1)));
-        assert_eq!(style.bg, Some(Color::Indexed(4)));
-    }
+    //#[test]
+    //fn test_parse_style_modifiers() {
+    //    let style = parse_style("underline red on blue");
+    //    assert_eq!(style.fg, Some(Color::Indexed(1)));
+    //    assert_eq!(style.bg, Some(Color::Indexed(4)));
+    //}
 
-    #[test]
-    fn test_process_color_string() {
-        let (color, modifiers) = process_color_string("underline bold inverse gray");
-        assert_eq!(color, "gray");
-        assert!(modifiers.contains(Modifier::UNDERLINED));
-        assert!(modifiers.contains(Modifier::BOLD));
-        assert!(modifiers.contains(Modifier::REVERSED));
-    }
+    //#[test]
+    //fn test_process_color_string() {
+    //    let (color, modifiers) = process_color_string("underline bold inverse gray");
+    //    assert_eq!(color, "gray");
+    //    assert!(modifiers.contains(Modifier::UNDERLINED));
+    //    assert!(modifiers.contains(Modifier::BOLD));
+    //    assert!(modifiers.contains(Modifier::REVERSED));
+    //}
 
-    #[test]
-    fn test_parse_color_rgb() {
-        let color = parse_color("rgb123");
-        let expected = 16 + 36 + 2 * 6 + 3;
-        assert_eq!(color, Some(Color::Indexed(expected)));
-    }
+    //#[test]
+    //fn test_parse_color_rgb() {
+    //    let color = parse_color("rgb123");
+    //    let expected = 16 + 36 + 2 * 6 + 3;
+    //    assert_eq!(color, Some(Color::Indexed(expected)));
+    //}
 
-    #[test]
-    fn test_parse_color_unknown() {
-        let color = parse_color("unknown");
-        assert_eq!(color, None);
-    }
+    //#[test]
+    //fn test_parse_color_unknown() {
+    //    let color = parse_color("unknown");
+    //    assert_eq!(color, None);
+    //}
 
     #[test]
     fn test_config() -> Result<()> {

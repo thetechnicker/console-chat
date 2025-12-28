@@ -251,6 +251,13 @@ impl App {
                 }
                 Action::Normal => self.restore_prev_mode()?,
                 Action::Error(e) => error!("{e}"),
+                Action::ResetConfig => {
+                    std::fs::remove_file(self.config.config.safe_file.clone())?;
+                    self.config = Config::new()?;
+                    self.reload_config(tui)?;
+                    self.config.save()?;
+                    self.reload_config(tui)?;
+                }
                 _ => {}
             }
             for component in self.components.iter_mut() {

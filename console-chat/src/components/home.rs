@@ -2,10 +2,62 @@ use crate::action::Result;
 use crate::components::{button::*, theme::*};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{prelude::*, widgets::*};
+use std::collections::HashMap;
 use tokio::sync::mpsc::UnboundedSender;
 
 use super::Component;
 use crate::{action::Action, config::Config};
+const STYLE_KEY: crate::app::Mode = crate::app::Mode::Home;
+
+// TODO: May be great to be done with a proc-macro, to generalize for all Screens that have themed
+// components
+#[derive(serde::Serialize, serde::Deserialize)]
+struct HomeTheme {
+    pub root: Theme,
+    pub join: Theme,
+    pub login: Theme,
+    pub settings: Theme,
+    pub raw_settings: Theme,
+    pub exit: Theme,
+    pub reset_config: Theme,
+    pub is_new: bool,
+}
+
+impl From<&mut HashMap<String, Theme>> for HomeTheme {
+    fn from(map: &mut HashMap<String, Theme>) -> Self {
+        // helper macro to insert default if key missing and track changes
+        macro_rules! ensure {
+            ($map:expr, $key:expr, $default:expr, $flag:ident) => {{
+                if !$map.contains_key($key) {
+                    $map.insert($key.to_string(), $default);
+                    $flag = true;
+                }
+            }};
+        }
+
+        let mut inserted = false;
+
+        ensure!(map, "root", DARK_GRAY, inserted);
+        ensure!(map, "login", GREEN, inserted);
+        ensure!(map, "join", BLUE, inserted);
+        ensure!(map, "settings", GRAY, inserted);
+        ensure!(map, "raw-settings", GRAY, inserted);
+        ensure!(map, "reset-config", GRAY, inserted);
+        ensure!(map, "exit", RED, inserted);
+
+        // Now build HomeTheme from the (possibly updated) map.
+        HomeTheme {
+            root: map.get("root").cloned().unwrap_or(DARK_GRAY),
+            login: map.get("login").cloned().unwrap_or(GREEN),
+            join: map.get("join").cloned().unwrap_or(BLUE),
+            settings: map.get("settings").cloned().unwrap_or(GRAY),
+            raw_settings: map.get("raw-settings").cloned().unwrap_or(GRAY),
+            exit: map.get("exit").cloned().unwrap_or(GRAY),
+            reset_config: map.get("reset-config").cloned().unwrap_or(RED),
+            is_new: inserted,
+        }
+    }
+}
 
 #[derive(Default)]
 pub struct Home {
@@ -18,12 +70,14 @@ pub struct Home {
     settings: Button,
     raw_settings: Button,
     exit: Button,
+    reset_config: Button,
+
     theme: Theme,
     index: usize,
 }
 
 impl Home {
-    pub const MAX_ELEMENTS: usize = 5;
+    pub const MAX_ELEMENTS: usize = 6;
 
     pub fn new() -> Self {
         Self::default()
@@ -57,6 +111,7 @@ impl Home {
             &mut self.login,
             &mut self.settings,
             &mut self.raw_settings,
+            &mut self.reset_config,
             &mut self.exit,
         ]
     }
@@ -68,29 +123,34 @@ impl Component for Home {
     }
     fn init(&mut self, _: Size) -> Result<()> {
         self.active = true;
-        if let Some(themes) = self.config.themes.get(&crate::app::Mode::Home) {
-            self.theme = *themes.get("root").unwrap_or(&DARK_GRAY);
-
-            let join = *themes.get("join").unwrap_or(&GREEN);
-            let login = *themes.get("login").unwrap_or(&BLUE);
-            let settings = *themes.get("settings").unwrap_or(&GRAY);
-            let raw_settings = *themes.get("raw_settings").unwrap_or(&GRAY);
-            let exit = *themes.get("exit").unwrap_or(&RED);
-
-            self.join = Button::new("Join", "", join, Action::OpenJoin);
-            self.login = Button::new("Login", "", login, Action::OpenLogin);
-            self.settings = Button::new("Settings", "", settings, Action::OpenSettings);
-            self.raw_settings =
-                Button::new("Settings File", "", raw_settings, Action::OpenRawSettings);
-            self.exit = Button::new("Exit", "", exit, Action::Quit);
-        } else {
-            self.theme = DARK_GRAY;
-            self.login = Button::new("Login", "", GREEN, Action::OpenLogin);
-            self.join = Button::new("Join", "", BLUE, Action::OpenJoin);
-            self.settings = Button::new("Settings", "", GRAY, Action::OpenSettings);
-            self.raw_settings = Button::new("Settings File", "", GRAY, Action::OpenRawSettings);
-            self.exit = Button::new("Exit", "", RED, Action::Quit);
+        let themes = match self.config.themes.get_mut(&STYLE_KEY) {
+            Some(themes) => themes,
+            None => {
+                self.config.themes.insert(STYLE_KEY, HashMap::new());
+                self.config
+                    .themes
+                    .get_mut(&STYLE_KEY)
+                    .ok_or("This is bad")?
+            }
+        };
+        let theme = HomeTheme::from(themes);
+        if theme.is_new {
+            let _ = self.config.save();
         }
+
+        self.theme = theme.root;
+        self.login = Button::new("Login", "", theme.login, Action::OpenLogin);
+        self.join = Button::new("Join", "", theme.join, Action::OpenJoin);
+        self.settings = Button::new("Settings", "", theme.settings, Action::OpenSettings);
+        self.raw_settings = Button::new(
+            "Settings File",
+            "",
+            theme.raw_settings,
+            Action::OpenRawSettings,
+        );
+        self.reset_config =
+            Button::new("Reset Config", "", theme.reset_config, Action::ResetConfig);
+        self.exit = Button::new("Exit", "", theme.exit, Action::Quit);
         self.update_selection(0);
         Ok(())
     }

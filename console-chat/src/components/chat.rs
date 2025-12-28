@@ -1,16 +1,19 @@
+use super::Component;
 use crate::action::Result;
+use crate::components::ui_utils::theme::Theme;
 use crate::components::vim::*;
 use crate::network::{Message, USERNAME};
+use crate::{action::Action, config::Config};
 use chrono::Local;
 use crossterm::event::{KeyCode, KeyEvent};
 use openapi::models::{AppearancePublic, UserPublic};
 use ratatui::{prelude::*, widgets::*};
+use std::collections::HashMap;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::debug;
 use tui_textarea::TextArea;
 
-use super::Component;
-use crate::{action::Action, config::Config};
+const STYLE_KEY: crate::app::Mode = crate::app::Mode::Chat;
 
 struct MessageComponent {
     content: Message,
@@ -46,13 +49,14 @@ impl MessageComponent {
     }
 }
 
-impl Widget for &MessageComponent {
-    fn render(self, area: Rect, buf: &mut Buffer) {
+impl StatefulWidget for &MessageComponent {
+    type State = Theme;
+    fn render(self, area: Rect, buf: &mut Buffer, active: &mut Theme) {
         let user = self
             .content
             .user
             .clone()
-            .unwrap_or(UserPublic::new(AppearancePublic::new("#c0ffee".to_owned())));
+            .unwrap_or(UserPublic::new(AppearancePublic::new("".to_owned())));
         let name = user.username.clone().unwrap_or("System".to_owned());
         let color = user.appearance.color.parse().unwrap_or(Color::Gray);
         let message = self.content.content.clone();
@@ -63,13 +67,14 @@ impl Widget for &MessageComponent {
             .title(name);
 
         if self.selected {
-            block = block.style(Style::default().bg(color).fg(Color::LightMagenta))
+            let theme: Style = active.to_owned().into();
+            block = block.style(theme.bg(color));
         }
 
         if let Some(send_time) = self.content.send_at {
             let time_str = send_time
                 .with_timezone(&Local)
-                .format("%H:%M:%S %Y-%d-%m")
+                .format("%H:%M:%S %Y-%d-%m") // TODO: SETTINGS
                 .to_string();
             block = block.title_bottom(time_str);
         }
@@ -163,7 +168,7 @@ impl Component for Chat<'_> {
         self.active = false;
     }
     fn init(&mut self, _: Size) -> Result<()> {
-        let _themes = self.config.themes.get(&crate::app::Mode::Chat);
+        //let themes = self.config.themes.get(&crate::app::Mode::Chat);
         let vim = Vim::new(VimMode::Normal, VimType::SingleLine);
         self.textinput.set_block(vim.mode.highlight_block());
         self.textinput.set_cursor_style(vim.mode.cursor_style());
@@ -264,19 +269,40 @@ impl Component for Chat<'_> {
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
         if self.active {
             let buf = frame.buffer_mut();
-            let block = Block::new().bg(Color::Blue);
+            let block = Block::new().bg(Color::Blue); // TODO: SETTINGS
             block.render(area, buf);
 
             let [mut chat_area, input_area] =
                 Layout::vertical([Constraint::Fill(1), Constraint::Max(3)]).areas(
                     Layout::horizontal([
                         Constraint::Fill(1),
-                        Constraint::Percentage(60),
+                        Constraint::Percentage(60), // TODO: SETTINGS
                         Constraint::Fill(1),
                     ])
                     .split(area)[1],
                 );
 
+            let themes: &mut HashMap<String, Theme> = match self.config.themes.get_mut(&STYLE_KEY) {
+                Some(themes) => themes,
+                None => {
+                    self.config.themes.insert(STYLE_KEY, HashMap::new());
+                    self.config
+                        .themes
+                        .get_mut(&STYLE_KEY)
+                        .ok_or("This is bad")?
+                }
+            };
+            let selected_theme_option = themes.get("selected").cloned();
+            let mut selected_theme = selected_theme_option.unwrap_or(Theme {
+                text: Color::LightMagenta,
+                background: Color::DarkGray,
+                highlight: Color::Gray,
+                shadow: Color::Black,
+            });
+            if selected_theme_option.is_none() {
+                themes.insert("selected".to_owned(), selected_theme);
+                self.config.save()?;
+            }
             // render messages from newest at bottom; compute rows conservatively
             for msg in self.msgs.iter().rev() {
                 // approximate rows needed: message length divided by width, plus padding
@@ -287,7 +313,7 @@ impl Component for Chat<'_> {
                 let [new_chat, msg_area] =
                     Layout::vertical([Constraint::Fill(1), Constraint::Max(max_rows)])
                         .areas(chat_area);
-                msg.render(msg_area, buf);
+                msg.render(msg_area, buf, &mut selected_theme);
                 chat_area = new_chat;
             }
 
