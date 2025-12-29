@@ -1,5 +1,6 @@
 use crate::LockErrorExt;
 use crate::components::{button::*, theme::*, vim::*};
+use from_hashmap_macro::FromHashmap;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 //use color_eyre::Result;
@@ -18,39 +19,16 @@ const STYLE_KEY: crate::app::Mode = crate::app::Mode::Join;
 
 // TODO: May be great to be done with a proc-macro, to generalize for all Screens that have themed
 // components
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize, FromHashmap)]
+#[hashmap(type = "Theme")]
 struct JoinTheme {
+    #[hashmap(default = "DARK_GRAY")]
     pub root: Theme,
+    #[hashmap(default = "GREEN")]
     pub join: Theme,
+    #[hashmap(default = "RED")]
     pub cancel: Theme,
-    pub is_new: bool,
-}
-
-impl From<&mut HashMap<String, Theme>> for JoinTheme {
-    fn from(map: &mut HashMap<String, Theme>) -> Self {
-        // helper macro to insert default if key missing and track changes
-        macro_rules! ensure {
-            ($map:expr, $key:expr, $default:expr, $flag:ident) => {{
-                if !$map.contains_key($key) {
-                    $map.insert($key.to_string(), $default);
-                    $flag = true;
-                }
-            }};
-        }
-
-        let mut inserted = false;
-
-        ensure!(map, "join", GREEN, inserted);
-        ensure!(map, "cancel", RED, inserted);
-
-        // Now build HomeTheme from the (possibly updated) map.
-        JoinTheme {
-            root: map.get("root").cloned().unwrap_or(DARK_GRAY),
-            join: map.get("join").cloned().unwrap_or(BLUE),
-            cancel: map.get("cancel").cloned().unwrap_or(GRAY),
-            is_new: inserted,
-        }
-    }
+    pub inserted: bool,
 }
 
 #[derive(Default, Debug)]

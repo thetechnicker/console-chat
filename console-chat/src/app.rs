@@ -263,10 +263,11 @@ impl App {
                             .map_err(|e| AppError::Error(e))?;
                         std::fs::remove_file(config.config.safe_file.clone())?;
                         *config = Config::new()?;
-                        config.save()?;
                         debug!("Reloading config");
                     }
                     self.reload_config(tui)?;
+                    let config = self.config.read().error().map_err(|e| AppError::Error(e))?;
+                    config.save()?;
                 }
                 _ => {}
             }

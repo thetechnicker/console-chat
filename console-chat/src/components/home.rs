@@ -2,6 +2,7 @@ use crate::LockErrorExt;
 use crate::action::Result;
 use crate::components::{button::*, theme::*};
 use crossterm::event::{KeyCode, KeyEvent};
+use from_hashmap_macro::FromHashmap;
 use ratatui::{prelude::*, widgets::*};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -11,54 +12,24 @@ use super::Component;
 use crate::{action::Action, config::Config};
 const STYLE_KEY: crate::app::Mode = crate::app::Mode::Home;
 
-// TODO: May be great to be done with a proc-macro, to generalize for all Screens that have themed
-// components
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize, FromHashmap)]
+#[hashmap(type = "Theme")]
 struct HomeTheme {
+    #[hashmap(default = "DARK_GRAY")]
     pub root: Theme,
+    #[hashmap(default = "GREEN")]
     pub join: Theme,
+    #[hashmap(default = "BLUE")]
     pub login: Theme,
+    #[hashmap(default = "GRAY")]
     pub settings: Theme,
+    #[hashmap(default = "GRAY")]
     pub raw_settings: Theme,
-    pub exit: Theme,
+    #[hashmap(default = "GRAY")]
     pub reset_config: Theme,
-    pub is_new: bool,
-}
-
-impl From<&mut HashMap<String, Theme>> for HomeTheme {
-    fn from(map: &mut HashMap<String, Theme>) -> Self {
-        // helper macro to insert default if key missing and track changes
-        macro_rules! ensure {
-            ($map:expr, $key:expr, $default:expr, $flag:ident) => {{
-                if !$map.contains_key($key) {
-                    $map.insert($key.to_string(), $default);
-                    $flag = true;
-                }
-            }};
-        }
-
-        let mut inserted = false;
-
-        ensure!(map, "root", DARK_GRAY, inserted);
-        ensure!(map, "login", GREEN, inserted);
-        ensure!(map, "join", BLUE, inserted);
-        ensure!(map, "settings", GRAY, inserted);
-        ensure!(map, "raw-settings", GRAY, inserted);
-        ensure!(map, "reset-config", GRAY, inserted);
-        ensure!(map, "exit", RED, inserted);
-
-        // Now build HomeTheme from the (possibly updated) map.
-        HomeTheme {
-            root: map.get("root").cloned().unwrap_or(DARK_GRAY),
-            login: map.get("login").cloned().unwrap_or(GREEN),
-            join: map.get("join").cloned().unwrap_or(BLUE),
-            settings: map.get("settings").cloned().unwrap_or(GRAY),
-            raw_settings: map.get("raw-settings").cloned().unwrap_or(GRAY),
-            exit: map.get("exit").cloned().unwrap_or(GRAY),
-            reset_config: map.get("reset-config").cloned().unwrap_or(RED),
-            is_new: inserted,
-        }
-    }
+    #[hashmap(default = "RED")]
+    pub exit: Theme,
+    pub inserted: bool,
 }
 
 #[derive(Default)]
