@@ -13,10 +13,11 @@ name = "basic_usage"
 name = "sse_room"
 
 [workspace]
-members = ["openapi"]
+members = ["from-hashmap-macro","openapi"]
 
 [dependencies]
 openapi = { path = "./openapi", features=["native-tls"]} 
+from-hashmap-macro = { path = "./from-hashmap-macro" } 
 alkali = "0.3.0"
 base64 = "0.22.1"
 better-panic = "0.3.0"
