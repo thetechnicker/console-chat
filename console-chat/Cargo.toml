@@ -43,7 +43,7 @@ libc = "0.2.178"
 pretty_assertions = "1.4.1"
 rand = "0.9.2"
 ratatui = { version = "0.29.0", features = ["serde", "macros"] }
-reqwest = { version = "0.12.25", features = ["json", "stream"] }
+reqwest = { version = "0.12.28", features = ["json", "stream"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.145", features = ["preserve_order"] }
 signal-hook = "0.3.18"
