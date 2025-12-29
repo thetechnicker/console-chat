@@ -11,9 +11,7 @@ struct StructAttributes {
 #[deluxe(attributes(hashmap))]
 struct FieldAttributes {
     name: Option<String>,
-    default: String,
-    #[deluxe(default = false)]
-    inserted: bool,
+    default: Option<String>,
 }
 
 fn parse_field_attributes(
@@ -24,11 +22,10 @@ fn parse_field_attributes(
         for field in s.fields.iter_mut() {
             let field_ident = field.ident.as_ref().unwrap().clone();
             let field_name = field_ident.to_string();
-            let attrs: FieldAttributes = deluxe::extract_attributes(field)?;
-            if attrs.inserted {
-                field_attrs.insert("INSERTED".to_string(), (field_ident, attrs));
+            if field_name == "inserted" {
                 continue;
             }
+            let attrs: FieldAttributes = deluxe::extract_attributes(field)?;
             field_attrs.insert(field_name, (field_ident, attrs));
         }
     }
@@ -41,15 +38,25 @@ fn from_hashmap_derive_macro2(
     let mut ast: DeriveInput = syn::parse2(item)?;
 
     let StructAttributes { r#type } = deluxe::extract_attributes(&mut ast)?;
+    let expected_type: syn::Type = syn::parse_str(&r#type)?;
 
-    let mut field_attrs = parse_field_attributes(&mut ast)?;
-    let (inserted_field_ident, _) = field_attrs.remove("INSERTED").unwrap();
+    let field_attrs = parse_field_attributes(&mut ast)?;
+
     let (ensure_field, set_value): (Vec<proc_macro2::TokenStream>, Vec<proc_macro2::TokenStream>) =
         field_attrs
             .iter()
             .filter_map(|(name, (ident, attr))| {
-                let default_value = attr.default.clone();
-                let default_exp: syn::Expr = syn::parse_str(&default_value).ok()?;
+                let default_exp: proc_macro2::TokenStream = match attr.default.as_ref() {
+                    Some(default_value) => {
+                        let default_exp: syn::Expr = syn::parse_str(default_value).ok()?;
+                        quote::quote! {
+                            #default_exp
+                        }
+                    }
+                    None => quote::quote! {
+                        Default::default()
+                    },
+                };
                 let name = attr.name.as_ref().unwrap_or(name).to_string();
                 let a = quote::quote! {
                     ensure!(map, #name, #default_exp, inserted);
@@ -63,8 +70,10 @@ fn from_hashmap_derive_macro2(
 
     let ident = ast.ident;
     let (impl_generics, type_generics, where_clause) = ast.generics.split_for_impl();
-    let expected_type: syn::Type = syn::parse_str(&r#type)?;
 
+    let args = quote::quote! {
+        #(#set_value),*
+    };
     Ok(quote::quote! {
         impl #impl_generics From<&mut std::collections::HashMap<String, #expected_type>> for #ident #type_generics #where_clause {
             fn from(map: &mut std::collections::HashMap<String, #expected_type>)->#ident{
@@ -81,8 +90,8 @@ fn from_hashmap_derive_macro2(
                 #(#ensure_field)*
 
                 #ident {
-                    #(#set_value),*
-                    #inserted_field_ident: inserted,
+                    #args,
+                    inserted: inserted,
                 }
             }
         }

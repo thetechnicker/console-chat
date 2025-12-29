@@ -8,9 +8,9 @@ struct TestType();
 #[derive(FromHashmap, Debug)]
 #[hashmap(type = "TestType")]
 struct Test {
-    #[hashmap(default = "TestType::default()", name = "ABC")]
     test: TestType,
-    #[hashmap(inserted = true)]
+    test2: TestType,
+    test3: TestType,
     inserted: bool,
 }
 
