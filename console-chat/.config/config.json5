@@ -1,51 +1,33 @@
 {
   "keybindings": {
+    "Global":{
+      "<Ctrl-c>": "Quit",
+      "<Ctrl-d>": "Quit",
+      "<Ctrl-z>": "Suspend"
+    },
     "Home": {
       "<q>": "Quit",
       "<esc>": "Quit",
-      "<Ctrl-d>": "Quit",
-      "<Ctrl-c>": "Quit",
-      "<Ctrl-z>": "Suspend",
-      "<Ctrl-l>": "OpenLogin"
+      "<Ctrl-l>": "OpenLogin",
+      "<Ctrl-j>": "OpenJoin",
+      "<Ctrl-,>": "OpenSettings",
     },
     "Login": {
       "<q>": "OpenHome",
-      "<esc><esc>": "OpenHome",
-      "<Ctrl-d>": "Quit",
-      "<Ctrl-c>": "Quit",
-      "<Ctrl-z>": "Suspend"
     },
     "Join": {
       "<q>": "OpenHome",
-      "<esc><esc>": "OpenHome",
-      "<Ctrl-d>": "Quit",
-      "<Ctrl-c>": "Quit",
-      "<Ctrl-z>": "Suspend"
     },
     "Chat": {
       "<q>": "OpenHome",
-      "<esc><esc>": "OpenHome",
-      "<Ctrl-d>": "Quit",
-      "<Ctrl-c>": "Quit",
-      "<Ctrl-z>": "Suspend"
     },
     "Settings": {
       "<q>": "OpenHome",
-      "<esc><esc>": "OpenHome",
-      "<Ctrl-d>": "Quit",
-      "<Ctrl-c>": "Quit",
-      "<Ctrl-z>": "Suspend",
     },
     "RawSettings": {
       "<q>": "OpenHome",
-      "<esc><esc>": "OpenHome",
-      "<Ctrl-d>": "Quit",
-      "<Ctrl-c>": "Quit",
-      "<Ctrl-z>": "Suspend"
-
     },
     "Insert":{
-      "<Ctrl-d>": "Quit",
       "<Ctrl-c>": "Quit",
       "<Ctrl-z>": "Suspend"
     }

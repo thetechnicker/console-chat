@@ -1,7 +1,6 @@
 use crate::{
     LockErrorExt,
     action::Action,
-    //action::Result,
     cli::Cli,
     components::{
         Component, chat::Chat, editor::Editor, error_display::ErrorDisplay, fps::FpsCounter,
@@ -10,7 +9,6 @@ use crate::{
     config::Config,
     error::AppError,
     network,
-    //    network::handle_network,
     tui::{Event, Tui},
 };
 use color_eyre::Result;
@@ -24,8 +22,6 @@ use tracing::{debug, error, info};
 pub struct App {
     config: Arc<RwLock<Config>>,
     args: Cli,
-    //tick_rate: f64,
-    //frame_rate: f64,
     components: Vec<Box<dyn Component>>,
     should_quit: bool,
     should_suspend: bool,
@@ -45,7 +41,8 @@ pub enum Mode {
     Chat,
     Settings,
     RawSettings,
-    Insert,
+    Insert, //Special, for when one element should consume all key inputs
+    Global, //Special, should never be used, only for key shortcuts that should work everywhere
 }
 
 impl App {
@@ -148,6 +145,13 @@ impl App {
                 self.mode_to_screen()?;
                 Ok(())
             }
+            Mode::Global => {
+                self.action_tx
+                    .send(Action::Error("Reached Illegal state".into()))?;
+                self.mode = Mode::Home;
+                self.mode_to_screen()?;
+                Ok(())
+            }
         }?;
         Ok(())
     }
@@ -196,6 +200,7 @@ impl App {
             Some(action) => {
                 info!("Got action: {action:?}");
                 action_tx.send(action.clone())?;
+                return Ok(());
             }
             _ => {
                 // If the key was not handled as a single key action,
@@ -206,6 +211,26 @@ impl App {
                 if let Some(action) = keymap.get(&self.last_tick_key_events) {
                     info!("Got action: {action:?}");
                     action_tx.send(action.clone())?;
+                    return Ok(());
+                }
+            }
+        }
+        // Global keycommands less priority
+        if self.mode != Mode::Insert {
+            let Some(keymap) = config.keybindings.get(&Mode::Global) else {
+                return Ok(());
+            };
+            match keymap.get(&vec![key]) {
+                Some(action) => {
+                    info!("Got action: {action:?}");
+                    action_tx.send(action.clone())?;
+                }
+                _ => {
+                    // Check for multi-key combinations
+                    if let Some(action) = keymap.get(&self.last_tick_key_events) {
+                        info!("Got action: {action:?}");
+                        action_tx.send(action.clone())?;
+                    }
                 }
             }
         }

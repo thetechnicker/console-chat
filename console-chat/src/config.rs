@@ -4,12 +4,11 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use derive_deref::{Deref, DerefMut};
 use directories::ProjectDirs;
 use lazy_static::lazy_static;
-use std::sync::{Arc, RwLock};
-//use ratatui::style::{Color, Modifier, Style};
 use serde::{Deserialize, Serialize, Serializer, de::Deserializer};
+use std::sync::{Arc, RwLock};
 use std::{collections::HashMap, env, path::PathBuf};
 use tracing::error;
-//use url::Url;
+use url::Url;
 
 use crate::{action::Action, app::Mode};
 
@@ -29,29 +28,50 @@ pub struct AppConfig {
 pub struct Config {
     #[serde(default, flatten)]
     pub config: AppConfig,
-    //#[serde(default)]
-    //pub network: NetworkConfig,
+    #[serde(default)]
+    pub network: NetworkConfig,
     #[serde(default)]
     pub keybindings: KeyBindings,
-    //#[serde(default)]
-    //pub styles: Styles,
     #[serde(default)]
     pub themes: Themes,
 }
 
-//#[derive(Clone, Debug, Deserialize, Serialize)]
-//pub struct NetworkConfig {
-//    pub host: Url,
-//    pub accept_danger: bool,
-//}
-//impl Default for NetworkConfig {
-//    fn default() -> Self {
-//        Self {
-//            host: Url::parse("https://localhost").expect("default URL should be valid"),
-//            accept_danger: false,
-//        }
-//    }
-//}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct NetworkConfig {
+    pub host: Url,
+
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub accept_danger: bool,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ca_cert_path: Option<PathBuf>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_cert_path: Option<PathBuf>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_key_path: Option<PathBuf>,
+
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub disable_hostname_verification: bool,
+}
+fn is_false(b: &bool) -> bool {
+    !*b
+}
+
+impl Default for NetworkConfig {
+    fn default() -> Self {
+        Self {
+            host: Url::parse("https://localhost")
+                .expect("default URL should be valid; this is a source code bug"),
+            accept_danger: false,
+            ca_cert_path: None,
+            client_cert_path: None,
+            client_key_path: None,
+            disable_hostname_verification: false,
+        }
+    }
+}
 
 lazy_static! {
     pub static ref PROJECT_NAME: String = env!("CARGO_CRATE_NAME").to_uppercase().to_string();
