@@ -1,6 +1,5 @@
 use std::ops::Deref;
 use std::sync::Arc;
-//use std::sync::RwLock;
 
 #[derive(Clone)]
 pub struct TypeErasedWrapper {
@@ -8,9 +7,6 @@ pub struct TypeErasedWrapper {
     debug_full: String,
     debug_normal: String,
 }
-
-unsafe impl Send for TypeErasedWrapper {}
-unsafe impl Sync for TypeErasedWrapper {}
 
 impl TypeErasedWrapper {
     pub fn new<T: 'static + Clone + Send + Sync + std::fmt::Debug>(value: T) -> Self {
@@ -53,27 +49,6 @@ impl Deref for TypeErasedWrapper {
         &self.data
     }
 }
-
-/// [ErrorLessRwLock] is a wrapper for RwLock to auto reset on poision error
-//pub struct ErrorLessRwLock<T: Default>(RwLock<T>);
-//
-//impl<T: Default> ErrorLessRwLock<T> {
-//    fn new(value: T) -> Self {
-//        Self(RwLock::new(value))
-//    }
-//    fn read(&self) -> std::sync::RwLockReadGuard<T> {
-//        if self.0.is_poisoned() {
-//            self.0.clear_poison();
-//        }
-//        self.0.read().unwrap()
-//    }
-//    fn write(&self) -> std::sync::RwLockWriteGuard<T> {
-//        if self.0.is_poisoned() {
-//            self.0.clear_poison();
-//        }
-//        self.0.write().unwrap()
-//    }
-//}
 
 #[cfg(test)]
 mod test {
