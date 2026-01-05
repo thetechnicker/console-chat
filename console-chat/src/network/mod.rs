@@ -65,7 +65,10 @@ lazy_static! {
     pub static ref LISTEN_TASK: Arc<RwLock<Option<ListenData>>> = Arc::new(RwLock::new(None));
     pub static ref ACTION_TX: Arc<RwLock<UnboundedSender<Action>>> =
         Arc::new(RwLock::new(unbounded_channel().0));
-    pub static ref KEYS: Arc<KeyData> = Arc::new(KeyData::new().unwrap());
+    pub static ref KEYS: Arc<KeyData> = Arc::new(
+        KeyData::new()
+            .expect("Cannot create Keys for encryption, there is no way to disable this crash.")
+    );
 }
 
 #[tracing::instrument]
@@ -163,13 +166,13 @@ async fn listen(room: Arc<String>) -> Result<()> {
             match serde_json::from_str::<MessagePublic>(&event.data) {
                 Ok(message) => {
                     debug!("Parsed Content: {:#?}", message);
-                    let mut received_message = Message::default();
-                    received_message.user = message.sender;
-
-                    if let Some(send_at) = message.send_at {
-                        received_message.send_at = DateTime::<Utc>::from_str(&send_at).ok();
-                    }
-
+                    let mut received_message = Message {
+                        user: message.sender,
+                        send_at: message
+                            .send_at
+                            .map_or(None, |send_at| DateTime::<Utc>::from_str(&send_at).ok()),
+                        content: Default::default(),
+                    };
                     match message.content {
                         Some(content) => match handle_content(&room, content).await {
                             Err(err) => {

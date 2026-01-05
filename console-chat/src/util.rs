@@ -61,7 +61,7 @@ mod test {
         let y = TypeErasedWrapper::new(x);
         let z = y.downcast::<u8>();
         assert!(z.is_ok(), "{:?}", z);
-        assert_eq!(z.unwrap(), x);
+        assert_eq!(z.expect("TypeErasedWrapper Failed"), x);
         Ok(())
     }
 }
