@@ -75,14 +75,43 @@ impl Default for NetworkConfig {
 
 lazy_static! {
     pub static ref PROJECT_NAME: String = env!("CARGO_CRATE_NAME").to_uppercase().to_string();
-    pub static ref DATA_FOLDER: Option<PathBuf> =
-        env::var(format!("{}_DATA", PROJECT_NAME.clone()))
-            .ok()
-            .map(PathBuf::from);
-    pub static ref CONFIG_FOLDER: Option<PathBuf> =
-        env::var(format!("{}_CONFIG", PROJECT_NAME.clone()))
-            .ok()
-            .map(PathBuf::from);
+    pub static ref DATA_FOLDER: Option<PathBuf> = get_data_folder();
+    pub static ref CONFIG_FOLDER: Option<PathBuf> = get_config_folder();
+}
+
+#[cfg(test)]
+use tempfile;
+
+#[cfg(test)]
+lazy_static! {
+    pub static ref TEMP_FOLDER: Option<tempfile::TempDir> = get_temp_folder();
+}
+
+#[cfg(test)]
+fn get_temp_folder() -> Option<tempfile::TempDir> {
+    let file = tempfile::tempdir().ok()?;
+
+    Some(file)
+}
+
+fn get_data_folder() -> Option<PathBuf> {
+    #[cfg(test)]
+    {
+        return TEMP_FOLDER.as_ref().map(|f| f.path().join("data"));
+    }
+    env::var(format!("{}_DATA", PROJECT_NAME.clone()))
+        .ok()
+        .map(PathBuf::from)
+}
+
+fn get_config_folder() -> Option<PathBuf> {
+    #[cfg(test)]
+    {
+        return TEMP_FOLDER.as_ref().map(|f| f.path().join("config"));
+    }
+    env::var(format!("{}_CONFIG", PROJECT_NAME.clone()))
+        .ok()
+        .map(PathBuf::from)
 }
 
 impl Config {
@@ -139,7 +168,7 @@ impl Config {
         tracing::debug!("Saving file");
         let x = serde_json::to_string_pretty(self)?;
         if !self.config.config_dir.exists() {
-            std::fs::create_dir_all(&self.config.safe_file)?;
+            std::fs::create_dir_all(&self.config.config_dir)?;
         }
         //
         std::fs::write(&self.config.safe_file, x)
@@ -507,12 +536,8 @@ mod tests {
 
     #[test]
     fn test_save() -> Result<()> {
-        use tempfile;
-        let temp_dir = tempfile::tempdir().unwrap();
-        let c = Config::new_locked()?;
-        let mut r = c.write().unwrap();
-        r.config.data_dir = temp_dir.path().into();
-        let x = r.save();
+        let c = Config::new()?;
+        let x = c.save();
         assert!(x.is_ok(), "Config: {c:#?}\n\n Error:{x:#?}");
         Ok(())
     }

@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use from_hashmap_macro::FromHashmap;
+use my_proc_macros::FromHashmap;
 use std::collections::HashMap;
 
 #[derive(Default, Clone, Debug)]

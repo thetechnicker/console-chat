@@ -1,7 +1,7 @@
 use crate::LockErrorExt;
 use crate::action::AppError;
 use crate::components::{button::*, theme::*, vim::*};
-use from_hashmap_macro::FromHashmap;
+use my_proc_macros::FromHashmap;
 use std::sync::{Arc, RwLock};
 //use color_eyre::Result;
 use crate::action::Result;

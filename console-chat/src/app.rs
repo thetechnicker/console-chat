@@ -286,7 +286,9 @@ impl App {
                             .write()
                             .error()
                             .map_err(|e| AppError::Error(e))?;
-                        std::fs::remove_file(config.config.safe_file.clone())?;
+                        if config.config.safe_file.exists() {
+                            std::fs::remove_file(config.config.safe_file.clone())?;
+                        }
                         *config = Config::new()?;
                         debug!("Reloading config");
                     }

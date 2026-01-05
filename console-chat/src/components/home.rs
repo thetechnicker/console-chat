@@ -2,7 +2,7 @@ use crate::LockErrorExt;
 use crate::action::Result;
 use crate::components::{button::*, theme::*};
 use crossterm::event::{KeyCode, KeyEvent};
-use from_hashmap_macro::FromHashmap;
+use my_proc_macros::FromHashmap;
 use ratatui::{prelude::*, widgets::*};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -12,7 +12,7 @@ use super::Component;
 use crate::{action::Action, config::Config};
 const STYLE_KEY: crate::app::Mode = crate::app::Mode::Home;
 
-#[derive(serde::Serialize, serde::Deserialize, FromHashmap)]
+#[derive(serde::Serialize, serde::Deserialize, FromHashmap, Default)]
 #[hashmap(type = "Theme")]
 struct HomeTheme {
     #[hashmap(default = "DARK_GRAY")]
@@ -37,6 +37,7 @@ pub struct Home {
     active: bool,
     command_tx: Option<UnboundedSender<Action>>,
     config: Arc<RwLock<Config>>,
+    home_theme: HomeTheme,
 
     join: Button,
     login: Button,
@@ -45,7 +46,6 @@ pub struct Home {
     exit: Button,
     reset_config: Button,
 
-    theme: Theme,
     index: usize,
 }
 
@@ -105,21 +105,28 @@ impl Component for Home {
                 config.themes.get_mut(&STYLE_KEY).ok_or("This is bad")?
             }
         };
-        let theme = HomeTheme::from(themes);
-
-        self.theme = theme.root;
-        self.login = Button::new("Login", "", theme.login, Action::OpenLogin);
-        self.join = Button::new("Join", "", theme.join, Action::OpenJoin);
-        self.settings = Button::new("Settings", "", theme.settings, Action::OpenSettings);
+        self.home_theme = HomeTheme::from(themes);
+        self.login = Button::new("Login", "", self.home_theme.login, Action::OpenLogin);
+        self.join = Button::new("Join", "", self.home_theme.join, Action::OpenJoin);
+        self.settings = Button::new(
+            "Settings",
+            "",
+            self.home_theme.settings,
+            Action::OpenSettings,
+        );
         self.raw_settings = Button::new(
             "Settings File",
             "",
-            theme.raw_settings,
+            self.home_theme.raw_settings,
             Action::OpenRawSettings,
         );
-        self.reset_config =
-            Button::new("Reset Config", "", theme.reset_config, Action::ResetConfig);
-        self.exit = Button::new("Exit", "", theme.exit, Action::Quit);
+        self.reset_config = Button::new(
+            "Reset Config",
+            "",
+            self.home_theme.reset_config,
+            Action::ResetConfig,
+        );
+        self.exit = Button::new("Exit", "", self.home_theme.exit, Action::Quit);
         self.update_selection(0);
         Ok(())
     }
@@ -192,7 +199,7 @@ impl Component for Home {
             );
 
             // Buttons
-            let (background, text, shadow, highlight) = colors(self.theme);
+            let (background, text, shadow, highlight) = colors(self.home_theme.root);
 
             buf.set_style(center, Style::new().bg(background).fg(text));
             // render top line if there's enough space
