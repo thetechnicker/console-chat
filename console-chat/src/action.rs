@@ -40,4 +40,5 @@ pub enum Action {
 
     SyncProfile,
     ReloadConfig,
+    ResetConfig,
 }

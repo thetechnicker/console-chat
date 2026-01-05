@@ -1,16 +1,21 @@
+use super::Component;
+use crate::LockErrorExt;
 use crate::action::Result;
+use crate::components::ui_utils::theme::Theme;
 use crate::components::vim::*;
 use crate::network::{Message, USERNAME};
+use crate::{action::Action, config::Config};
 use chrono::Local;
 use crossterm::event::{KeyCode, KeyEvent};
 use openapi::models::{AppearancePublic, UserPublic};
 use ratatui::{prelude::*, widgets::*};
+use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::debug;
 use tui_textarea::TextArea;
 
-use super::Component;
-use crate::{action::Action, config::Config};
+const STYLE_KEY: crate::app::Mode = crate::app::Mode::Chat;
 
 struct MessageComponent {
     content: Message,
@@ -46,13 +51,14 @@ impl MessageComponent {
     }
 }
 
-impl Widget for &MessageComponent {
-    fn render(self, area: Rect, buf: &mut Buffer) {
+impl StatefulWidget for &MessageComponent {
+    type State = Theme;
+    fn render(self, area: Rect, buf: &mut Buffer, active: &mut Theme) {
         let user = self
             .content
             .user
             .clone()
-            .unwrap_or(UserPublic::new(AppearancePublic::new("#c0ffee".to_owned())));
+            .unwrap_or(UserPublic::new(AppearancePublic::new("".to_owned())));
         let name = user.username.clone().unwrap_or("System".to_owned());
         let color = user.appearance.color.parse().unwrap_or(Color::Gray);
         let message = self.content.content.clone();
@@ -63,13 +69,14 @@ impl Widget for &MessageComponent {
             .title(name);
 
         if self.selected {
-            block = block.style(Style::default().bg(color).fg(Color::LightMagenta))
+            let theme: Style = active.to_owned().into();
+            block = block.style(theme.bg(color));
         }
 
         if let Some(send_time) = self.content.send_at {
             let time_str = send_time
                 .with_timezone(&Local)
-                .format("%H:%M:%S %Y-%d-%m")
+                .format("%H:%M:%S %Y-%d-%m") // TODO: SETTINGS
                 .to_string();
             block = block.title_bottom(time_str);
         }
@@ -95,7 +102,8 @@ impl From<Message> for MessageComponent {
 pub struct Chat<'a> {
     active: bool,
     command_tx: Option<UnboundedSender<Action>>,
-    config: Config,
+    config: Arc<RwLock<Config>>,
+    selected_theme: Theme,
     textinput: TextArea<'a>,
     vim: Option<Vim>,
     index: usize, // index of currently selected message in msgs (0 means none / input)
@@ -163,11 +171,29 @@ impl Component for Chat<'_> {
         self.active = false;
     }
     fn init(&mut self, _: Size) -> Result<()> {
-        let _themes = self.config.themes.get(&crate::app::Mode::Chat);
+        let mut config = self.config.write().error()?;
+        let themes: &mut HashMap<String, Theme> = match config.themes.get_mut(&STYLE_KEY) {
+            Some(themes) => themes,
+            None => {
+                config.themes.insert(STYLE_KEY, HashMap::new());
+                config.themes.get_mut(&STYLE_KEY).ok_or("This is bad")?
+            }
+        };
         let vim = Vim::new(VimMode::Normal, VimType::SingleLine);
         self.textinput.set_block(vim.mode.highlight_block());
         self.textinput.set_cursor_style(vim.mode.cursor_style());
         self.vim = Some(vim);
+        let selected_theme_option = themes.get("selected").cloned();
+        let selected_theme = selected_theme_option.unwrap_or(Theme {
+            text: Color::LightMagenta,
+            background: Color::DarkGray,
+            highlight: Color::Gray,
+            shadow: Color::Black,
+        });
+        if selected_theme_option.is_none() {
+            themes.insert("selected".to_owned(), selected_theme);
+        }
+        self.selected_theme = selected_theme;
         Ok(())
     }
 
@@ -176,7 +202,7 @@ impl Component for Chat<'_> {
         Ok(())
     }
 
-    fn register_config_handler(&mut self, config: Config) -> Result<()> {
+    fn register_config_handler(&mut self, config: Arc<RwLock<Config>>) -> Result<()> {
         self.config = config;
         Ok(())
     }
@@ -264,14 +290,14 @@ impl Component for Chat<'_> {
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
         if self.active {
             let buf = frame.buffer_mut();
-            let block = Block::new().bg(Color::Blue);
+            let block = Block::new().bg(Color::Blue); // TODO: SETTINGS
             block.render(area, buf);
 
             let [mut chat_area, input_area] =
                 Layout::vertical([Constraint::Fill(1), Constraint::Max(3)]).areas(
                     Layout::horizontal([
                         Constraint::Fill(1),
-                        Constraint::Percentage(60),
+                        Constraint::Percentage(60), // TODO: SETTINGS
                         Constraint::Fill(1),
                     ])
                     .split(area)[1],
@@ -282,12 +308,12 @@ impl Component for Chat<'_> {
                 // approximate rows needed: message length divided by width, plus padding
                 let a = msg.content.content.len() as u16;
                 let b = chat_area.width.max(1);
-                let rows = (a + b - 1) / b;
+                let rows = a.div_ceil(b);
                 let max_rows = rows.saturating_add(2);
                 let [new_chat, msg_area] =
                     Layout::vertical([Constraint::Fill(1), Constraint::Max(max_rows)])
                         .areas(chat_area);
-                msg.render(msg_area, buf);
+                msg.render(msg_area, buf, &mut self.selected_theme);
                 chat_area = new_chat;
             }
 

@@ -1,29 +1,56 @@
+use crate::LockErrorExt;
 use crate::action::Result;
 use crate::components::{button::*, theme::*};
 use crossterm::event::{KeyCode, KeyEvent};
+use my_proc_macros::FromHashmap;
 use ratatui::{prelude::*, widgets::*};
+use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc::UnboundedSender;
 
 use super::Component;
 use crate::{action::Action, config::Config};
+const STYLE_KEY: crate::app::Mode = crate::app::Mode::Home;
+
+#[derive(serde::Serialize, serde::Deserialize, FromHashmap, Default)]
+#[hashmap(type = "Theme")]
+struct HomeTheme {
+    #[hashmap(default = "DARK_GRAY")]
+    pub root: Theme,
+    #[hashmap(default = "GREEN")]
+    pub join: Theme,
+    #[hashmap(default = "BLUE")]
+    pub login: Theme,
+    #[hashmap(default = "GRAY")]
+    pub settings: Theme,
+    #[hashmap(default = "GRAY")]
+    pub raw_settings: Theme,
+    #[hashmap(default = "GRAY")]
+    pub reset_config: Theme,
+    #[hashmap(default = "RED")]
+    pub exit: Theme,
+    pub inserted: bool,
+}
 
 #[derive(Default)]
 pub struct Home {
     active: bool,
     command_tx: Option<UnboundedSender<Action>>,
-    config: Config,
+    config: Arc<RwLock<Config>>,
+    home_theme: HomeTheme,
 
     join: Button,
     login: Button,
     settings: Button,
     raw_settings: Button,
     exit: Button,
-    theme: Theme,
+    reset_config: Button,
+
     index: usize,
 }
 
 impl Home {
-    pub const MAX_ELEMENTS: usize = 5;
+    pub const MAX_ELEMENTS: usize = 6;
 
     pub fn new() -> Self {
         Self::default()
@@ -57,6 +84,7 @@ impl Home {
             &mut self.login,
             &mut self.settings,
             &mut self.raw_settings,
+            &mut self.reset_config,
             &mut self.exit,
         ]
     }
@@ -68,29 +96,37 @@ impl Component for Home {
     }
     fn init(&mut self, _: Size) -> Result<()> {
         self.active = true;
-        if let Some(themes) = self.config.themes.get(&crate::app::Mode::Home) {
-            self.theme = *themes.get("root").unwrap_or(&DARK_GRAY);
-
-            let join = *themes.get("join").unwrap_or(&GREEN);
-            let login = *themes.get("login").unwrap_or(&BLUE);
-            let settings = *themes.get("settings").unwrap_or(&GRAY);
-            let raw_settings = *themes.get("raw_settings").unwrap_or(&GRAY);
-            let exit = *themes.get("exit").unwrap_or(&RED);
-
-            self.join = Button::new("Join", "", join, Action::OpenJoin);
-            self.login = Button::new("Login", "", login, Action::OpenLogin);
-            self.settings = Button::new("Settings", "", settings, Action::OpenSettings);
-            self.raw_settings =
-                Button::new("Settings File", "", raw_settings, Action::OpenRawSettings);
-            self.exit = Button::new("Exit", "", exit, Action::Quit);
-        } else {
-            self.theme = DARK_GRAY;
-            self.login = Button::new("Login", "", GREEN, Action::OpenLogin);
-            self.join = Button::new("Join", "", BLUE, Action::OpenJoin);
-            self.settings = Button::new("Settings", "", GRAY, Action::OpenSettings);
-            self.raw_settings = Button::new("Settings File", "", GRAY, Action::OpenRawSettings);
-            self.exit = Button::new("Exit", "", RED, Action::Quit);
-        }
+        let conf_arc = self.config.clone();
+        let mut config = conf_arc.write().error()?;
+        let themes = match config.themes.get_mut(&STYLE_KEY) {
+            Some(themes) => themes,
+            None => {
+                config.themes.insert(STYLE_KEY, HashMap::new());
+                config.themes.get_mut(&STYLE_KEY).ok_or("This is bad")?
+            }
+        };
+        self.home_theme = HomeTheme::from(themes);
+        self.login = Button::new("Login", "", self.home_theme.login, Action::OpenLogin);
+        self.join = Button::new("Join", "", self.home_theme.join, Action::OpenJoin);
+        self.settings = Button::new(
+            "Settings",
+            "",
+            self.home_theme.settings,
+            Action::OpenSettings,
+        );
+        self.raw_settings = Button::new(
+            "Settings File",
+            "",
+            self.home_theme.raw_settings,
+            Action::OpenRawSettings,
+        );
+        self.reset_config = Button::new(
+            "Reset Config",
+            "",
+            self.home_theme.reset_config,
+            Action::ResetConfig,
+        );
+        self.exit = Button::new("Exit", "", self.home_theme.exit, Action::Quit);
         self.update_selection(0);
         Ok(())
     }
@@ -118,7 +154,7 @@ impl Component for Home {
         Ok(())
     }
 
-    fn register_config_handler(&mut self, config: Config) -> Result<()> {
+    fn register_config_handler(&mut self, config: Arc<RwLock<Config>>) -> Result<()> {
         self.config = config;
         Ok(())
     }
@@ -163,7 +199,7 @@ impl Component for Home {
             );
 
             // Buttons
-            let (background, text, shadow, highlight) = colors(self.theme);
+            let (background, text, shadow, highlight) = colors(self.home_theme.root);
 
             buf.set_style(center, Style::new().bg(background).fg(text));
             // render top line if there's enough space

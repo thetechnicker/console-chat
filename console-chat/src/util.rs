@@ -8,9 +8,6 @@ pub struct TypeErasedWrapper {
     debug_normal: String,
 }
 
-unsafe impl Send for TypeErasedWrapper {}
-unsafe impl Sync for TypeErasedWrapper {}
-
 impl TypeErasedWrapper {
     pub fn new<T: 'static + Clone + Send + Sync + std::fmt::Debug>(value: T) -> Self {
         let debug_full = format!("{:#?}", value);
@@ -53,51 +50,10 @@ impl Deref for TypeErasedWrapper {
     }
 }
 
-//use serde::Deserialize;
-//use serde::ser::*;
-//#[derive(Deserialize, Debug, PartialEq, Eq)]
-//pub struct OptionalBool(Option<bool>);
-//
-//impl Deref for OptionalBool {
-//    type Target = bool;
-//    fn deref(&self) -> &Self::Target {
-//        self.0.as_ref().unwrap_or(&false)
-//    }
-//}
-//impl DerefMut for OptionalBool {
-//    fn deref_mut(&mut self) -> &mut Self::Target {
-//        self.0.get_or_insert(false)
-//    }
-//}
-//
-//impl Serialize for OptionalBool {
-//    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-//    where
-//        S: Serializer,
-//    {
-//        match self.0 {
-//            Some(value) => serializer.serialize_bool(value),
-//            None => serializer.serialize_none(),
-//        }
-//    }
-//}
-
 #[cfg(test)]
 mod test {
     use super::*;
     use color_eyre::Result;
-
-    //#[test]
-    //fn test_optional_bool() -> Result<()> {
-    //    let mut test = OptionalBool(None);
-    //    assert!(!*test);
-    //    *test = true;
-    //    assert!(*test);
-    //    let str = serde_json::to_string(&test)?;
-    //    let back = serde_json::from_str::<OptionalBool>(&str)?;
-    //    assert_eq!(back, test);
-    //    Ok(())
-    //}
 
     #[test]
     fn test_type_erased_wrapper() -> Result<()> {
