@@ -80,7 +80,6 @@ lazy_static! {
 }
 
 #[cfg(test)]
-use tempfile;
 
 #[cfg(test)]
 lazy_static! {

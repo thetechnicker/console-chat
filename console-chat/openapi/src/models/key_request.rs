@@ -29,13 +29,10 @@ impl KeyRequest {
 }
 ///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum Type {
     #[serde(rename = "KEY_REQUEST")]
+    #[default]
     KeyRequest,
 }
 
-impl Default for Type {
-    fn default() -> Type {
-        Self::KeyRequest
-    }
-}

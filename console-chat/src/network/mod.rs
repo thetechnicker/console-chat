@@ -150,7 +150,7 @@ async fn listen(room: Arc<String>) -> Result<()> {
     {
         let key_map = KEYS.key_map.read().await;
         let key = key_map.get(&*room);
-        let key2 = key.map_or(None, |key| Key::try_from(key.as_ref()).ok());
+        let key2 = key.and_then(|key| Key::try_from(key.as_ref()).ok());
         if key2.is_some() {
             let mut key_write = KEYS.symetric_key.write().await;
             *key_write = key2;
@@ -171,7 +171,7 @@ async fn listen(room: Arc<String>) -> Result<()> {
                     }
 
                     match message.content {
-                        Some(content) => match handle_content(&*room, content).await {
+                        Some(content) => match handle_content(&room, content).await {
                             Err(err) => {
                                 error!("Failed to handle content: {}", err);
                                 let _ = action_tx.send(Action::Error(err.into()));

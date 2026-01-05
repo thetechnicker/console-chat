@@ -308,7 +308,7 @@ impl Component for Chat<'_> {
                 // approximate rows needed: message length divided by width, plus padding
                 let a = msg.content.content.len() as u16;
                 let b = chat_area.width.max(1);
-                let rows = (a + b - 1) / b;
+                let rows = a.div_ceil(b);
                 let max_rows = rows.saturating_add(2);
                 let [new_chat, msg_area] =
                     Layout::vertical([Constraint::Fill(1), Constraint::Max(max_rows)])

@@ -191,7 +191,7 @@ impl App {
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<()> {
         let conf_arc = self.config.clone();
-        let config = conf_arc.read().error().map_err(|e| AppError::Error(e))?;
+        let config = conf_arc.read().error().map_err(AppError::Error)?;
         let action_tx = self.action_tx.clone();
         let Some(keymap) = config.keybindings.get(&self.mode) else {
             return Ok(());
@@ -285,7 +285,7 @@ impl App {
                             .config
                             .write()
                             .error()
-                            .map_err(|e| AppError::Error(e))?;
+                            .map_err(AppError::Error)?;
                         if config.config.safe_file.exists() {
                             std::fs::remove_file(config.config.safe_file.clone())?;
                         }
@@ -293,7 +293,7 @@ impl App {
                         debug!("Reloading config");
                     }
                     self.reload_config(tui)?;
-                    let config = self.config.read().error().map_err(|e| AppError::Error(e))?;
+                    let config = self.config.read().error().map_err(AppError::Error)?;
                     config.save()?;
                 }
                 _ => {}

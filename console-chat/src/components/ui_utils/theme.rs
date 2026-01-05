@@ -12,10 +12,10 @@ pub struct Theme {
     pub shadow: Color,
 }
 
-impl Into<Style> for Theme {
-    fn into(self) -> Style {
-        let style: Style = self.text.into();
-        style.bg(self.background)
+impl From<Theme> for Style {
+    fn from(val: Theme) -> Self {
+        let style: Style = val.text.into();
+        style.bg(val.background)
     }
 }
 
