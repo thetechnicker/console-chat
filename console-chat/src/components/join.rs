@@ -1,4 +1,8 @@
+use crate::LockErrorExt;
 use crate::components::{button::*, theme::*, vim::*};
+use my_proc_macros::FromHashmap;
+use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 //use color_eyre::Result;
 use crate::action::Result;
 use crossterm::event::{KeyCode, KeyEvent};
@@ -11,11 +15,27 @@ use tui_textarea::TextArea;
 use super::Component;
 use crate::{action::Action, action::AppError, config::Config};
 
+const STYLE_KEY: crate::app::Mode = crate::app::Mode::Join;
+
+// TODO: May be great to be done with a proc-macro, to generalize for all Screens that have themed
+// components
+#[derive(serde::Serialize, serde::Deserialize, FromHashmap)]
+#[hashmap(type = "Theme")]
+struct JoinTheme {
+    #[hashmap(default = "DARK_GRAY")]
+    pub root: Theme,
+    #[hashmap(default = "GREEN")]
+    pub join: Theme,
+    #[hashmap(default = "RED")]
+    pub cancel: Theme,
+    pub inserted: bool,
+}
+
 #[derive(Default, Debug)]
 pub struct Join<'a> {
     active: bool,
     command_tx: Option<UnboundedSender<Action>>,
-    config: Config,
+    config: Arc<RwLock<Config>>,
     room: TextArea<'a>,
     join: Button,
     cancel: Button,
@@ -98,14 +118,24 @@ impl Component for Join<'_> {
         self.active = false;
     }
     fn init(&mut self, _: Size) -> Result<()> {
-        let _themes = self.config.themes.get(&crate::app::Mode::Join);
+        let conf_arc = self.config.clone();
+        let mut config = conf_arc.write().error()?;
+        let themes = match config.themes.get_mut(&STYLE_KEY) {
+            Some(themes) => themes,
+            None => {
+                config.themes.insert(STYLE_KEY, HashMap::new());
+                config.themes.get_mut(&STYLE_KEY).ok_or("This is bad")?
+            }
+        };
+        let theme = JoinTheme::from(themes);
+
         self.vim = Some(Vim::default());
         self.room.set_cursor_line_style(Style::default());
         self.room.set_style(Style::default().fg(Color::LightGreen));
         self.room.set_block(VimMode::Normal.highlight_block());
 
-        self.join = Button::new("Join", "", GREEN, Action::TriggerJoin);
-        self.cancel = Button::new("Abort", "<q>", RED, Action::OpenHome);
+        self.join = Button::new("Join", "", theme.join, Action::TriggerJoin);
+        self.cancel = Button::new("Abort", "<q>", theme.cancel, Action::OpenHome);
         self.update_elements();
         Ok(())
     }
@@ -172,7 +202,7 @@ impl Component for Join<'_> {
         Ok(())
     }
 
-    fn register_config_handler(&mut self, config: Config) -> Result<()> {
+    fn register_config_handler(&mut self, config: Arc<RwLock<Config>>) -> Result<()> {
         self.config = config;
         Ok(())
     }

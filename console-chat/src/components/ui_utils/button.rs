@@ -52,14 +52,6 @@ impl Button {
     pub fn is_active(&self) -> bool {
         self.state == ButtonState::Active
     }
-    /*
-    pub fn is_selected(&self) -> bool {
-        self.state == ButtonState::Selected
-    }
-    pub fn is_normal(&self) -> bool {
-        self.state == ButtonState::Normal
-    }
-    */
 
     pub fn trigger(&self) -> Option<Action> {
         self.action.clone()
