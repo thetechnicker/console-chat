@@ -95,21 +95,27 @@ fn get_temp_folder() -> Option<tempfile::TempDir> {
 fn get_data_folder() -> Option<PathBuf> {
     #[cfg(test)]
     {
-        return TEMP_FOLDER.as_ref().map(|f| f.path().join("data"));
+        TEMP_FOLDER.as_ref().map(|f| f.path().join("data"))
     }
-    env::var(format!("{}_DATA", PROJECT_NAME.clone()))
-        .ok()
-        .map(PathBuf::from)
+    #[cfg(not(test))]
+    {
+        env::var(format!("{}_DATA", PROJECT_NAME.clone()))
+            .ok()
+            .map(PathBuf::from)
+    }
 }
 
 fn get_config_folder() -> Option<PathBuf> {
     #[cfg(test)]
     {
-        return TEMP_FOLDER.as_ref().map(|f| f.path().join("config"));
+        TEMP_FOLDER.as_ref().map(|f| f.path().join("config"))
     }
-    env::var(format!("{}_CONFIG", PROJECT_NAME.clone()))
-        .ok()
-        .map(PathBuf::from)
+    #[cfg(not(test))]
+    {
+        env::var(format!("{}_CONFIG", PROJECT_NAME.clone()))
+            .ok()
+            .map(PathBuf::from)
+    }
 }
 
 impl Config {
