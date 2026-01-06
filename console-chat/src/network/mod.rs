@@ -169,7 +169,8 @@ async fn listen(room: Arc<String>) -> Result<()> {
                     let mut received_message = Message {
                         user: message.sender,
                         send_at: message
-                            .send_at.and_then(|send_at| DateTime::<Utc>::from_str(&send_at).ok()),
+                            .send_at
+                            .and_then(|send_at| DateTime::<Utc>::from_str(&send_at).ok()),
                         content: Default::default(),
                     };
                     match message.content {

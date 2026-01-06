@@ -281,11 +281,7 @@ impl App {
                 Action::Error(e) => error!("{e}"),
                 Action::ResetConfig => {
                     {
-                        let mut config = self
-                            .config
-                            .write()
-                            .error()
-                            .map_err(AppError::Error)?;
+                        let mut config = self.config.write().error().map_err(AppError::Error)?;
                         if config.config.safe_file.exists() {
                             std::fs::remove_file(config.config.safe_file.clone())?;
                         }

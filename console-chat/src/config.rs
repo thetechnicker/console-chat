@@ -80,7 +80,6 @@ lazy_static! {
 }
 
 #[cfg(test)]
-
 #[cfg(test)]
 lazy_static! {
     pub static ref TEMP_FOLDER: Option<tempfile::TempDir> = get_temp_folder();
