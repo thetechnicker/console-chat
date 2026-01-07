@@ -395,7 +395,8 @@ pub fn parse_key_sequence(raw: &str) -> Result<Vec<KeyEvent>, String> {
 }
 
 #[derive(Clone, Serialize, Debug, Default, Deserialize, Deref, DerefMut)]
-pub struct Themes(pub HashMap<Mode, HashMap<String, crate::components::theme::Theme>>);
+pub struct Themes(pub HashMap<Mode, crate::components::theme::Theme>);
+//pub struct Themes(pub HashMap<Mode, HashMap<String, crate::components::theme::old_theme::Theme>>);
 
 /// Might  be use full when adding key shortcut hints to buttons
 #[allow(dead_code)]

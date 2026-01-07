@@ -1,4 +1,6 @@
-use ratatui::style::{Color, Modifier, Style};
+use crate::components::theme::ViModePalettes;
+
+use ratatui::style::{Color, Style};
 use ratatui::widgets::{Block, Borders};
 use tui_textarea::{CursorMove, Input, Key, Scrolling, TextArea};
 
@@ -36,14 +38,8 @@ impl VimMode {
             .title(title)
     }
 
-    pub fn cursor_style(&self) -> Style {
-        let color = match self {
-            Self::Normal => Color::Reset,
-            Self::Insert => Color::LightBlue,
-            Self::Visual => Color::LightYellow,
-            Self::Operator(_) => Color::LightGreen,
-        };
-        Style::default().fg(color).add_modifier(Modifier::REVERSED)
+    pub fn cursor_style(&self, style: ViModePalettes) -> Style {
+        style.cursor_style_for_mode(self)
     }
 }
 
@@ -76,27 +72,39 @@ pub enum VimType {
 }
 
 // State of Vim emulation
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct Vim {
     pub vim_type: VimType,
     pub mode: VimMode,
     pub pending: Input, // Pending input to handle a sequence with two keys like gg
+    pub style: ViModePalettes,
+}
+impl PartialEq for Vim {
+    fn eq(&self, other: &Self) -> bool {
+        self.vim_type == other.vim_type && self.mode == other.mode && self.pending == other.pending
+    }
 }
 
 impl Default for Vim {
     fn default() -> Self {
-        Self::new(VimMode::Normal, VimType::SingleLine)
+        Self::new(
+            VimMode::Normal,
+            VimType::SingleLine,
+            ViModePalettes::default(),
+        )
     }
 }
 
 impl Vim {
-    pub fn new(mode: VimMode, vim_type: VimType) -> Self {
+    pub fn new(mode: VimMode, vim_type: VimType, style: ViModePalettes) -> Self {
         Self {
             vim_type,
             mode,
             pending: Input::default(),
+            style,
         }
     }
+
     pub fn update_mode(mut self, mode: VimMode) -> Self {
         self.mode = mode;
         self
@@ -107,6 +115,7 @@ impl Vim {
             vim_type: self.vim_type,
             mode: self.mode,
             pending,
+            style: self.style,
         }
     }
 

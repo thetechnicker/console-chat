@@ -1,12 +1,9 @@
 use crate::LockErrorExt;
-use crate::components::{button::*, theme::*, vim::*};
-use my_proc_macros::FromHashmap;
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
-//use color_eyre::Result;
 use crate::action::Result;
+use crate::components::{button::*, theme::*, vim::*};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{prelude::*, widgets::*};
+use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::debug;
 use tracing::trace;
@@ -16,20 +13,6 @@ use super::Component;
 use crate::{action::Action, action::AppError, config::Config};
 
 const STYLE_KEY: crate::app::Mode = crate::app::Mode::Join;
-
-// TODO: May be great to be done with a proc-macro, to generalize for all Screens that have themed
-// components
-#[derive(serde::Serialize, serde::Deserialize, FromHashmap)]
-#[hashmap(type = "Theme")]
-struct JoinTheme {
-    #[hashmap(default = "DARK_GRAY")]
-    pub root: Theme,
-    #[hashmap(default = "GREEN")]
-    pub join: Theme,
-    #[hashmap(default = "RED")]
-    pub cancel: Theme,
-    pub inserted: bool,
-}
 
 #[derive(Default, Debug)]
 pub struct Join<'a> {
@@ -118,24 +101,32 @@ impl Component for Join<'_> {
         self.active = false;
     }
     fn init(&mut self, _: Size) -> Result<()> {
-        let conf_arc = self.config.clone();
-        let mut config = conf_arc.write().error()?;
-        let themes = match config.themes.get_mut(&STYLE_KEY) {
-            Some(themes) => themes,
-            None => {
-                config.themes.insert(STYLE_KEY, HashMap::new());
-                config.themes.get_mut(&STYLE_KEY).ok_or("This is bad")?
-            }
-        };
-        let theme = JoinTheme::from(themes);
+        {
+            let mut config = self.config.write().error()?;
+            let theme = match config.themes.get(&STYLE_KEY) {
+                Some(themes) => themes,
+                None => match config.themes.get(&crate::app::Mode::Global) {
+                    Some(themes) => themes,
+                    None => {
+                        config
+                            .themes
+                            .insert(crate::app::Mode::Global, Theme::default());
+                        config
+                            .themes
+                            .get(&crate::app::Mode::Global)
+                            .ok_or("This is bad")?
+                    }
+                },
+            };
 
-        self.vim = Some(Vim::default());
-        self.room.set_cursor_line_style(Style::default());
-        self.room.set_style(Style::default().fg(Color::LightGreen));
-        self.room.set_block(VimMode::Normal.highlight_block());
+            self.vim = Some(Vim::default());
+            self.room.set_cursor_line_style(Style::default());
+            self.room.set_style(Style::default().fg(Color::LightGreen));
+            self.room.set_block(VimMode::Normal.highlight_block());
 
-        self.join = Button::new("Join", "", theme.join, Action::TriggerJoin);
-        self.cancel = Button::new("Abort", "<q>", theme.cancel, Action::OpenHome);
+            self.join = Button::new("Join", "", theme.buttons.accepting, Action::TriggerJoin);
+            self.cancel = Button::new("Abort", "<q>", theme.buttons.denying, Action::OpenHome);
+        }
         self.update_elements();
         Ok(())
     }
@@ -147,7 +138,7 @@ impl Component for Join<'_> {
                     self.vim = Some(match this_vim.transition(key.into(), textinput) {
                         Transition::Mode(mode) if this_vim.mode != mode => {
                             textinput.set_block(mode.highlight_block());
-                            textinput.set_cursor_style(mode.cursor_style());
+                            textinput.set_cursor_style(mode.cursor_style(this_vim.style));
                             match mode {
                                 VimMode::Insert => self.send(Action::Insert)?,
                                 VimMode::Normal if this_vim.mode == VimMode::Insert => {

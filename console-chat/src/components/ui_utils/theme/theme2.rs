@@ -1,79 +1,247 @@
-use ratatui::style::Style;
-use ratatui::widgets::BorderType;
-use serde::{Deserialize, Serialize, de::Deserializer, ser::Serializer};
-use std::str::FromStr;
+use crate::components::ui_utils::vim::VimMode;
+use ratatui::style::{Color, Modifier, Style};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BorderTypeDef(BorderType);
+pub const LIGHT_GRAY: Color = Color::Rgb(192, 192, 192);
 
-impl From<BorderType> for BorderTypeDef {
-    fn from(e: BorderType) -> Self {
-        Self(e)
-    }
+/// A single 4-color button palette: text, background, shadow, highlight.
+#[derive(Clone, Debug, Serialize, Deserialize, Copy)]
+pub struct ButtonPalette {
+    pub text: Color,
+    pub background: Color,
+    pub shadow: Color,
+    pub highlight: Color,
 }
-impl From<BorderTypeDef> for BorderType {
-    fn from(w: BorderTypeDef) -> Self {
-        w.0
-    }
-}
-
-// Serialize as string via Display
-impl Serialize for BorderTypeDef {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(&self.0.to_string())
+impl Default for ButtonPalette {
+    fn default() -> Self {
+        Self {
+            text: Color::White,
+            background: Color::Black,
+            shadow: Color::DarkGray,
+            highlight: LIGHT_GRAY,
+        }
     }
 }
 
-// Deserialize from string via FromStr
-impl<'de> Deserialize<'de> for BorderTypeDef {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        BorderType::from_str(&s)
-            .map(BorderTypeDef)
-            .map_err(serde::de::Error::custom)
+/// Four button states: Active, Normal, Pressed.
+#[derive(Clone, Debug, Serialize, Deserialize, Copy)]
+pub struct ButtonStatePalettes {
+    pub active: ButtonPalette,
+    pub normal: ButtonPalette,
+    pub pressed: ButtonPalette,
+}
+
+impl Default for ButtonStatePalettes {
+    fn default() -> Self {
+        Self {
+            active: ButtonPalette {
+                text: Color::White,
+                background: Color::Blue,
+                shadow: Color::DarkGray,
+                highlight: Color::LightBlue,
+            },
+            normal: ButtonPalette {
+                text: Color::Black,
+                background: Color::Gray,
+                shadow: Color::DarkGray,
+                highlight: LIGHT_GRAY,
+            },
+            pressed: ButtonPalette {
+                text: Color::White,
+                background: Color::DarkGray,
+                shadow: Color::Black,
+                highlight: Color::Gray,
+            },
+        }
     }
 }
 
-// Optional: convenience access
-impl BorderTypeDef {
-    pub fn into_inner(self) -> BorderType {
-        self.0
-    }
-    pub fn as_ref(&self) -> &BorderType {
-        &self.0
+/// Semantic kinds of buttons.
+#[derive(Clone, Debug, Serialize, Deserialize, Copy)]
+pub struct SemanticButtons {
+    pub accepting: ButtonStatePalettes,
+    pub mid_accept: ButtonStatePalettes,
+    pub normal: ButtonStatePalettes,
+    pub denying: ButtonStatePalettes,
+}
+
+/// Surrounding or page-level colors.
+#[derive(Clone, Debug, Serialize, Deserialize, Copy)]
+pub struct PageColors {
+    pub background: Color,
+    pub foreground: Color,
+    pub border: Color,
+    pub muted: Color,
+}
+
+impl Default for PageColors {
+    fn default() -> Self {
+        Self {
+            background: Color::Black,
+            foreground: Color::White,
+            border: Color::DarkGray,
+            muted: Color::Gray,
+        }
     }
 }
 
-impl std::ops::Deref for BorderTypeDef {
-    type Target = BorderType;
-    fn deref(&self) -> &Self::Target {
-        &self.0
+/// Vi-like input palette and cursor color mapping.
+#[derive(Clone, Debug, Serialize, Deserialize, Copy)]
+pub struct ViModePalettes {
+    pub normal: Color,
+    pub insert: Color,
+    pub visual: Color,
+    pub operator: Color,
+}
+
+impl Default for ViModePalettes {
+    fn default() -> Self {
+        Self {
+            normal: Color::Reset,
+            insert: Color::LightBlue,
+            visual: Color::LightYellow,
+            operator: Color::LightGreen,
+        }
     }
 }
-
-impl std::ops::DerefMut for BorderTypeDef {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
-pub struct ItemStyle {
-    pub text: Style,
-    pub block: Style,
-    pub border: Option<BorderTypeDef>,
-}
-
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+/// Top-level theme containing everything.
+#[derive(Clone, Debug, Serialize, Deserialize, Copy)]
 pub struct Theme {
-    pub default: ItemStyle,
-    pub highlight: ItemStyle,
-    pub warning: ItemStyle,
-    pub error: ItemStyle,
+    pub buttons: SemanticButtons,
+    pub page: PageColors,
+    pub vi: ViModePalettes,
+}
+
+fn parse_hex(s: &str) -> Option<(u8, u8, u8)> {
+    let s = s.strip_prefix('#').unwrap_or(s);
+    if s.len() != 6 {
+        return None;
+    }
+    let r = u8::from_str_radix(&s[0..2], 16).ok()?;
+    let g = u8::from_str_radix(&s[2..4], 16).ok()?;
+    let b = u8::from_str_radix(&s[4..6], 16).ok()?;
+    Some((r, g, b))
+}
+
+/// Implement the cursor_style function you showed, using Theme.vi.
+impl ViModePalettes {
+    pub fn cursor_style_for_mode(&self, mode: &VimMode) -> Style {
+        let color = match mode {
+            VimMode::Normal => self.normal,
+            VimMode::Insert => self.insert,
+            VimMode::Visual => self.visual,
+            VimMode::Operator(_) => self.operator,
+        };
+        Style::default().fg(color).add_modifier(Modifier::REVERSED)
+    }
+}
+
+/// Helper: produce a ratatui Style for a given ButtonPalette (for a particular state)
+pub fn style_for_button(p: &ButtonPalette) -> Style {
+    // Use text as foreground and background as background; highlight/shadow not used directly in Style
+    let fg = p.text;
+    let bg = p.background;
+    Style::default().fg(fg).bg(bg)
+}
+
+/// Example default theme
+impl Default for Theme {
+    fn default() -> Self {
+        Self {
+            buttons: SemanticButtons {
+                accepting: ButtonStatePalettes {
+                    active: ButtonPalette {
+                        text: Color::White,
+                        background: Color::LightGreen,
+                        shadow: Color::Green,
+                        highlight: Color::White,
+                    },
+                    normal: ButtonPalette {
+                        text: Color::Black,
+                        background: Color::Green,
+                        shadow: Color::DarkGray,
+                        highlight: Color::LightGreen,
+                    },
+                    pressed: ButtonPalette {
+                        text: Color::White,
+                        background: Color::Rgb(0, 128, 0),
+                        shadow: Color::Black,
+                        highlight: Color::Green,
+                    },
+                },
+                mid_accept: ButtonStatePalettes {
+                    active: ButtonPalette {
+                        text: Color::Black,
+                        background: Color::LightYellow,
+                        shadow: Color::Yellow,
+                        highlight: Color::White,
+                    },
+                    normal: ButtonPalette {
+                        text: Color::Black,
+                        background: Color::Yellow,
+                        shadow: Color::DarkGray,
+                        highlight: Color::LightYellow,
+                    },
+                    pressed: ButtonPalette {
+                        text: Color::White,
+                        background: Color::Rgb(184, 134, 11),
+                        shadow: Color::Black,
+                        highlight: Color::Yellow,
+                    },
+                },
+                normal: ButtonStatePalettes {
+                    active: ButtonPalette {
+                        text: Color::White,
+                        background: Color::Blue,
+                        shadow: Color::DarkGray,
+                        highlight: Color::LightBlue,
+                    },
+                    normal: ButtonPalette {
+                        text: Color::Black,
+                        background: Color::Gray,
+                        shadow: Color::DarkGray,
+                        highlight: Color::Rgb(192, 192, 192),
+                    },
+                    pressed: ButtonPalette {
+                        text: Color::White,
+                        background: Color::DarkGray,
+                        shadow: Color::Black,
+                        highlight: Color::Gray,
+                    },
+                },
+                denying: ButtonStatePalettes {
+                    active: ButtonPalette {
+                        text: Color::White,
+                        background: Color::LightRed,
+                        shadow: Color::Red,
+                        highlight: Color::White,
+                    },
+                    normal: ButtonPalette {
+                        text: Color::White,
+                        background: Color::Red,
+                        shadow: Color::DarkGray,
+                        highlight: Color::LightRed,
+                    },
+                    pressed: ButtonPalette {
+                        text: Color::White,
+                        background: Color::Rgb(128, 0, 0),
+                        shadow: Color::Black,
+                        highlight: Color::Red,
+                    },
+                },
+            },
+            page: PageColors {
+                background: Color::Black,
+                foreground: Color::White,
+                border: Color::DarkGray,
+                muted: Color::Gray,
+            },
+            vi: ViModePalettes {
+                normal: Color::Reset,
+                insert: Color::LightBlue,
+                visual: Color::LightYellow,
+                operator: Color::LightGreen,
+            },
+        }
+    }
 }

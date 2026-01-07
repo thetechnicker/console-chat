@@ -1,13 +1,10 @@
 use crate::LockErrorExt;
 use crate::action::AppError;
-use crate::components::{button::*, theme::*, vim::*};
-use my_proc_macros::FromHashmap;
-use std::sync::{Arc, RwLock};
-//use color_eyre::Result;
 use crate::action::Result;
+use crate::components::{button::*, theme::*, vim::*};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{prelude::*, widgets::*};
-use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::debug;
 use tui_textarea::TextArea;
@@ -16,18 +13,6 @@ use super::Component;
 use crate::{action::Action, config::Config};
 
 const STYLE_KEY: crate::app::Mode = crate::app::Mode::Login;
-
-#[derive(serde::Serialize, serde::Deserialize, FromHashmap)]
-#[hashmap(type = "Theme")]
-struct LoginTheme {
-    #[hashmap(default = "DARK_GRAY")]
-    pub root: Theme,
-    #[hashmap(default = "GREEN")]
-    pub login: Theme,
-    #[hashmap(default = "RED")]
-    pub exit: Theme,
-    pub inserted: bool,
-}
 
 #[derive(Default)]
 pub struct Login<'a> {
@@ -114,31 +99,38 @@ impl Component for Login<'_> {
         self.active = false;
     }
     fn init(&mut self, _: Size) -> Result<()> {
-        self.vim = [Some(Vim::default()), Some(Vim::default())];
-        self.username.set_cursor_line_style(Style::default());
-        self.username
-            .set_style(Style::default().fg(Color::LightGreen));
-        self.username.set_block(VimMode::Normal.highlight_block());
+        {
+            let mut config = self.config.write().error()?;
+            let theme = match config.themes.get(&STYLE_KEY) {
+                Some(themes) => themes,
+                None => match config.themes.get(&crate::app::Mode::Global) {
+                    Some(themes) => themes,
+                    None => {
+                        config
+                            .themes
+                            .insert(crate::app::Mode::Global, Theme::default());
+                        config
+                            .themes
+                            .get(&crate::app::Mode::Global)
+                            .ok_or("This is bad")?
+                    }
+                },
+            };
+            self.vim = [Some(Vim::default()), Some(Vim::default())];
+            self.username.set_cursor_line_style(Style::default());
+            self.username
+                .set_style(Style::default().fg(Color::LightGreen));
+            self.username.set_block(VimMode::Normal.highlight_block());
 
-        self.password.set_cursor_line_style(Style::default());
-        self.password.set_mask_char('\u{2022}');
-        self.password
-            .set_style(Style::default().fg(Color::LightGreen));
-        self.password.set_block(VimMode::Normal.highlight_block());
+            self.password.set_cursor_line_style(Style::default());
+            self.password.set_mask_char('\u{2022}');
+            self.password
+                .set_style(Style::default().fg(Color::LightGreen));
+            self.password.set_block(VimMode::Normal.highlight_block());
 
-        let conf_arc = self.config.clone();
-        let mut config = conf_arc.write().error()?;
-        let themes = match config.themes.get_mut(&STYLE_KEY) {
-            Some(themes) => themes,
-            None => {
-                config.themes.insert(STYLE_KEY, HashMap::new());
-                config.themes.get_mut(&STYLE_KEY).ok_or("This is bad")?
-            }
-        };
-        let theme = LoginTheme::from(themes);
-
-        self.login = Button::new("Login", "", theme.login, Action::TriggerLogin);
-        self.exit = Button::new("Abort", "<q>", theme.exit, Action::OpenHome);
+            self.login = Button::new("Login", "", theme.buttons.accepting, Action::TriggerLogin);
+            self.exit = Button::new("Abort", "<q>", theme.buttons.denying, Action::OpenHome);
+        }
         self.update_elements();
         Ok(())
     }
@@ -150,7 +142,7 @@ impl Component for Login<'_> {
                     self.vim[i] = Some(match this_vim.transition(key.into(), textinput) {
                         Transition::Mode(mode) if this_vim.mode != mode => {
                             textinput.set_block(mode.highlight_block());
-                            textinput.set_cursor_style(mode.cursor_style());
+                            textinput.set_cursor_style(mode.cursor_style(this_vim.style));
                             if let Some(command_tx) = self.command_tx.as_ref() {
                                 match mode {
                                     VimMode::Insert => command_tx.send(Action::Insert)?,
