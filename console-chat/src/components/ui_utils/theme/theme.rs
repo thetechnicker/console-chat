@@ -1,8 +1,6 @@
+use super::defaults::*;
 use ratatui::style::{Color, Style};
 use serde::{Deserialize, Serialize};
-
-mod defaults;
-pub use defaults::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Theme {

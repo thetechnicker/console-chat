@@ -1,6 +1,5 @@
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 use std::sync::Arc;
-use std::sync::Mutex;
 
 #[derive(Clone)]
 pub struct TypeErasedWrapper {
