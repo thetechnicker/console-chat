@@ -84,7 +84,7 @@ def generate_random_string(length: int = 8):
 @router.get("/room", tags=["experimental"])
 async def random_room():
     random_string = generate_random_string()
-    return RedirectResponse(f"/room/{random_string}")
+    return random_string
 
 
 # -------------------------------------------------------------

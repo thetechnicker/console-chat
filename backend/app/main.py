@@ -19,7 +19,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 import app.logger  # type:ignore
 from app.dependencies import ErrorModel, lifespan
-from app.routers import rooms, rooms_interaction, rooms_old, users, websockets
+from app.routers import rooms, rooms_interaction, users
 
 
 def setup_logging():
@@ -149,9 +149,7 @@ async def http_exception_handler(request: Request, exc: Any):
 
 app.include_router(users.router)
 app.include_router(rooms.router)
-app.include_router(rooms_old.router)
 app.include_router(rooms_interaction.router)
-app.include_router(websockets.router)
 # app.include_router(admin.router)
 
 
