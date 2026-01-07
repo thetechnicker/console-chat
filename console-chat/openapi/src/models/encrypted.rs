@@ -30,15 +30,12 @@ impl Encrypted {
         }
     }
 }
-///
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+
+#[derive(
+    Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize, Default,
+)]
 pub enum Type {
     #[serde(rename = "ENCRYPTED")]
+    #[default]
     Encrypted,
-}
-
-impl Default for Type {
-    fn default() -> Type {
-        Self::Encrypted
-    }
 }
