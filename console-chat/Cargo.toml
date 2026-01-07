@@ -13,11 +13,10 @@ name = "basic_usage"
 name = "sse_room"
 
 [workspace]
-members = ["my-proc-macros","openapi"]
+members = ["openapi"]
 
 [dependencies]
 openapi = { path = "./openapi", features=["native-tls"]} 
-my-proc-macros = { path = "./my-proc-macros" } 
 alkali = "0.3.0"
 base64 = "0.22.1"
 better-panic = "0.3.0"
