@@ -92,9 +92,14 @@ impl Component for Home {
                     }
                 },
             };
-            self.login = Button::new("Login", "", theme.buttons.mid_accept, Action::OpenLogin);
+            self.login = Button::new("Login", "", theme.buttons.accepting, Action::OpenLogin);
             self.join = Button::new("Join", "", theme.buttons.mid_accept, Action::OpenJoin);
-            self.join = Button::new("Join Random", "", theme.buttons.normal, Action::JoinRandom);
+            self.random = Button::new(
+                "Join Random",
+                "",
+                theme.buttons.mid_accept,
+                Action::JoinRandom,
+            );
             self.settings = Button::new("Settings", "", theme.buttons.normal, Action::OpenSettings);
             self.raw_settings = Button::new(
                 "Settings File",

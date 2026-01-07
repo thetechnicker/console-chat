@@ -164,27 +164,27 @@ impl Default for Theme {
                     },
                     pressed: ButtonPalette {
                         text: Color::White,
-                        background: Color::Rgb(0, 128, 0),
+                        background: Color::Rgb(0, 128, 0), // #008000
                         shadow: Color::Black,
                         highlight: Color::Green,
                     },
                 },
                 mid_accept: ButtonStatePalettes {
                     active: ButtonPalette {
-                        text: Color::Black,
-                        background: Color::LightYellow,
-                        shadow: Color::Yellow,
+                        text: Color::White,
+                        background: Color::LightBlue,
+                        shadow: Color::Gray,
                         highlight: Color::White,
                     },
                     normal: ButtonPalette {
                         text: Color::Black,
-                        background: Color::Yellow,
+                        background: Color::Blue,
                         shadow: Color::DarkGray,
-                        highlight: Color::LightYellow,
+                        highlight: Color::LightBlue,
                     },
                     pressed: ButtonPalette {
                         text: Color::White,
-                        background: Color::Rgb(184, 134, 11),
+                        background: Color::Rgb(184, 134, 11), // #B8860B
                         shadow: Color::Black,
                         highlight: Color::Yellow,
                     },
@@ -200,7 +200,7 @@ impl Default for Theme {
                         text: Color::Black,
                         background: Color::Gray,
                         shadow: Color::DarkGray,
-                        highlight: Color::Rgb(192, 192, 192),
+                        highlight: Color::Rgb(192, 192, 192), // #C0C0C0
                     },
                     pressed: ButtonPalette {
                         text: Color::White,
@@ -217,24 +217,24 @@ impl Default for Theme {
                         highlight: Color::White,
                     },
                     normal: ButtonPalette {
-                        text: Color::White,
+                        text: Color::Black,
                         background: Color::Red,
                         shadow: Color::DarkGray,
                         highlight: Color::LightRed,
                     },
                     pressed: ButtonPalette {
                         text: Color::White,
-                        background: Color::Rgb(128, 0, 0),
+                        background: Color::Rgb(128, 0, 0), // #800000
                         shadow: Color::Black,
                         highlight: Color::Red,
                     },
                 },
             },
             page: PageColors {
-                background: Color::Black,
-                foreground: Color::White,
-                border: Color::DarkGray,
-                muted: Color::Gray,
+                background: Color::Rgb(68, 68, 68), // #444444
+                foreground: Color::Black,
+                border: Color::Rgb(51, 51, 51), // #333333
+                muted: Color::Rgb(85, 85, 85),  // #555555
             },
             vi: ViModePalettes {
                 normal: Color::Reset,

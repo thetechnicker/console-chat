@@ -32,6 +32,7 @@ pub struct Config {
     pub network: NetworkConfig,
     #[serde(default)]
     pub keybindings: KeyBindings,
+    //#[serde(skip)]
     #[serde(default)]
     pub themes: Themes,
 }
