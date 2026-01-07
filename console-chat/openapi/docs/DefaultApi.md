@@ -4,14 +4,14 @@ All URIs are relative to *https://localhost*
 
 Method | HTTP request | Description
 ------------- | ------------- | -------------
-[**root_home**](DefaultApi.md#root_home) | **GET** / | Home
+[**root_root**](DefaultApi.md#root_root) | **GET** / | Root
 
 
 
-## root_home
+## root_root
 
-> serde_json::Value root_home()
-Home
+> serde_json::Value root_root()
+Root
 
 ### Parameters
 

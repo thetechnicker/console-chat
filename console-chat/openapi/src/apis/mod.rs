@@ -1,4 +1,3 @@
-use reqwest_eventsource::{CannotCloneRequestError, Error as EventError};
 use std::error;
 use std::fmt;
 
@@ -12,59 +11,47 @@ pub struct ResponseContent<T> {
 #[derive(Debug)]
 pub enum Error<T> {
     Reqwest(reqwest::Error),
-    ReqwestEventSource(EventError),
     Serde(serde_json::Error),
     Io(std::io::Error),
     ResponseError(ResponseContent<T>),
-    EventSourceError(CannotCloneRequestError),
 }
 
-impl<T> fmt::Display for Error<T> {
+impl <T> fmt::Display for Error<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let (module, e) = match self {
             Error::Reqwest(e) => ("reqwest", e.to_string()),
-            Error::ReqwestEventSource(e) => ("reqwest-eventsource", e.to_string()),
             Error::Serde(e) => ("serde", e.to_string()),
             Error::Io(e) => ("IO", e.to_string()),
-            Error::EventSourceError(e) => ("event source", e.to_string()),
             Error::ResponseError(e) => ("response", format!("status code {}", e.status)),
         };
         write!(f, "error in {}: {}", module, e)
     }
 }
 
-impl<T: fmt::Debug> error::Error for Error<T> {
+impl <T: fmt::Debug> error::Error for Error<T> {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         Some(match self {
             Error::Reqwest(e) => e,
-            Error::ReqwestEventSource(e) => e,
             Error::Serde(e) => e,
             Error::Io(e) => e,
-            Error::EventSourceError(e) => e,
             Error::ResponseError(_) => return None,
         })
     }
 }
 
-impl<T> From<reqwest_eventsource::Error> for Error<T> {
-    fn from(e: reqwest_eventsource::Error) -> Self {
-        Error::ReqwestEventSource(e)
-    }
-}
-
-impl<T> From<reqwest::Error> for Error<T> {
+impl <T> From<reqwest::Error> for Error<T> {
     fn from(e: reqwest::Error) -> Self {
         Error::Reqwest(e)
     }
 }
 
-impl<T> From<serde_json::Error> for Error<T> {
+impl <T> From<serde_json::Error> for Error<T> {
     fn from(e: serde_json::Error) -> Self {
         Error::Serde(e)
     }
 }
 
-impl<T> From<std::io::Error> for Error<T> {
+impl <T> From<std::io::Error> for Error<T> {
     fn from(e: std::io::Error) -> Self {
         Error::Io(e)
     }
@@ -91,10 +78,8 @@ pub fn parse_deep_object(prefix: &str, value: &serde_json::Value) -> Vec<(String
                             value,
                         ));
                     }
-                }
-                serde_json::Value::String(s) => {
-                    params.push((format!("{}[{}]", prefix, key), s.clone()))
-                }
+                },
+                serde_json::Value::String(s) => params.push((format!("{}[{}]", prefix, key), s.clone())),
                 _ => params.push((format!("{}[{}]", prefix, key), value.to_string())),
             }
         }
@@ -111,23 +96,22 @@ pub fn parse_deep_object(prefix: &str, value: &serde_json::Value) -> Vec<(String
 enum ContentType {
     Json,
     Text,
-    Unsupported(String),
+    Unsupported(String)
 }
 
 impl From<&str> for ContentType {
     fn from(content_type: &str) -> Self {
         if content_type.starts_with("application") && content_type.contains("json") {
-            Self::Json
+            return Self::Json;
         } else if content_type.starts_with("text/plain") {
-            Self::Text
+            return Self::Text;
         } else {
-            Self::Unsupported(content_type.to_string())
+            return Self::Unsupported(content_type.to_string());
         }
     }
 }
 
 pub mod default_api;
-pub mod deprecated_api;
 pub mod experimental_api;
 pub mod rooms_api;
 pub mod users_api;
