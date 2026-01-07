@@ -112,16 +112,16 @@ pub struct Theme {
     pub vi: ViModePalettes,
 }
 
-fn parse_hex(s: &str) -> Option<(u8, u8, u8)> {
-    let s = s.strip_prefix('#').unwrap_or(s);
-    if s.len() != 6 {
-        return None;
-    }
-    let r = u8::from_str_radix(&s[0..2], 16).ok()?;
-    let g = u8::from_str_radix(&s[2..4], 16).ok()?;
-    let b = u8::from_str_radix(&s[4..6], 16).ok()?;
-    Some((r, g, b))
-}
+//fn parse_hex(s: &str) -> Option<(u8, u8, u8)> {
+//    let s = s.strip_prefix('#').unwrap_or(s);
+//    if s.len() != 6 {
+//        return None;
+//    }
+//    let r = u8::from_str_radix(&s[0..2], 16).ok()?;
+//    let g = u8::from_str_radix(&s[2..4], 16).ok()?;
+//    let b = u8::from_str_radix(&s[4..6], 16).ok()?;
+//    Some((r, g, b))
+//}
 
 /// Implement the cursor_style function you showed, using Theme.vi.
 impl ViModePalettes {
@@ -136,13 +136,13 @@ impl ViModePalettes {
     }
 }
 
-/// Helper: produce a ratatui Style for a given ButtonPalette (for a particular state)
-pub fn style_for_button(p: &ButtonPalette) -> Style {
-    // Use text as foreground and background as background; highlight/shadow not used directly in Style
-    let fg = p.text;
-    let bg = p.background;
-    Style::default().fg(fg).bg(bg)
-}
+///// Helper: produce a ratatui Style for a given ButtonPalette (for a particular state)
+//pub fn style_for_button(p: &ButtonPalette) -> Style {
+//    // Use text as foreground and background as background; highlight/shadow not used directly in Style
+//    let fg = p.text;
+//    let bg = p.background;
+//    Style::default().fg(fg).bg(bg)
+//}
 
 /// Example default theme
 impl Default for Theme {
