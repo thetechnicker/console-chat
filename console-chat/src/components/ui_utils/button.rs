@@ -1,4 +1,4 @@
-use super::theme::*;
+use super::theme;
 use crate::action::Action;
 use ratatui::{
     buffer::Buffer,
@@ -16,18 +16,27 @@ pub enum ButtonState {
     Active,
 }
 
-pub const fn colors_from_state(state: ButtonState, theme: Theme) -> (Color, Color, Color, Color) {
-    match state {
-        ButtonState::Normal => (theme.background, theme.text, theme.shadow, theme.highlight),
-        ButtonState::Selected => (theme.highlight, theme.text, theme.shadow, theme.highlight),
-        ButtonState::Active => (theme.background, theme.text, theme.highlight, theme.shadow),
-    }
+pub const fn colors_from_state(
+    state: ButtonState,
+    theme: theme::ButtonStatePalettes,
+) -> (Color, Color, Color, Color) {
+    let used_theme = match state {
+        ButtonState::Normal => theme.normal,
+        ButtonState::Selected => theme.active,
+        ButtonState::Active => theme.pressed,
+    };
+    (
+        used_theme.background,
+        used_theme.text,
+        used_theme.shadow,
+        used_theme.highlight,
+    )
 }
 
 #[derive(Debug, Default)]
 pub struct Button {
     state: ButtonState,
-    theme: Theme,
+    theme: theme::ButtonStatePalettes,
     label: String,
     sub_titel: String,
     action: Option<Action>,
@@ -37,7 +46,7 @@ impl Button {
     pub fn new(
         label: impl Into<String>,
         sub_titel: impl Into<String>,
-        theme: Theme,
+        theme: theme::ButtonStatePalettes,
         action: Action,
     ) -> Self {
         Self {

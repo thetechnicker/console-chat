@@ -11,7 +11,7 @@ use futures_util::stream::StreamExt;
 use lazy_static::lazy_static;
 use openapi::apis::Error as ApiError;
 use openapi::apis::configuration::Configuration;
-use openapi::apis::{experimental_api, users_api};
+use openapi::apis::{rooms_api, users_api};
 use openapi::models::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -146,7 +146,7 @@ async fn join(room: &str) -> Result<()> {
 #[tracing::instrument]
 async fn listen(room: Arc<String>) -> Result<()> {
     let conf = CONFIGURATION.read().await.clone();
-    let mut stream = experimental_api::experimental_listen(&conf, &room).await?;
+    let mut stream = rooms_api::rooms_listen(&conf, &room).await?;
     let action_tx = ACTION_TX.read().await.clone();
     let _ = action_tx.send(Action::OpenChat);
     debug!("Starting listening on room: {}", room);
@@ -320,7 +320,7 @@ async fn send_message_from_content(message_content: Content) -> Result<()> {
         .as_ref()
         .ok_or_eyre("You Havent Joined a room")?;
     let conf = CONFIGURATION.read().await;
-    experimental_api::experimental_send(&conf, &task.room, msg).await?;
+    rooms_api::rooms_send(&conf, &task.room, msg).await?;
     Ok(())
 }
 

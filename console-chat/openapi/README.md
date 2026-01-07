@@ -26,24 +26,18 @@ All URIs are relative to *https://localhost*
 
 Class | Method | HTTP request | Description
 ------------ | ------------- | ------------- | -------------
-*DefaultApi* | [**root_home**](docs/DefaultApi.md#root_home) | **GET** / | Home
-*DeprecatedApi* | [**deprecated_listen**](docs/DeprecatedApi.md#deprecated_listen) | **GET** /room/{room} | Listen
-*DeprecatedApi* | [**deprecated_send**](docs/DeprecatedApi.md#deprecated_send) | **POST** /room/{room} | Send
-*ExperimentalApi* | [**experimental_listen**](docs/ExperimentalApi.md#experimental_listen) | **GET** /r/{room} | Listen
-*ExperimentalApi* | [**experimental_listen_static**](docs/ExperimentalApi.md#experimental_listen_static) | **GET** /r/static/{room} | Listen Static
-*ExperimentalApi* | [**experimental_send**](docs/ExperimentalApi.md#experimental_send) | **POST** /r/{room} | Send
-*ExperimentalApi* | [**experimental_send_static**](docs/ExperimentalApi.md#experimental_send_static) | **POST** /r/static/{room} | Send Static
+*DefaultApi* | [**root_root**](docs/DefaultApi.md#root_root) | **GET** / | Root
 *ExperimentalApi* | [**rooms_random_room**](docs/ExperimentalApi.md#rooms_random_room) | **GET** /rooms/room | Random Room
-*RoomsApi* | [**experimental_listen**](docs/RoomsApi.md#experimental_listen) | **GET** /r/{room} | Listen
-*RoomsApi* | [**experimental_listen_static**](docs/RoomsApi.md#experimental_listen_static) | **GET** /r/static/{room} | Listen Static
-*RoomsApi* | [**experimental_send**](docs/RoomsApi.md#experimental_send) | **POST** /r/{room} | Send
-*RoomsApi* | [**experimental_send_static**](docs/RoomsApi.md#experimental_send_static) | **POST** /r/static/{room} | Send Static
 *RoomsApi* | [**rooms_create_room**](docs/RoomsApi.md#rooms_create_room) | **PUT** /rooms/{room} | Create Room
 *RoomsApi* | [**rooms_delete_room**](docs/RoomsApi.md#rooms_delete_room) | **DELETE** /rooms/{room} | Delete Room
 *RoomsApi* | [**rooms_get_my_rooms**](docs/RoomsApi.md#rooms_get_my_rooms) | **GET** /rooms/mine | Get My Rooms
 *RoomsApi* | [**rooms_get_room**](docs/RoomsApi.md#rooms_get_room) | **GET** /rooms/{room} | Get Room
 *RoomsApi* | [**rooms_list_rooms**](docs/RoomsApi.md#rooms_list_rooms) | **GET** /rooms/ | List Rooms
+*RoomsApi* | [**rooms_listen**](docs/RoomsApi.md#rooms_listen) | **GET** /room/{room} | Listen
+*RoomsApi* | [**rooms_listen_static**](docs/RoomsApi.md#rooms_listen_static) | **GET** /room/static/{room} | Listen Static
 *RoomsApi* | [**rooms_random_room**](docs/RoomsApi.md#rooms_random_room) | **GET** /rooms/room | Random Room
+*RoomsApi* | [**rooms_send**](docs/RoomsApi.md#rooms_send) | **POST** /room/{room} | Send
+*RoomsApi* | [**rooms_send_static**](docs/RoomsApi.md#rooms_send_static) | **POST** /room/static/{room} | Send Static
 *RoomsApi* | [**rooms_update_room**](docs/RoomsApi.md#rooms_update_room) | **POST** /rooms/{room} | Update Room
 *UsersApi* | [**users_get_me**](docs/UsersApi.md#users_get_me) | **GET** /users/me | Get Me
 *UsersApi* | [**users_login**](docs/UsersApi.md#users_login) | **POST** /users/login | Login

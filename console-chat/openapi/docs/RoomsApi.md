@@ -4,132 +4,18 @@ All URIs are relative to *https://localhost*
 
 Method | HTTP request | Description
 ------------- | ------------- | -------------
-[**experimental_listen**](RoomsApi.md#experimental_listen) | **GET** /r/{room} | Listen
-[**experimental_listen_static**](RoomsApi.md#experimental_listen_static) | **GET** /r/static/{room} | Listen Static
-[**experimental_send**](RoomsApi.md#experimental_send) | **POST** /r/{room} | Send
-[**experimental_send_static**](RoomsApi.md#experimental_send_static) | **POST** /r/static/{room} | Send Static
 [**rooms_create_room**](RoomsApi.md#rooms_create_room) | **PUT** /rooms/{room} | Create Room
 [**rooms_delete_room**](RoomsApi.md#rooms_delete_room) | **DELETE** /rooms/{room} | Delete Room
 [**rooms_get_my_rooms**](RoomsApi.md#rooms_get_my_rooms) | **GET** /rooms/mine | Get My Rooms
 [**rooms_get_room**](RoomsApi.md#rooms_get_room) | **GET** /rooms/{room} | Get Room
 [**rooms_list_rooms**](RoomsApi.md#rooms_list_rooms) | **GET** /rooms/ | List Rooms
+[**rooms_listen**](RoomsApi.md#rooms_listen) | **GET** /room/{room} | Listen
+[**rooms_listen_static**](RoomsApi.md#rooms_listen_static) | **GET** /room/static/{room} | Listen Static
 [**rooms_random_room**](RoomsApi.md#rooms_random_room) | **GET** /rooms/room | Random Room
+[**rooms_send**](RoomsApi.md#rooms_send) | **POST** /room/{room} | Send
+[**rooms_send_static**](RoomsApi.md#rooms_send_static) | **POST** /room/static/{room} | Send Static
 [**rooms_update_room**](RoomsApi.md#rooms_update_room) | **POST** /rooms/{room} | Update Room
 
-
-
-## experimental_listen
-
-> experimental_listen(room)
-Listen
-
-### Parameters
-
-
-Name | Type | Description  | Required | Notes
-------------- | ------------- | ------------- | ------------- | -------------
-**room** | **String** |  | [required] |
-
-### Return type
-
- (empty response body)
-
-### Authorization
-
-[HTTPBearer](../README.md#HTTPBearer)
-
-### HTTP request headers
-
-- **Content-Type**: Not defined
-- **Accept**: text/event-stream, application/json
-
-[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
-
-
-## experimental_listen_static
-
-> experimental_listen_static(room)
-Listen Static
-
-### Parameters
-
-
-Name | Type | Description  | Required | Notes
-------------- | ------------- | ------------- | ------------- | -------------
-**room** | **String** |  | [required] |
-
-### Return type
-
- (empty response body)
-
-### Authorization
-
-[HTTPBearer](../README.md#HTTPBearer)
-
-### HTTP request headers
-
-- **Content-Type**: Not defined
-- **Accept**: text/event-stream, application/json
-
-[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
-
-
-## experimental_send
-
-> serde_json::Value experimental_send(room, message_send)
-Send
-
-### Parameters
-
-
-Name | Type | Description  | Required | Notes
-------------- | ------------- | ------------- | ------------- | -------------
-**room** | **String** |  | [required] |
-**message_send** | [**MessageSend**](MessageSend.md) |  | [required] |
-
-### Return type
-
-[**serde_json::Value**](serde_json::Value.md)
-
-### Authorization
-
-[HTTPBearer](../README.md#HTTPBearer)
-
-### HTTP request headers
-
-- **Content-Type**: application/json
-- **Accept**: application/json
-
-[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
-
-
-## experimental_send_static
-
-> serde_json::Value experimental_send_static(room, message_send)
-Send Static
-
-### Parameters
-
-
-Name | Type | Description  | Required | Notes
-------------- | ------------- | ------------- | ------------- | -------------
-**room** | **String** |  | [required] |
-**message_send** | [**MessageSend**](MessageSend.md) |  | [required] |
-
-### Return type
-
-[**serde_json::Value**](serde_json::Value.md)
-
-### Authorization
-
-[HTTPBearer](../README.md#HTTPBearer)
-
-### HTTP request headers
-
-- **Content-Type**: application/json
-- **Accept**: application/json
-
-[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
 ## rooms_create_room
@@ -275,6 +161,62 @@ This endpoint does not need any parameter.
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## rooms_listen
+
+> rooms_listen(room)
+Listen
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**room** | **String** |  | [required] |
+
+### Return type
+
+ (empty response body)
+
+### Authorization
+
+[HTTPBearer](../README.md#HTTPBearer)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: text/event-stream, application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## rooms_listen_static
+
+> rooms_listen_static(room)
+Listen Static
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**room** | **String** |  | [required] |
+
+### Return type
+
+ (empty response body)
+
+### Authorization
+
+[HTTPBearer](../README.md#HTTPBearer)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: text/event-stream, application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## rooms_random_room
 
 > serde_json::Value rooms_random_room()
@@ -295,6 +237,64 @@ This endpoint does not need any parameter.
 ### HTTP request headers
 
 - **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## rooms_send
+
+> serde_json::Value rooms_send(room, message_send)
+Send
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**room** | **String** |  | [required] |
+**message_send** | [**MessageSend**](MessageSend.md) |  | [required] |
+
+### Return type
+
+[**serde_json::Value**](serde_json::Value.md)
+
+### Authorization
+
+[HTTPBearer](../README.md#HTTPBearer)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## rooms_send_static
+
+> serde_json::Value rooms_send_static(room, message_send)
+Send Static
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**room** | **String** |  | [required] |
+**message_send** | [**MessageSend**](MessageSend.md) |  | [required] |
+
+### Return type
+
+[**serde_json::Value**](serde_json::Value.md)
+
+### Authorization
+
+[HTTPBearer](../README.md#HTTPBearer)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
 - **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)

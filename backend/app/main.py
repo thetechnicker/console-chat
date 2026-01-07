@@ -13,13 +13,13 @@ import yaml
 from asgi_correlation_id import CorrelationIdMiddleware, correlation_id
 from fastapi import FastAPI, Request, status
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.routing import APIRoute
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 import app.logger  # type:ignore
 from app.dependencies import ErrorModel, lifespan
-from app.routers import rooms, rooms_interaction, rooms_old, users, websockets
+from app.routers import rooms, rooms_interaction, users
 
 
 def setup_logging():
@@ -90,11 +90,6 @@ async def log_requests(request: Request, call_next: Any):
 app.add_middleware(CorrelationIdMiddleware)
 
 
-@app.get("/")
-def home():
-    return HTMLResponse("Hello")
-
-
 ERROR_LOG_VERSION: int = 0
 
 
@@ -149,17 +144,14 @@ async def http_exception_handler(request: Request, exc: Any):
 
 app.include_router(users.router)
 app.include_router(rooms.router)
-app.include_router(rooms_old.router)
 app.include_router(rooms_interaction.router)
-app.include_router(websockets.router)
 # app.include_router(admin.router)
 
 
-# WARNING: this is for debug only
-# @app.get("/valkey", response_model=list[str])
-# async def valkey_get(db: DatabaseDependency):
-#    keys = await db.valkey.keys()
-#    return keys
+@app.get("/")
+def root():
+    return RedirectResponse("/api/v1/docs")
+
 
 if __name__ == "__main__":
     import uvicorn

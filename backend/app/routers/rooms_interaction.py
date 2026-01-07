@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Body, Request
-from sqlmodel import select
+from sqlmodel import col, select
 from sse_starlette.event import ServerSentEvent
 from sse_starlette.sse import EventSourceResponse
 
@@ -19,8 +19,8 @@ STREAM_DELAY = 1  # second
 RETRY_TIMEOUT = 15000  # millisecond
 
 router = APIRouter(
-    prefix="/r",
-    tags=["experimental", "rooms"],
+    prefix="/room",
+    tags=["rooms"],
 )
 
 
@@ -169,7 +169,7 @@ async def event_generator(
         stmt = (
             select(Message)
             .where(Message.room.name == room)
-            .order_by(Message.send_at)  # type:ignore
+            .order_by(col(Message.send_at))
             .limit(10)
         )
         messages_json = await db.psql_session.exec(stmt)  # type: ignore

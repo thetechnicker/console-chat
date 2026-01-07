@@ -7,8 +7,6 @@ services:
     restart: on-failure
     env_file:
       - .env
-    ports:
-      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready"]
       interval: 10s
@@ -24,8 +22,6 @@ services:
     image: valkey/valkey:latest
     hostname: valkey
     restart: on-failure
-    ports:
-      - "6379:6379"
     volumes:
       - valkey_data:/data
       - ./logs/valkey:/data/logs # Mounting logs to host

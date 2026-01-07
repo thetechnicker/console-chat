@@ -32,6 +32,7 @@ pub struct Config {
     pub network: NetworkConfig,
     #[serde(default)]
     pub keybindings: KeyBindings,
+    //#[serde(skip)]
     #[serde(default)]
     pub themes: Themes,
 }
@@ -75,47 +76,14 @@ impl Default for NetworkConfig {
 
 lazy_static! {
     pub static ref PROJECT_NAME: String = env!("CARGO_CRATE_NAME").to_uppercase().to_string();
-    pub static ref DATA_FOLDER: Option<PathBuf> = get_data_folder();
-    pub static ref CONFIG_FOLDER: Option<PathBuf> = get_config_folder();
-}
-
-#[cfg(test)]
-#[cfg(test)]
-lazy_static! {
-    pub static ref TEMP_FOLDER: Option<tempfile::TempDir> = get_temp_folder();
-}
-
-#[cfg(test)]
-fn get_temp_folder() -> Option<tempfile::TempDir> {
-    let file = tempfile::tempdir().ok()?;
-
-    Some(file)
-}
-
-fn get_data_folder() -> Option<PathBuf> {
-    #[cfg(test)]
-    {
-        TEMP_FOLDER.as_ref().map(|f| f.path().join("data"))
-    }
-    #[cfg(not(test))]
-    {
+    pub static ref DATA_FOLDER: Option<PathBuf> =
         env::var(format!("{}_DATA", PROJECT_NAME.clone()))
             .ok()
-            .map(PathBuf::from)
-    }
-}
-
-fn get_config_folder() -> Option<PathBuf> {
-    #[cfg(test)]
-    {
-        TEMP_FOLDER.as_ref().map(|f| f.path().join("config"))
-    }
-    #[cfg(not(test))]
-    {
+            .map(PathBuf::from);
+    pub static ref CONFIG_FOLDER: Option<PathBuf> =
         env::var(format!("{}_CONFIG", PROJECT_NAME.clone()))
             .ok()
-            .map(PathBuf::from)
-    }
+            .map(PathBuf::from);
 }
 
 impl Config {
@@ -179,7 +147,31 @@ impl Config {
     }
 }
 
+#[cfg(test)]
+mod tmp_folder {
+    use super::*;
+    lazy_static! {
+        pub static ref TEMP_FOLDER: Option<tempfile::TempDir> = get_temp_folder();
+    }
+
+    fn get_temp_folder() -> Option<tempfile::TempDir> {
+        let file = tempfile::tempdir().ok()?;
+        Some(file)
+    }
+    pub(super) fn get_base_path() -> PathBuf {
+        TEMP_FOLDER
+            .as_ref()
+            .expect("cannot run tests, cant access temp files")
+            .path()
+            .into()
+    }
+}
+
 pub fn get_data_dir() -> PathBuf {
+    #[cfg(test)]
+    if cfg!(test) {
+        return tmp_folder::get_base_path().join(".data");
+    }
     if let Some(s) = DATA_FOLDER.clone() {
         s
     } else if let Some(proj_dirs) = project_directory() {
@@ -190,6 +182,10 @@ pub fn get_data_dir() -> PathBuf {
 }
 
 pub fn get_config_dir() -> PathBuf {
+    #[cfg(test)]
+    if cfg!(test) {
+        return tmp_folder::get_base_path().join(".config");
+    }
     if let Some(s) = CONFIG_FOLDER.clone() {
         s
     } else if let Some(proj_dirs) = project_directory() {
@@ -200,7 +196,7 @@ pub fn get_config_dir() -> PathBuf {
 }
 
 fn project_directory() -> Option<ProjectDirs> {
-    ProjectDirs::from("com", "kdheepak", env!("CARGO_PKG_NAME"))
+    ProjectDirs::from("com", "lucalhost", env!("CARGO_PKG_NAME"))
 }
 
 #[derive(Clone, Debug, Default, Deref, DerefMut)]
@@ -400,7 +396,8 @@ pub fn parse_key_sequence(raw: &str) -> Result<Vec<KeyEvent>, String> {
 }
 
 #[derive(Clone, Serialize, Debug, Default, Deserialize, Deref, DerefMut)]
-pub struct Themes(pub HashMap<Mode, HashMap<String, crate::components::theme::Theme>>);
+pub struct Themes(pub HashMap<Mode, crate::components::theme::Theme>);
+//pub struct Themes(pub HashMap<Mode, HashMap<String, crate::components::theme::old_theme::Theme>>);
 
 /// Might  be use full when adding key shortcut hints to buttons
 #[allow(dead_code)]
