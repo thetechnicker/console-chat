@@ -33,6 +33,7 @@ pub enum Action {
     PerformLogin(String, String),
     TriggerJoin,
     PerformJoin(String),
+    JoinRandom,
     SendMessage(String),
     Me(UserPrivate),
     ReceivedMessage(Message),

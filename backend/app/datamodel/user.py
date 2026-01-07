@@ -93,6 +93,7 @@ class User(UserBase, table=True):
     appearance: Appearance = Relationship()
     appearance_id: int | None = Field(foreign_key="appearance.id", default=None)
     static_rooms: List["StaticRoom"] = Relationship(back_populates="owner")
+    deactivated: bool = Field(default=False)
 
 
 class UserPublic(UserBase):

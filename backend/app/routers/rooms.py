@@ -4,7 +4,6 @@ import string
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import RedirectResponse
 from sqlmodel import col, or_, select
 
 from app.datamodel.message import *
@@ -81,7 +80,7 @@ def generate_random_string(length: int = 8):
     return "".join(random.choice(letters) for _ in range(length))
 
 
-@router.get("/room", tags=["experimental"])
+@router.get("/room")
 async def random_room():
     random_string = generate_random_string()
     return random_string

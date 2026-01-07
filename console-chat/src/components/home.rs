@@ -19,6 +19,8 @@ struct HomeTheme {
     pub root: Theme,
     #[hashmap(default = "GREEN")]
     pub join: Theme,
+    #[hashmap(default = "CYAN")]
+    pub random: Theme,
     #[hashmap(default = "BLUE")]
     pub login: Theme,
     #[hashmap(default = "GRAY")]
@@ -40,6 +42,7 @@ pub struct Home {
     home_theme: HomeTheme,
 
     join: Button,
+    random: Button,
     login: Button,
     settings: Button,
     raw_settings: Button,
@@ -50,7 +53,7 @@ pub struct Home {
 }
 
 impl Home {
-    pub const MAX_ELEMENTS: usize = 6;
+    pub const MAX_ELEMENTS: usize = 7;
 
     pub fn new() -> Self {
         Self::default()
@@ -81,6 +84,7 @@ impl Home {
     const fn get_buttons(&mut self) -> [&mut Button; Self::MAX_ELEMENTS] {
         [
             &mut self.join,
+            &mut self.random,
             &mut self.login,
             &mut self.settings,
             &mut self.raw_settings,
@@ -108,6 +112,12 @@ impl Component for Home {
         self.home_theme = HomeTheme::from(themes);
         self.login = Button::new("Login", "", self.home_theme.login, Action::OpenLogin);
         self.join = Button::new("Join", "", self.home_theme.join, Action::OpenJoin);
+        self.join = Button::new(
+            "Join Random",
+            "",
+            self.home_theme.random,
+            Action::JoinRandom,
+        );
         self.settings = Button::new(
             "Settings",
             "",
