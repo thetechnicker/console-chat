@@ -10,42 +10,10 @@
 
 use super::{ContentType, Error, configuration};
 use crate::{apis::ResponseContent, models};
+use futures_util::StreamExt;
 use reqwest;
+use reqwest_eventsource::{Error as EventError, *};
 use serde::{Deserialize, Serialize, de::Error as _};
-
-/// struct for typed errors of method [`experimental_listen`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum ExperimentalListenError {
-    Status401(models::ErrorModel),
-    Status422(models::HttpValidationError),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`experimental_listen_static`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum ExperimentalListenStaticError {
-    Status401(models::ErrorModel),
-    Status422(models::HttpValidationError),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`experimental_send`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum ExperimentalSendError {
-    Status422(models::HttpValidationError),
-    UnknownValue(serde_json::Value),
-}
-
-/// struct for typed errors of method [`experimental_send_static`]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum ExperimentalSendStaticError {
-    Status422(models::HttpValidationError),
-    UnknownValue(serde_json::Value),
-}
 
 /// struct for typed errors of method [`rooms_create_room`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -93,10 +61,44 @@ pub enum RoomsListRoomsError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`rooms_listen`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum RoomsListenError {
+    Status401(models::ErrorModel),
+    Status422(models::HttpValidationError),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`rooms_listen_static`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum RoomsListenStaticError {
+    Status401(models::ErrorModel),
+    Status422(models::HttpValidationError),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`rooms_random_room`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum RoomsRandomRoomError {
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`rooms_send`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum RoomsSendError {
+    Status422(models::HttpValidationError),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`rooms_send_static`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum RoomsSendStaticError {
+    Status422(models::HttpValidationError),
     UnknownValue(serde_json::Value),
 }
 
@@ -108,206 +110,6 @@ pub enum RoomsUpdateRoomError {
     Status404(models::ErrorModel),
     Status422(models::HttpValidationError),
     UnknownValue(serde_json::Value),
-}
-
-pub async fn experimental_listen(
-    configuration: &configuration::Configuration,
-    room: &str,
-) -> Result<(), Error<ExperimentalListenError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
-    let p_path_room = room;
-
-    let uri_str = format!(
-        "{}/r/{room}",
-        configuration.base_path,
-        room = crate::apis::urlencode(p_path_room)
-    );
-    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
-
-    if let Some(ref user_agent) = configuration.user_agent {
-        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
-    }
-    if let Some(ref token) = configuration.bearer_access_token {
-        req_builder = req_builder.bearer_auth(token.to_owned());
-    };
-
-    let req = req_builder.build()?;
-    let resp = configuration.client.execute(req).await?;
-
-    let status = resp.status();
-
-    if !status.is_client_error() && !status.is_server_error() {
-        Ok(())
-    } else {
-        let content = resp.text().await?;
-        let entity: Option<ExperimentalListenError> = serde_json::from_str(&content).ok();
-        Err(Error::ResponseError(ResponseContent {
-            status,
-            content,
-            entity,
-        }))
-    }
-}
-
-pub async fn experimental_listen_static(
-    configuration: &configuration::Configuration,
-    room: &str,
-) -> Result<(), Error<ExperimentalListenStaticError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
-    let p_path_room = room;
-
-    let uri_str = format!(
-        "{}/r/static/{room}",
-        configuration.base_path,
-        room = crate::apis::urlencode(p_path_room)
-    );
-    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
-
-    if let Some(ref user_agent) = configuration.user_agent {
-        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
-    }
-    if let Some(ref token) = configuration.bearer_access_token {
-        req_builder = req_builder.bearer_auth(token.to_owned());
-    };
-
-    let req = req_builder.build()?;
-    let resp = configuration.client.execute(req).await?;
-
-    let status = resp.status();
-
-    if !status.is_client_error() && !status.is_server_error() {
-        Ok(())
-    } else {
-        let content = resp.text().await?;
-        let entity: Option<ExperimentalListenStaticError> = serde_json::from_str(&content).ok();
-        Err(Error::ResponseError(ResponseContent {
-            status,
-            content,
-            entity,
-        }))
-    }
-}
-
-pub async fn experimental_send(
-    configuration: &configuration::Configuration,
-    room: &str,
-    message_send: models::MessageSend,
-) -> Result<serde_json::Value, Error<ExperimentalSendError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
-    let p_path_room = room;
-    let p_body_message_send = message_send;
-
-    let uri_str = format!(
-        "{}/r/{room}",
-        configuration.base_path,
-        room = crate::apis::urlencode(p_path_room)
-    );
-    let mut req_builder = configuration
-        .client
-        .request(reqwest::Method::POST, &uri_str);
-
-    if let Some(ref user_agent) = configuration.user_agent {
-        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
-    }
-    if let Some(ref token) = configuration.bearer_access_token {
-        req_builder = req_builder.bearer_auth(token.to_owned());
-    };
-    req_builder = req_builder.json(&p_body_message_send);
-
-    let req = req_builder.build()?;
-    let resp = configuration.client.execute(req).await?;
-
-    let status = resp.status();
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
-
-    if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => Err(Error::from(serde_json::Error::custom(
-                "Received `text/plain` content type response that cannot be converted to `serde_json::Value`",
-            ))),
-            ContentType::Unsupported(unknown_type) => {
-                Err(Error::from(serde_json::Error::custom(format!(
-                    "Received `{unknown_type}` content type response that cannot be converted to `serde_json::Value`"
-                ))))
-            }
-        }
-    } else {
-        let content = resp.text().await?;
-        let entity: Option<ExperimentalSendError> = serde_json::from_str(&content).ok();
-        Err(Error::ResponseError(ResponseContent {
-            status,
-            content,
-            entity,
-        }))
-    }
-}
-
-pub async fn experimental_send_static(
-    configuration: &configuration::Configuration,
-    room: &str,
-    message_send: models::MessageSend,
-) -> Result<serde_json::Value, Error<ExperimentalSendStaticError>> {
-    // add a prefix to parameters to efficiently prevent name collisions
-    let p_path_room = room;
-    let p_body_message_send = message_send;
-
-    let uri_str = format!(
-        "{}/r/static/{room}",
-        configuration.base_path,
-        room = crate::apis::urlencode(p_path_room)
-    );
-    let mut req_builder = configuration
-        .client
-        .request(reqwest::Method::POST, &uri_str);
-
-    if let Some(ref user_agent) = configuration.user_agent {
-        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
-    }
-    if let Some(ref token) = configuration.bearer_access_token {
-        req_builder = req_builder.bearer_auth(token.to_owned());
-    };
-    req_builder = req_builder.json(&p_body_message_send);
-
-    let req = req_builder.build()?;
-    let resp = configuration.client.execute(req).await?;
-
-    let status = resp.status();
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
-
-    if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => Err(Error::from(serde_json::Error::custom(
-                "Received `text/plain` content type response that cannot be converted to `serde_json::Value`",
-            ))),
-            ContentType::Unsupported(unknown_type) => {
-                Err(Error::from(serde_json::Error::custom(format!(
-                    "Received `{unknown_type}` content type response that cannot be converted to `serde_json::Value`"
-                ))))
-            }
-        }
-    } else {
-        let content = resp.text().await?;
-        let entity: Option<ExperimentalSendStaticError> = serde_json::from_str(&content).ok();
-        Err(Error::ResponseError(ResponseContent {
-            status,
-            content,
-            entity,
-        }))
-    }
 }
 
 /// Create a new room.  Args:     room (str): The name of the room to create.     user (PermanentUserDependency): The currently authenticated permanent user.     db (DatabaseDependency): The database dependency for executing queries.     room_data (CreateRoom): Data for the new room including private level and invited users.  Raises:     HTTPException: If the room already exists.  Returns:     StaticRoomPublic: The newly created room's public details.
@@ -566,6 +368,53 @@ pub async fn rooms_list_rooms(
     }
 }
 
+pub async fn rooms_listen(
+    configuration: &configuration::Configuration,
+    room: &str,
+) -> Result<EventSource, Error<()>> {
+    // add a prefix to parameters to efficiently prevent name collisions
+    let p_path_room = room;
+
+    let uri_str = format!(
+        "{}/r/{room}",
+        configuration.base_path,
+        room = crate::apis::urlencode(p_path_room)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder.eventsource().map_err(Error::EventSourceError)
+}
+
+pub async fn rooms_listen_static(
+    configuration: &configuration::Configuration,
+    room: &str,
+) -> Result<EventSource, Error<()>> {
+    // add a prefix to parameters to efficiently prevent name collisions
+    let p_path_room = room;
+
+    let uri_str = format!(
+        "{}/r/static/{room}",
+        configuration.base_path,
+        room = crate::apis::urlencode(p_path_room)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    req_builder.eventsource().map_err(Error::EventSourceError)
+}
+
 pub async fn rooms_random_room(
     configuration: &configuration::Configuration,
 ) -> Result<serde_json::Value, Error<RoomsRandomRoomError>> {
@@ -606,6 +455,128 @@ pub async fn rooms_random_room(
     } else {
         let content = resp.text().await?;
         let entity: Option<RoomsRandomRoomError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn rooms_send(
+    configuration: &configuration::Configuration,
+    room: &str,
+    message_send: models::MessageSend,
+) -> Result<serde_json::Value, Error<RoomsSendError>> {
+    // add a prefix to parameters to efficiently prevent name collisions
+    let p_path_room = room;
+    let p_body_message_send = message_send;
+
+    let uri_str = format!(
+        "{}/room/{room}",
+        configuration.base_path,
+        room = crate::apis::urlencode(p_path_room)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&p_body_message_send);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => Err(Error::from(serde_json::Error::custom(
+                "Received `text/plain` content type response that cannot be converted to `serde_json::Value`",
+            ))),
+            ContentType::Unsupported(unknown_type) => {
+                Err(Error::from(serde_json::Error::custom(format!(
+                    "Received `{unknown_type}` content type response that cannot be converted to `serde_json::Value`"
+                ))))
+            }
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<RoomsSendError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn rooms_send_static(
+    configuration: &configuration::Configuration,
+    room: &str,
+    message_send: models::MessageSend,
+) -> Result<serde_json::Value, Error<RoomsSendStaticError>> {
+    // add a prefix to parameters to efficiently prevent name collisions
+    let p_path_room = room;
+    let p_body_message_send = message_send;
+
+    let uri_str = format!(
+        "{}/room/static/{room}",
+        configuration.base_path,
+        room = crate::apis::urlencode(p_path_room)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&p_body_message_send);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => Err(Error::from(serde_json::Error::custom(
+                "Received `text/plain` content type response that cannot be converted to `serde_json::Value`",
+            ))),
+            ContentType::Unsupported(unknown_type) => {
+                Err(Error::from(serde_json::Error::custom(format!(
+                    "Received `{unknown_type}` content type response that cannot be converted to `serde_json::Value`"
+                ))))
+            }
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<RoomsSendStaticError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

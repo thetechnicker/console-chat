@@ -1,5 +1,6 @@
 use crate::LockErrorExt;
 use crate::action::{AppError, Result};
+use crate::components::theme::Theme;
 use crate::components::vim::*;
 use std::sync::{Arc, RwLock};
 //use color_eyre::Result;
@@ -12,8 +13,10 @@ use tui_textarea::TextArea;
 use super::Component;
 use crate::{action::Action, config::Config};
 
+const STYLE_KEY: crate::app::Mode = crate::app::Mode::Home;
+
 #[derive(Default)]
-pub struct Editor<'a> {
+pub struct ConfigFileEditor<'a> {
     active: bool,
     command_tx: Option<UnboundedSender<Action>>,
     config: Arc<RwLock<Config>>,
@@ -21,23 +24,39 @@ pub struct Editor<'a> {
     vim: Option<Vim>,
 }
 
-impl Editor<'_> {
+impl ConfigFileEditor<'_> {
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-impl Component for Editor<'_> {
+impl Component for ConfigFileEditor<'_> {
     fn hide(&mut self) {
         self.active = false;
     }
     fn init(&mut self, _: Size) -> Result<()> {
-        let themes = self.config.read().error()?;
-        let lines = serde_json::to_string_pretty(&*themes)?;
-        let vim = Vim::new(VimMode::Normal, VimType::MultiLine);
+        let mut config = self.config.write().error()?;
+        let theme = match config.themes.get(&STYLE_KEY) {
+            Some(themes) => themes,
+            None => match config.themes.get(&crate::app::Mode::Global) {
+                Some(themes) => themes,
+                None => {
+                    config
+                        .themes
+                        .insert(crate::app::Mode::Global, Theme::default());
+                    config
+                        .themes
+                        .get(&crate::app::Mode::Global)
+                        .ok_or("This is bad")?
+                }
+            },
+        };
+        let lines = serde_json::to_string_pretty(&*config)?;
+        let vim = Vim::new(VimMode::Normal, VimType::MultiLine, theme.vi);
         self.textinput = TextArea::from(lines.split("\n"));
         self.textinput.set_block(vim.mode.block());
-        self.textinput.set_cursor_style(vim.mode.cursor_style());
+        self.textinput
+            .set_cursor_style(vim.mode.cursor_style(theme.vi));
         self.vim = Some(vim);
         Ok(())
     }
@@ -58,7 +77,8 @@ impl Component for Editor<'_> {
                 Some(match this_vim.transition(key.into(), &mut self.textinput) {
                     Transition::Mode(mode) if this_vim.mode != mode => {
                         self.textinput.set_block(mode.block());
-                        self.textinput.set_cursor_style(mode.cursor_style());
+                        self.textinput
+                            .set_cursor_style(mode.cursor_style(this_vim.style));
                         if let Some(command_tx) = self.command_tx.as_ref() {
                             match mode {
                                 VimMode::Insert => command_tx.send(Action::Insert)?,

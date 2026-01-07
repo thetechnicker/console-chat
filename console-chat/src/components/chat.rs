@@ -1,7 +1,7 @@
 use super::Component;
 use crate::LockErrorExt;
 use crate::action::Result;
-use crate::components::ui_utils::theme::Theme;
+use crate::components::theme::Theme;
 use crate::components::vim::*;
 use crate::network::{Message, USERNAME};
 use crate::{action::Action, config::Config};
@@ -9,7 +9,6 @@ use chrono::Local;
 use crossterm::event::{KeyCode, KeyEvent};
 use openapi::models::{AppearancePublic, UserPublic};
 use ratatui::{prelude::*, widgets::*};
-use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::debug;
@@ -51,9 +50,8 @@ impl MessageComponent {
     }
 }
 
-impl StatefulWidget for &MessageComponent {
-    type State = Theme;
-    fn render(self, area: Rect, buf: &mut Buffer, active: &mut Theme) {
+impl Widget for &MessageComponent {
+    fn render(self, area: Rect, buf: &mut Buffer) {
         let user = self
             .content
             .user
@@ -69,8 +67,8 @@ impl StatefulWidget for &MessageComponent {
             .title(name);
 
         if self.selected {
-            let theme: Style = active.to_owned().into();
-            block = block.style(theme.bg(color));
+            //let theme: Style = active.to_owned().into();
+            //block = block.style(theme.bg(color));
         }
 
         if let Some(send_time) = self.content.send_at {
@@ -103,7 +101,6 @@ pub struct Chat<'a> {
     active: bool,
     command_tx: Option<UnboundedSender<Action>>,
     config: Arc<RwLock<Config>>,
-    selected_theme: Theme,
     textinput: TextArea<'a>,
     vim: Option<Vim>,
     index: usize, // index of currently selected message in msgs (0 means none / input)
@@ -172,28 +169,26 @@ impl Component for Chat<'_> {
     }
     fn init(&mut self, _: Size) -> Result<()> {
         let mut config = self.config.write().error()?;
-        let themes: &mut HashMap<String, Theme> = match config.themes.get_mut(&STYLE_KEY) {
+        let theme = match config.themes.get(&STYLE_KEY) {
             Some(themes) => themes,
-            None => {
-                config.themes.insert(STYLE_KEY, HashMap::new());
-                config.themes.get_mut(&STYLE_KEY).ok_or("This is bad")?
-            }
+            None => match config.themes.get(&crate::app::Mode::Global) {
+                Some(themes) => themes,
+                None => {
+                    config
+                        .themes
+                        .insert(crate::app::Mode::Global, Theme::default());
+                    config
+                        .themes
+                        .get(&crate::app::Mode::Global)
+                        .ok_or("This is bad")?
+                }
+            },
         };
-        let vim = Vim::new(VimMode::Normal, VimType::SingleLine);
+        let vim = Vim::new(VimMode::Normal, VimType::SingleLine, theme.vi);
         self.textinput.set_block(vim.mode.highlight_block());
-        self.textinput.set_cursor_style(vim.mode.cursor_style());
+        self.textinput
+            .set_cursor_style(vim.mode.cursor_style(theme.vi));
         self.vim = Some(vim);
-        let selected_theme_option = themes.get("selected").cloned();
-        let selected_theme = selected_theme_option.unwrap_or(Theme {
-            text: Color::LightMagenta,
-            background: Color::DarkGray,
-            highlight: Color::Gray,
-            shadow: Color::Black,
-        });
-        if selected_theme_option.is_none() {
-            themes.insert("selected".to_owned(), selected_theme);
-        }
-        self.selected_theme = selected_theme;
         Ok(())
     }
 
@@ -216,7 +211,8 @@ impl Component for Chat<'_> {
                     Some(match this_vim.transition(key.into(), &mut self.textinput) {
                         Transition::Mode(mode) if this_vim.mode != mode => {
                             self.textinput.set_block(mode.highlight_block());
-                            self.textinput.set_cursor_style(mode.cursor_style());
+                            self.textinput
+                                .set_cursor_style(mode.cursor_style(this_vim.style));
                             match mode {
                                 VimMode::Insert => command_tx.send(Action::Insert)?,
                                 VimMode::Normal if this_vim.mode == VimMode::Insert => {
@@ -242,7 +238,7 @@ impl Component for Chat<'_> {
                             self.textinput = TextArea::default();
                             self.textinput.set_block(this_vim.mode.highlight_block());
                             self.textinput
-                                .set_cursor_style(this_vim.mode.cursor_style());
+                                .set_cursor_style(this_vim.mode.cursor_style(this_vim.style));
                             this_vim
                         }
                     })
@@ -313,7 +309,7 @@ impl Component for Chat<'_> {
                 let [new_chat, msg_area] =
                     Layout::vertical([Constraint::Fill(1), Constraint::Max(max_rows)])
                         .areas(chat_area);
-                msg.render(msg_area, buf, &mut self.selected_theme);
+                msg.render(msg_area, buf);
                 chat_area = new_chat;
             }
 

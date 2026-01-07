@@ -13,16 +13,16 @@ use crate::{apis::ResponseContent, models};
 use reqwest;
 use serde::{Deserialize, Serialize, de::Error as _};
 
-/// struct for typed errors of method [`root_home`]
+/// struct for typed errors of method [`root_root`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum RootHomeError {
+pub enum RootRootError {
     UnknownValue(serde_json::Value),
 }
 
-pub async fn root_home(
+pub async fn root_root(
     configuration: &configuration::Configuration,
-) -> Result<serde_json::Value, Error<RootHomeError>> {
+) -> Result<serde_json::Value, Error<RootRootError>> {
     let uri_str = format!("{}/", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
@@ -56,7 +56,7 @@ pub async fn root_home(
         }
     } else {
         let content = resp.text().await?;
-        let entity: Option<RootHomeError> = serde_json::from_str(&content).ok();
+        let entity: Option<RootRootError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
