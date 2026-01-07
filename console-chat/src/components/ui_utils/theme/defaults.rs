@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use super::Theme;
+use super::theme::Theme;
 use ratatui::style::Color;
 
 pub const BLUE: Theme = Theme {

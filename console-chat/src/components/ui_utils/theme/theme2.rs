@@ -63,17 +63,17 @@ impl std::ops::DerefMut for BorderTypeDef {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ItemStyle {
-    text: Style,
-    block: Style,
-    border: Option<BorderTypeDef>,
+    pub text: Style,
+    pub block: Style,
+    pub border: Option<BorderTypeDef>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Theme {
-    default: ItemStyle,
-    highlight: ItemStyle,
-    warning: ItemStyle,
-    error: ItemStyle,
+    pub default: ItemStyle,
+    pub highlight: ItemStyle,
+    pub warning: ItemStyle,
+    pub error: ItemStyle,
 }
