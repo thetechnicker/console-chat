@@ -10,7 +10,9 @@
 
 use super::{ContentType, Error, configuration};
 use crate::{apis::ResponseContent, models};
+use futures_util::StreamExt;
 use reqwest;
+use reqwest_eventsource::{Error as EventError, *};
 use serde::{Deserialize, Serialize, de::Error as _};
 
 /// struct for typed errors of method [`rooms_create_room`]
@@ -377,12 +379,12 @@ pub async fn rooms_list_rooms(
 pub async fn rooms_listen(
     configuration: &configuration::Configuration,
     room: &str,
-) -> Result<(), Error<RoomsListenError>> {
+) -> Result<EventSource, Error<()>> {
     // add a prefix to parameters to efficiently prevent name collisions
     let p_path_room = room;
 
     let uri_str = format!(
-        "{}/room/{room}",
+        "{}/r/{room}",
         configuration.base_path,
         room = crate::apis::urlencode(p_path_room)
     );
@@ -394,34 +396,18 @@ pub async fn rooms_listen(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-
-    let req = req_builder.build()?;
-    let resp = configuration.client.execute(req).await?;
-
-    let status = resp.status();
-
-    if !status.is_client_error() && !status.is_server_error() {
-        Ok(())
-    } else {
-        let content = resp.text().await?;
-        let entity: Option<RoomsListenError> = serde_json::from_str(&content).ok();
-        Err(Error::ResponseError(ResponseContent {
-            status,
-            content,
-            entity,
-        }))
-    }
+    req_builder.eventsource().map_err(Error::EventSourceError)
 }
 
 pub async fn rooms_listen_static(
     configuration: &configuration::Configuration,
     room: &str,
-) -> Result<(), Error<RoomsListenStaticError>> {
+) -> Result<EventSource, Error<()>> {
     // add a prefix to parameters to efficiently prevent name collisions
     let p_path_room = room;
 
     let uri_str = format!(
-        "{}/room/static/{room}",
+        "{}/r/static/{room}",
         configuration.base_path,
         room = crate::apis::urlencode(p_path_room)
     );
@@ -434,22 +420,7 @@ pub async fn rooms_listen_static(
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
 
-    let req = req_builder.build()?;
-    let resp = configuration.client.execute(req).await?;
-
-    let status = resp.status();
-
-    if !status.is_client_error() && !status.is_server_error() {
-        Ok(())
-    } else {
-        let content = resp.text().await?;
-        let entity: Option<RoomsListenStaticError> = serde_json::from_str(&content).ok();
-        Err(Error::ResponseError(ResponseContent {
-            status,
-            content,
-            entity,
-        }))
-    }
+    req_builder.eventsource().map_err(Error::EventSourceError)
 }
 
 pub async fn rooms_random_room(

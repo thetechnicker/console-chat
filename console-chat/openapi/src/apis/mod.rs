@@ -1,3 +1,4 @@
+use reqwest_eventsource::{CannotCloneRequestError, Error as EventError};
 use std::error;
 use std::fmt;
 
@@ -11,17 +12,21 @@ pub struct ResponseContent<T> {
 #[derive(Debug)]
 pub enum Error<T> {
     Reqwest(reqwest::Error),
+    ReqwestEventSource(EventError),
     Serde(serde_json::Error),
     Io(std::io::Error),
     ResponseError(ResponseContent<T>),
+    EventSourceError(CannotCloneRequestError),
 }
 
 impl<T> fmt::Display for Error<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let (module, e) = match self {
             Error::Reqwest(e) => ("reqwest", e.to_string()),
+            Error::ReqwestEventSource(e) => ("reqwest-eventsource", e.to_string()),
             Error::Serde(e) => ("serde", e.to_string()),
             Error::Io(e) => ("IO", e.to_string()),
+            Error::EventSourceError(e) => ("event source", e.to_string()),
             Error::ResponseError(e) => ("response", format!("status code {}", e.status)),
         };
         write!(f, "error in {}: {}", module, e)
@@ -32,10 +37,18 @@ impl<T: fmt::Debug> error::Error for Error<T> {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         Some(match self {
             Error::Reqwest(e) => e,
+            Error::ReqwestEventSource(e) => e,
             Error::Serde(e) => e,
             Error::Io(e) => e,
+            Error::EventSourceError(e) => e,
             Error::ResponseError(_) => return None,
         })
+    }
+}
+
+impl<T> From<reqwest_eventsource::Error> for Error<T> {
+    fn from(e: reqwest_eventsource::Error) -> Self {
+        Error::ReqwestEventSource(e)
     }
 }
 
