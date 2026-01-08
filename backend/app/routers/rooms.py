@@ -80,7 +80,7 @@ def generate_random_string(length: int = 8):
     return "".join(random.choice(letters) for _ in range(length))
 
 
-@router.get("/room")
+@router.get("/room", response_model=str)
 async def random_room():
     random_string = generate_random_string()
     return random_string

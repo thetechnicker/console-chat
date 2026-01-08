@@ -30,12 +30,15 @@ impl SystemMessage {
         }
     }
 }
-
-#[derive(
-    Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize, Default,
-)]
+///
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Type {
     #[serde(rename = "SYSTEM")]
-    #[default]
     System,
+}
+
+impl Default for Type {
+    fn default() -> Type {
+        Self::System
+    }
 }

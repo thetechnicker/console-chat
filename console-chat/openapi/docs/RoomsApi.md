@@ -219,7 +219,7 @@ Name | Type | Description  | Required | Notes
 
 ## rooms_random_room
 
-> serde_json::Value rooms_random_room()
+> String rooms_random_room()
 Random Room
 
 ### Parameters
@@ -228,7 +228,7 @@ This endpoint does not need any parameter.
 
 ### Return type
 
-[**serde_json::Value**](serde_json::Value.md)
+**String**
 
 ### Authorization
 

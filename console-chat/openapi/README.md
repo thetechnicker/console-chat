@@ -27,7 +27,6 @@ All URIs are relative to *https://localhost*
 Class | Method | HTTP request | Description
 ------------ | ------------- | ------------- | -------------
 *DefaultApi* | [**root_root**](docs/DefaultApi.md#root_root) | **GET** / | Root
-*ExperimentalApi* | [**rooms_random_room**](docs/ExperimentalApi.md#rooms_random_room) | **GET** /rooms/room | Random Room
 *RoomsApi* | [**rooms_create_room**](docs/RoomsApi.md#rooms_create_room) | **PUT** /rooms/{room} | Create Room
 *RoomsApi* | [**rooms_delete_room**](docs/RoomsApi.md#rooms_delete_room) | **DELETE** /rooms/{room} | Delete Room
 *RoomsApi* | [**rooms_get_my_rooms**](docs/RoomsApi.md#rooms_get_my_rooms) | **GET** /rooms/mine | Get My Rooms

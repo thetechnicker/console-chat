@@ -11,12 +11,10 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-#[derive(
-    Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize, Default,
-)]
+///
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum MessageType {
     #[serde(rename = "ENCRYPTED")]
-    #[default]
     Encrypted,
     #[serde(rename = "PLAINTEXT")]
     Plaintext,
@@ -43,5 +41,11 @@ impl std::fmt::Display for MessageType {
             Self::Join => write!(f, "JOIN"),
             Self::Leave => write!(f, "LEAVE"),
         }
+    }
+}
+
+impl Default for MessageType {
+    fn default() -> MessageType {
+        Self::Encrypted
     }
 }

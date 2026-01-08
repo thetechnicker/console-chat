@@ -8,7 +8,6 @@ docs/CreateRoomInviteInner.md
 docs/DefaultApi.md
 docs/Encrypted.md
 docs/ErrorModel.md
-docs/ExperimentalApi.md
 docs/HttpValidationError.md
 docs/KeyRequest.md
 docs/KeyResponse.md
@@ -33,7 +32,6 @@ docs/ValidationErrorLocInner.md
 git_push.sh
 src/apis/configuration.rs
 src/apis/default_api.rs
-src/apis/experimental_api.rs
 src/apis/mod.rs
 src/apis/rooms_api.rs
 src/apis/users_api.rs
