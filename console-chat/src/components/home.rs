@@ -176,13 +176,13 @@ impl Component for Home {
 
             let [_, center, _] = Layout::vertical([
                 Constraint::Fill(1),
-                Constraint::Percentage(40),
+                Constraint::Percentage(50),
                 Constraint::Fill(1),
             ])
             .areas(
                 Layout::horizontal([
                     Constraint::Fill(1),
-                    Constraint::Percentage(40),
+                    Constraint::Percentage(50),
                     Constraint::Fill(1),
                 ])
                 .split(area)[1],

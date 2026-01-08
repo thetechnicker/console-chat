@@ -376,7 +376,7 @@ pub async fn rooms_listen(
     let p_path_room = room;
 
     let uri_str = format!(
-        "{}/r/{room}",
+        "{}/room/{room}",
         configuration.base_path,
         room = crate::apis::urlencode(p_path_room)
     );
@@ -399,7 +399,7 @@ pub async fn rooms_listen_static(
     let p_path_room = room;
 
     let uri_str = format!(
-        "{}/r/static/{room}",
+        "{}/room/static/{room}",
         configuration.base_path,
         room = crate::apis::urlencode(p_path_room)
     );

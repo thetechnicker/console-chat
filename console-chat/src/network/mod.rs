@@ -123,9 +123,20 @@ pub async fn handle_actions(event: Action) -> Result<Option<Action>> {
         Action::SendMessage(msg) => {
             send_message(&msg).await?;
         }
+        Action::JoinRandom => {
+            join_random().await?;
+        }
         _ => {}
     }
     Ok(None)
+}
+
+#[tracing::instrument]
+async fn join_random() -> Result<()> {
+    let conf = CONFIGURATION.read().await.clone();
+    let room = rooms_api::rooms_random_room(&conf).await?;
+    join(&room).await?;
+    Ok(())
 }
 
 #[tracing::instrument]
