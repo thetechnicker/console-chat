@@ -74,42 +74,54 @@ impl Component for ConfigFileEditor<'_> {
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
         if self.active {
             self.vim = if let Some(this_vim) = self.vim.take() {
-                Some(match this_vim.transition(key.into(), &mut self.textinput) {
-                    Transition::Mode(mode) if this_vim.mode != mode => {
-                        self.textinput.set_block(mode.block());
-                        self.textinput
-                            .set_cursor_style(mode.cursor_style(this_vim.style));
-                        if let Some(command_tx) = self.command_tx.as_ref() {
-                            match mode {
-                                VimMode::Insert => command_tx.send(Action::Insert)?,
-                                VimMode::Normal if this_vim.mode == VimMode::Insert => {
-                                    command_tx.send(Action::Normal)?
-                                }
-                                _ => {}
-                            };
+                Some({
+                    let mut pending = false;
+                    let mut new_vim = match this_vim.transition(key.into(), &mut self.textinput) {
+                        Transition::Mode(mode) if this_vim.mode != mode => {
+                            self.textinput.set_block(mode.block());
+                            self.textinput
+                                .set_cursor_style(mode.cursor_style(this_vim.style));
+                            if let Some(command_tx) = self.command_tx.as_ref() {
+                                match mode {
+                                    VimMode::Insert => command_tx.send(Action::Insert)?,
+                                    VimMode::Normal if this_vim.mode == VimMode::Insert => {
+                                        command_tx.send(Action::Normal)?
+                                    }
+                                    _ => {}
+                                };
+                            }
+                            this_vim.update_mode(mode)
                         }
-                        this_vim.update_mode(mode)
-                    }
-                    Transition::Nop | Transition::Mode(_) => this_vim,
-                    Transition::Pending(input) => this_vim.with_pending(input),
-                    Transition::Up => this_vim,
-                    Transition::Down => this_vim,
-                    Transition::Enter(content) => {
-                        debug!("{}", content);
-                        this_vim
-                    }
-                    Transition::Store => {
-                        debug!("Storing new config");
-                        let mut config = self.config.write().error()?;
-                        *config = serde_json::from_str(&self.textinput.lines().join("\n"))?;
-                        config.save()?;
-                        if let Some(command_tx) = self.command_tx.as_ref() {
-                            command_tx.send(Action::ReloadConfig)?;
-                        } else {
-                            return Err(AppError::MissingActionTX);
+                        Transition::Nop | Transition::Mode(_) => this_vim,
+                        Transition::Pending(input) => {
+                            pending = true;
+                            this_vim.with_pending(input)
                         }
-                        this_vim
+                        Transition::Up => this_vim,
+                        Transition::Down => this_vim,
+                        Transition::Enter(content) => {
+                            debug!("{}", content);
+                            this_vim
+                        }
+                        Transition::Store => {
+                            debug!("Storing new config");
+                            let mut config = self.config.write().error()?;
+                            *config = serde_json::from_str(&self.textinput.lines().join("\n"))?;
+                            config.save()?;
+                            if let Some(command_tx) = self.command_tx.as_ref() {
+                                command_tx.send(Action::ReloadConfig)?;
+                            } else {
+                                return Err(AppError::MissingActionTX);
+                            }
+                            this_vim
+                        }
+                    };
+                    if !pending {
+                        new_vim.reset_pending();
                     }
+                    self.textinput
+                        .set_block(new_vim.mode.block().title_bottom(new_vim.input_seq()));
+                    new_vim
                 })
             } else {
                 Some(Vim::default())
@@ -136,9 +148,22 @@ impl Component for ConfigFileEditor<'_> {
         if self.active {
             let buf = frame.buffer_mut();
             let block = Block::new().bg(Color::Blue);
-            block.render(area, buf);
+            let [_, center, _] = Layout::vertical([
+                Constraint::Fill(1),
+                Constraint::Percentage(60),
+                Constraint::Fill(1),
+            ])
+            .areas(
+                Layout::horizontal([
+                    Constraint::Fill(1),
+                    Constraint::Percentage(60),
+                    Constraint::Fill(1),
+                ])
+                .split(area)[1],
+            );
+            block.render(center, buf);
 
-            self.textinput.render(area, buf);
+            self.textinput.render(center, buf);
         }
 
         Ok(())

@@ -1,6 +1,6 @@
 use crate::LockErrorExt;
 use crate::action::Result;
-use crate::components::{button::*, theme::*, vim::*};
+use crate::components::{button::*, render_nice_bg, theme::*, vim::*};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{prelude::*, widgets::*};
 use std::sync::{Arc, RwLock};
@@ -19,6 +19,8 @@ pub struct Join<'a> {
     active: bool,
     command_tx: Option<UnboundedSender<Action>>,
     config: Arc<RwLock<Config>>,
+    theme: PageColors,
+    static_room: bool,
     room: TextArea<'a>,
     join: Button,
     cancel: Button,
@@ -123,7 +125,7 @@ impl Component for Join<'_> {
             self.room.set_cursor_line_style(Style::default());
             self.room.set_style(Style::default().fg(Color::LightGreen));
             self.room.set_block(VimMode::Normal.highlight_block());
-
+            self.theme = theme.page;
             self.join = Button::new("Join", "", theme.buttons.accepting, Action::TriggerJoin);
             self.cancel = Button::new("Abort", "<q>", theme.buttons.denying, Action::OpenHome);
         }
@@ -173,7 +175,9 @@ impl Component for Join<'_> {
                         buttons[i].set_state(ButtonState::Active);
                         let button_action = buttons[i].trigger();
                         let result = match button_action {
-                            Some(Action::TriggerJoin) => Some(Action::PerformJoin(room)),
+                            Some(Action::TriggerJoin) => {
+                                Some(Action::PerformJoin(room, self.static_room))
+                            }
                             _ => button_action,
                         };
                         self.reset()?;
@@ -200,7 +204,10 @@ impl Component for Join<'_> {
 
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
-            Action::OpenJoin => self.active = true,
+            Action::OpenJoin(static_room) => {
+                self.active = true;
+                self.static_room = static_room;
+            }
             Action::Tick => {
                 // add any logic here that should run on every tick
                 if self.join.is_active() {
@@ -226,7 +233,7 @@ impl Component for Join<'_> {
 
             let center = Layout::vertical([
                 Constraint::Fill(1),
-                Constraint::Max(3 * 3),
+                Constraint::Max(3 * 3 + 2),
                 Constraint::Fill(1),
             ])
             .split(
@@ -238,9 +245,7 @@ impl Component for Join<'_> {
                 .split(area)[1],
             )[1];
 
-            Clear.render(center, buf);
-            let block = Block::new().bg(Color::DarkGray);
-            block.render(center, buf);
+            let center = render_nice_bg(center, self.theme, buf);
 
             let [a, b, c] =
                 Layout::vertical([Constraint::Max(3), Constraint::Max(3), Constraint::Max(3)])

@@ -21,25 +21,32 @@ impl VimMode {
             Self::Operator(_) => "move cursor to apply operator",
         };
         let title = format!("{} MODE ({})", self, help);
-        Block::default().borders(Borders::ALL).title(title)
+        Block::default()
+            .borders(Borders::ALL)
+            .title(title)
+            .title_bottom(self.input_seq())
     }
 
     pub fn highlight_block<'a>(&self) -> Block<'a> {
-        let help = match self {
-            Self::Normal => "type i to enter insert mode",
-            Self::Insert => "type Esc to back to normal mode",
-            Self::Visual => "type y to yank, type d to delete, type Esc to back to normal mode",
-            Self::Operator(_) => "move cursor to apply operator",
-        };
-        let title = format!("{} MODE ({})", self, help);
-        Block::default()
-            .borders(Borders::ALL)
+        self.block()
             .border_style(Style::default().fg(Color::Yellow))
-            .title(title)
     }
 
     pub fn cursor_style(&self, style: ViModePalettes) -> Style {
         style.cursor_style_for_mode(self)
+    }
+
+    fn input_seq(&self) -> String {
+        if let VimMode::Operator(c) = self {
+            let pending_str = format!(
+                "{c}",
+                //if self.pending.ctrl { "ctrl-" } else { "" },
+                //if self.pending.alt { "alt-" } else { "" },
+                //if self.pending.shift { "shift-" } else { "" },
+            );
+            return pending_str;
+        }
+        String::new()
     }
 }
 
@@ -104,10 +111,42 @@ impl Vim {
             style,
         }
     }
+    pub fn copy(&self) -> Self {
+        Self {
+            vim_type: self.vim_type,
+            mode: self.mode,
+            pending: Input::default(),
+            style: self.style,
+        }
+    }
+
+    pub fn input_seq(&self) -> String {
+        // if let VimMode::Operator(c) = self.mode {
+        //     let pending_str = format!(
+        //         "{}{}{}{c}",
+        //         if self.pending.ctrl { "ctrl-" } else { "" },
+        //         if self.pending.alt { "alt-" } else { "" },
+        //         if self.pending.shift { "shift-" } else { "" },
+        //     );
+        //     return pending_str;
+        // }
+        // String::new()
+        format!(
+            "{}{}{}{:?}",
+            if self.pending.ctrl { "ctrl-" } else { "" },
+            if self.pending.alt { "alt-" } else { "" },
+            if self.pending.shift { "shift-" } else { "" },
+            self.pending.key,
+        )
+    }
 
     pub fn update_mode(mut self, mode: VimMode) -> Self {
         self.mode = mode;
         self
+    }
+
+    pub fn reset_pending(&mut self) {
+        self.pending = Input::default();
     }
 
     pub fn with_pending(self, pending: Input) -> Self {
@@ -446,5 +485,80 @@ impl Vim {
                 }
             },
         }
+    }
+}
+
+use crate::action::Action;
+use crate::error::Result;
+use crossterm::event::KeyEvent;
+use tracing::debug;
+
+use std::ops::{Deref, DerefMut};
+#[derive(Debug, Default)]
+pub struct VimWidget<'a> {
+    vim: Vim,
+    textinput: TextArea<'a>,
+}
+
+impl<'a> Deref for VimWidget<'a> {
+    type Target = TextArea<'a>;
+    fn deref(&self) -> &Self::Target {
+        &self.textinput
+    }
+}
+impl<'a> DerefMut for VimWidget<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.textinput
+    }
+}
+
+impl<'a> VimWidget<'a> {
+    pub fn new(vim_type: VimType, style: ViModePalettes) -> Self {
+        Self {
+            vim: Vim::new(VimMode::Normal, vim_type, style),
+            textinput: TextArea::default(),
+        }
+    }
+
+    pub fn handle_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
+        let mut to_return = None;
+        let new_vim = self.vim.copy();
+        self.vim = match self.vim.transition(key.into(), &mut self.textinput) {
+            Transition::Mode(mode) if self.vim.mode != mode => {
+                self.textinput.set_block(mode.block());
+                self.textinput
+                    .set_cursor_style(mode.cursor_style(self.vim.style));
+
+                match mode {
+                    VimMode::Insert => to_return = Some(Action::Insert),
+                    VimMode::Normal if self.vim.mode != mode => to_return = Some(Action::Normal),
+                    _ => {}
+                }
+                new_vim.update_mode(mode)
+            }
+            Transition::Nop | Transition::Mode(_) => new_vim,
+            Transition::Pending(input) => new_vim.with_pending(input),
+            Transition::Up => new_vim,
+            Transition::Down => new_vim,
+            Transition::Enter(content) => {
+                debug!("{}", content);
+                new_vim
+            }
+            Transition::Store => {
+                to_return = Some(Action::StoreConfig);
+                new_vim
+            }
+        };
+        self.textinput
+            .set_block(self.vim.mode.block().title_bottom(self.vim.input_seq()));
+        Ok(to_return)
+    }
+}
+
+use ratatui::prelude::*;
+
+impl Widget for &VimWidget<'_> {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        self.textinput.render(area, buf);
     }
 }

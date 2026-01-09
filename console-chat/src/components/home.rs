@@ -1,6 +1,6 @@
 use crate::LockErrorExt;
 use crate::action::Result;
-use crate::components::{button::*, theme::*};
+use crate::components::{button::*, render_nice_bg, theme::*};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{prelude::*, widgets::*};
 use std::sync::{Arc, RwLock};
@@ -18,6 +18,7 @@ pub struct Home {
     home_theme: PageColors,
     join: Button,
     random: Button,
+    join_static: Button,
     login: Button,
     settings: Button,
     raw_settings: Button,
@@ -28,7 +29,7 @@ pub struct Home {
 }
 
 impl Home {
-    pub const MAX_ELEMENTS: usize = 7;
+    pub const MAX_ELEMENTS: usize = 8;
 
     pub fn new() -> Self {
         Self::default()
@@ -60,6 +61,7 @@ impl Home {
         [
             &mut self.join,
             &mut self.random,
+            &mut self.join_static,
             &mut self.login,
             &mut self.settings,
             &mut self.raw_settings,
@@ -93,7 +95,18 @@ impl Component for Home {
                 },
             };
             self.login = Button::new("Login", "", theme.buttons.accepting, Action::OpenLogin);
-            self.join = Button::new("Join", "", theme.buttons.mid_accept, Action::OpenJoin);
+            self.join = Button::new(
+                "Join",
+                "",
+                theme.buttons.mid_accept,
+                Action::OpenJoin(false),
+            );
+            self.join_static = Button::new(
+                "Join Static",
+                "",
+                theme.buttons.mid_accept,
+                Action::OpenJoin(true),
+            );
             self.random = Button::new(
                 "Join Random",
                 "",
@@ -125,7 +138,7 @@ impl Component for Home {
         if self.active {
             match key.code {
                 KeyCode::Enter => {
-                    self.active = false;
+                    //self.active = false;
                     let i = self.index;
                     let buttons = self.get_buttons();
                     buttons[i].set_state(ButtonState::Active);
@@ -176,7 +189,7 @@ impl Component for Home {
 
             let [_, center, _] = Layout::vertical([
                 Constraint::Fill(1),
-                Constraint::Percentage(50),
+                Constraint::Max((Self::MAX_ELEMENTS) as u16 * 3 + 2),
                 Constraint::Fill(1),
             ])
             .areas(
@@ -188,35 +201,13 @@ impl Component for Home {
                 .split(area)[1],
             );
 
-            let text = self.home_theme.foreground;
-            let background = self.home_theme.background;
-            let highlight = self.home_theme.muted;
-            let shadow = self.home_theme.border;
-
-            buf.set_style(center, Style::new().bg(background).fg(text));
-            // render top line if there's enough space
-            if center.height > 2 {
-                buf.set_string(
-                    center.x,
-                    center.y,
-                    "▔".repeat(center.width as usize),
-                    Style::new().fg(highlight).bg(background),
-                );
-            }
-            // render bottom line if there's enough space
-            if center.height > 1 {
-                buf.set_string(
-                    center.x,
-                    center.y + center.height - 1,
-                    "▁".repeat(center.width as usize),
-                    Style::new().fg(shadow).bg(background),
-                );
-            }
+            let center = render_nice_bg(center, self.home_theme, buf);
 
             let buttons: [&mut Button; Self::MAX_ELEMENTS] = self.get_buttons();
             let mut constraints = [Constraint::Fill(1)].to_vec();
             constraints.extend_from_slice(&[Constraint::Max(3); Self::MAX_ELEMENTS]);
             constraints.push(Constraint::Fill(1));
+            //let constraints = [Constraint::Max(3); Self::MAX_ELEMENTS];
 
             let areas = Layout::vertical(constraints).split(center);
             let _titel = areas[0];

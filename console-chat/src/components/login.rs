@@ -1,7 +1,7 @@
 use crate::LockErrorExt;
 use crate::action::AppError;
 use crate::action::Result;
-use crate::components::{button::*, theme::*, vim::*};
+use crate::components::{button::*, render_nice_bg, theme::*, vim::*};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{prelude::*, widgets::*};
 use std::sync::{Arc, RwLock};
@@ -19,6 +19,7 @@ pub struct Login<'a> {
     active: bool,
     command_tx: Option<UnboundedSender<Action>>,
     config: Arc<RwLock<Config>>,
+    theme: PageColors,
     username: TextArea<'a>,
     password: TextArea<'a>,
     login: Button,
@@ -116,6 +117,7 @@ impl Component for Login<'_> {
                     }
                 },
             };
+            self.theme = theme.page;
             self.vim = [Some(Vim::default()), Some(Vim::default())];
             self.username.set_cursor_line_style(Style::default());
             self.username
@@ -239,7 +241,7 @@ impl Component for Login<'_> {
 
             let center = Layout::vertical([
                 Constraint::Fill(1),
-                Constraint::Max(3 * 4),
+                Constraint::Max(3 * 4 + 2),
                 Constraint::Fill(1),
             ])
             .split(
@@ -251,9 +253,7 @@ impl Component for Login<'_> {
                 .split(area)[1],
             )[1];
 
-            Clear.render(center, buf);
-            let block = Block::new().bg(Color::DarkGray);
-            block.render(center, buf);
+            let center = render_nice_bg(center, self.theme, buf);
 
             let [a, b, c, d] = Layout::vertical([
                 Constraint::Max(3),
