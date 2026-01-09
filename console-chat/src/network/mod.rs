@@ -23,9 +23,10 @@ use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 use tokio::task::JoinHandle;
 use tracing::{debug, error};
 pub(crate) mod error;
+pub(crate) mod network;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
-pub(crate) struct Message {
+pub struct Message {
     pub content: String,
     pub user: Option<UserPublic>,
     pub send_at: Option<DateTime<Utc>>,
@@ -36,6 +37,7 @@ type Result<T, E = error::NetworkError> = std::result::Result<T, E>;
 pub struct ListenData {
     pub thread: JoinHandle<Result<()>>,
     pub room: Arc<String>,
+    pub static_room: bool,
 }
 
 pub struct KeyData {
@@ -117,8 +119,8 @@ pub async fn handle_actions(event: Action) -> Result<Option<Action>> {
             login(&username, &password).await?;
             return Ok(Some(Action::OpenHome));
         }
-        Action::PerformJoin(room) => {
-            join(&room).await?;
+        Action::PerformJoin(room, static_room) => {
+            join(&room, static_room).await?;
         }
         Action::SendMessage(msg) => {
             send_message(&msg).await?;
@@ -135,19 +137,20 @@ pub async fn handle_actions(event: Action) -> Result<Option<Action>> {
 async fn join_random() -> Result<()> {
     let conf = CONFIGURATION.read().await.clone();
     let room = rooms_api::rooms_random_room(&conf).await?;
-    join(&room).await?;
+    join(&room, false).await?;
     Ok(())
 }
 
 #[tracing::instrument]
-async fn join(room: &str) -> Result<()> {
+async fn join(room: &str, static_room: bool) -> Result<()> {
     let mut listen_task = LISTEN_TASK.write().await;
     if listen_task.is_none() {
         let room = Arc::new(room.to_owned());
         let thread_room = room.clone();
         let task = ListenData {
-            thread: tokio::task::spawn(async { listen(thread_room).await }),
+            thread: tokio::task::spawn(async move { listen(thread_room, static_room).await }),
             room,
+            static_room,
         };
         *listen_task = Some(task);
     }
@@ -155,9 +158,13 @@ async fn join(room: &str) -> Result<()> {
 }
 
 #[tracing::instrument]
-async fn listen(room: Arc<String>) -> Result<()> {
+async fn listen(room: Arc<String>, static_room: bool) -> Result<()> {
     let conf = CONFIGURATION.read().await.clone();
-    let mut stream = rooms_api::rooms_listen(&conf, &room).await?;
+    let mut stream = if static_room {
+        rooms_api::rooms_listen_static(&conf, &room).await?
+    } else {
+        rooms_api::rooms_listen(&conf, &room).await?
+    };
     let action_tx = ACTION_TX.read().await.clone();
     let _ = action_tx.send(Action::OpenChat);
     debug!("Starting listening on room: {}", room);
@@ -331,7 +338,11 @@ async fn send_message_from_content(message_content: Content) -> Result<()> {
         .as_ref()
         .ok_or_eyre("You Havent Joined a room")?;
     let conf = CONFIGURATION.read().await;
-    rooms_api::rooms_send(&conf, &task.room, msg).await?;
+    if task.static_room {
+        rooms_api::rooms_send_static(&conf, &task.room, msg).await?;
+    } else {
+        rooms_api::rooms_send(&conf, &task.room, msg).await?;
+    }
     Ok(())
 }
 

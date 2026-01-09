@@ -21,6 +21,7 @@ use tokio::sync::mpsc;
 use tracing::{debug, error, info};
 
 pub struct App {
+    // TODO: No more need for Arc<RwLock<>>
     config: Arc<RwLock<Config>>,
     args: Cli,
     components: Vec<Box<dyn Component>>,
@@ -33,7 +34,9 @@ pub struct App {
     action_rx: mpsc::UnboundedReceiver<Action>,
 }
 
-#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(
+    Default, Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord,
+)]
 pub enum Mode {
     #[default]
     Home,
@@ -131,7 +134,7 @@ impl App {
     fn mode_to_screen(&mut self) -> Result<()> {
         match self.mode {
             Mode::Home => self.action_tx.send(Action::OpenHome),
-            Mode::Join => self.action_tx.send(Action::OpenJoin),
+            Mode::Join => self.action_tx.send(Action::OpenJoin(false)),
             Mode::Login => self.action_tx.send(Action::OpenLogin),
             Mode::Chat => self.action_tx.send(Action::OpenChat),
             Mode::Settings => self.action_tx.send(Action::OpenSettings),
@@ -267,7 +270,7 @@ impl App {
                 Action::Render => self.render(tui)?,
                 Action::ReloadConfig => self.reload_config(tui)?,
                 //open
-                Action::OpenJoin => self.set_mode(Mode::Join)?,
+                Action::OpenJoin(_) => self.set_mode(Mode::Join)?,
                 Action::OpenSettings => self.set_mode(Mode::Settings)?,
                 Action::OpenLogin => self.set_mode(Mode::Login)?,
                 Action::OpenHome => self.set_mode(Mode::Home)?,

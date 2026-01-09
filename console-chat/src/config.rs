@@ -6,7 +6,11 @@ use directories::ProjectDirs;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize, Serializer, de::Deserializer};
 use std::sync::{Arc, RwLock};
-use std::{collections::HashMap, env, path::PathBuf};
+use std::{
+    collections::{BTreeMap, HashMap},
+    env,
+    path::PathBuf,
+};
 use tracing::error;
 use url::Url;
 
@@ -32,7 +36,6 @@ pub struct Config {
     pub network: NetworkConfig,
     #[serde(default)]
     pub keybindings: KeyBindings,
-    //#[serde(skip)]
     #[serde(default)]
     pub themes: Themes,
 }
@@ -395,10 +398,6 @@ pub fn parse_key_sequence(raw: &str) -> Result<Vec<KeyEvent>, String> {
     sequences.into_iter().map(parse_key_event).collect()
 }
 
-#[derive(Clone, Serialize, Debug, Default, Deserialize, Deref, DerefMut)]
-pub struct Themes(pub HashMap<Mode, crate::components::theme::Theme>);
-//pub struct Themes(pub HashMap<Mode, HashMap<String, crate::components::theme::old_theme::Theme>>);
-
 /// Might  be use full when adding key shortcut hints to buttons
 #[allow(dead_code)]
 pub fn get_key_from_value<'a, K, V>(map: &'a HashMap<K, V>, value: &V) -> Option<&'a K>
@@ -414,9 +413,9 @@ impl Serialize for KeyBindings {
     where
         S: Serializer,
     {
-        let mut map = HashMap::new();
+        let mut map = BTreeMap::new();
         for (mode, inner) in self.0.iter() {
-            let mut inner_map = HashMap::new();
+            let mut inner_map = BTreeMap::new();
             for (keys, action) in inner.iter() {
                 // Convert Vec<KeyEvent> to string
                 let key_str = keys
@@ -428,6 +427,20 @@ impl Serialize for KeyBindings {
             }
             map.insert(mode, inner_map);
         }
+        map.serialize(serializer)
+    }
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Deref, DerefMut)]
+pub struct Themes(pub HashMap<Mode, crate::components::theme::Theme>);
+
+impl Serialize for Themes {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let map: BTreeMap<Mode, crate::components::theme::Theme> =
+            self.iter().map(|(k, v)| (*k, *v)).collect();
         map.serialize(serializer)
     }
 }

@@ -4,7 +4,8 @@ import uuid
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Request
+from fastapi import APIRouter, Body, HTTPException, Request, status
+from pydantic import ValidationError
 from sqlmodel import col, select
 from sse_starlette.event import ServerSentEvent
 from sse_starlette.sse import EventSourceResponse
@@ -24,7 +25,7 @@ router = APIRouter(
 )
 
 
-@router.post("/static/{room}")
+@router.post("/static/{room}", responses={**RESPONSES, 200: {"model": MessagePublic}})
 async def send_static(
     room: str,
     message: Annotated[MessageSend, Body()],
@@ -39,7 +40,7 @@ async def send_static(
     return public_message
 
 
-@router.post("/{room}")
+@router.post("/{room}", responses={**RESPONSES, 200: {"model": MessagePublic}})
 async def send(
     room: str,
     message: Annotated[MessageSend, Body()],
@@ -71,7 +72,8 @@ async def _send(
     await db.valkey.publish(room, message.model_dump_json())
 
     if static_room:
-        db.psql_session.add(Message.model_validate(message))
+        msg = Message.model_validate(message)
+        db.psql_session.add(msg)
         db.psql_session.commit()
     else:
         await db.valkey.lpush(room, message.model_dump_json())  # type:ignore
