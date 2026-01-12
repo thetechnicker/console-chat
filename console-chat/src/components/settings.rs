@@ -1,4 +1,3 @@
-//use crate::LockErrorExt;
 use crate::action::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
@@ -6,7 +5,6 @@ use ratatui::{
     style::{Color, Stylize, palette::tailwind},
     widgets::*,
 };
-use std::sync::{Arc, RwLock};
 use strum::{Display, EnumIter, FromRepr, IntoEnumIterator};
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -120,7 +118,7 @@ impl Widget for SelectedTab {
 pub struct Settings {
     active: bool,
     command_tx: Option<UnboundedSender<Action>>,
-    config: Arc<RwLock<Config>>,
+    config: Config,
     selected_tab: SelectedTab,
 }
 
@@ -187,7 +185,7 @@ impl Component for Settings {
         self.active = false;
     }
 
-    fn register_config_handler(&mut self, config: Arc<RwLock<Config>>) -> Result<()> {
+    fn register_config_handler(&mut self, config: Config) -> Result<()> {
         self.config = config;
         Ok(())
     }

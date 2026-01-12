@@ -1,9 +1,7 @@
-use crate::LockErrorExt;
 use crate::action::Result;
 use crate::components::{button::*, render_nice_bg, theme::*};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{prelude::*, widgets::*};
-use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc::UnboundedSender;
 
 use super::Component;
@@ -14,7 +12,7 @@ const STYLE_KEY: crate::app::Mode = crate::app::Mode::Home;
 pub struct Home {
     active: bool,
     command_tx: Option<UnboundedSender<Action>>,
-    config: Arc<RwLock<Config>>,
+    config: Config,
     home_theme: PageColors,
     join: Button,
     random: Button,
@@ -78,16 +76,15 @@ impl Component for Home {
     fn init(&mut self, _: Size) -> Result<()> {
         self.active = true;
         {
-            let mut config = self.config.write().error()?;
-            let theme = match config.themes.get(&STYLE_KEY) {
+            let theme = match self.config.themes.get(&STYLE_KEY) {
                 Some(themes) => themes,
-                None => match config.themes.get(&crate::app::Mode::Global) {
+                None => match self.config.themes.get(&crate::app::Mode::Global) {
                     Some(themes) => themes,
                     None => {
-                        config
+                        self.config
                             .themes
                             .insert(crate::app::Mode::Global, Theme::default());
-                        config
+                        self.config
                             .themes
                             .get(&crate::app::Mode::Global)
                             .ok_or("This is bad")?
@@ -162,7 +159,7 @@ impl Component for Home {
         Ok(())
     }
 
-    fn register_config_handler(&mut self, config: Arc<RwLock<Config>>) -> Result<()> {
+    fn register_config_handler(&mut self, config: Config) -> Result<()> {
         self.config = config;
         Ok(())
     }

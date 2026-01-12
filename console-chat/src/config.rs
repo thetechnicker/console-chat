@@ -5,7 +5,6 @@ use derive_deref::{Deref, DerefMut};
 use directories::ProjectDirs;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize, Serializer, de::Deserializer};
-use std::sync::{Arc, RwLock};
 use std::{
     collections::{BTreeMap, HashMap},
     env,
@@ -135,9 +134,9 @@ impl Config {
         Ok(cfg)
     }
 
-    pub fn new_locked() -> Result<Arc<RwLock<Self>>, config::ConfigError> {
-        Ok(Arc::new(RwLock::new(Self::new()?)))
-    }
+    //pub fn new_locked() -> Result<Arc<RwLock<Self>>, config::ConfigError> {
+    //    Ok(Arc::new(RwLock::new(Self::new()?)))
+    //}
 
     pub fn save(&self) -> std::io::Result<()> {
         tracing::debug!("Saving file");
@@ -453,8 +452,7 @@ mod tests {
 
     #[test]
     fn test_config() -> Result<()> {
-        let c = Config::new_locked()?;
-        let r = c.read().unwrap();
+        let r = Config::new()?;
         assert_eq!(
             r.keybindings
                 .get(&Mode::Home)
@@ -553,6 +551,18 @@ mod tests {
         let c = Config::new()?;
         let x = c.save();
         assert!(x.is_ok(), "Config: {c:#?}\n\n Error:{x:#?}");
+        Ok(())
+    }
+
+    #[test]
+    fn test_config_size() -> Result<()> {
+        let c = Config::new()?;
+        println!(
+            "Size of default instance: {} bytes",
+            std::mem::size_of_val(&c)
+        );
+        println!("Size of Type: {} bytes", std::mem::size_of::<Config>());
+        assert!(true);
         Ok(())
     }
 }

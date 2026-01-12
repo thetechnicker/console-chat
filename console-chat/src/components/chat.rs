@@ -1,5 +1,4 @@
 use super::Component;
-use crate::LockErrorExt;
 use crate::action::Result;
 use crate::components::theme::Theme;
 use crate::components::vim::*;
@@ -9,7 +8,6 @@ use chrono::Local;
 use crossterm::event::{KeyCode, KeyEvent};
 use openapi::models::{AppearancePublic, UserPublic};
 use ratatui::{prelude::*, widgets::*};
-use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::debug;
 use tui_textarea::TextArea;
@@ -100,7 +98,7 @@ impl From<Message> for MessageComponent {
 pub struct Chat<'a> {
     active: bool,
     command_tx: Option<UnboundedSender<Action>>,
-    config: Arc<RwLock<Config>>,
+    config: Config,
     textinput: TextArea<'a>,
     vim: Option<Vim>,
     index: usize, // index of currently selected message in msgs (0 means none / input)
@@ -168,16 +166,15 @@ impl Component for Chat<'_> {
         self.active = false;
     }
     fn init(&mut self, _: Size) -> Result<()> {
-        let mut config = self.config.write().error()?;
-        let theme = match config.themes.get(&STYLE_KEY) {
+        let theme = match self.config.themes.get(&STYLE_KEY) {
             Some(themes) => themes,
-            None => match config.themes.get(&crate::app::Mode::Global) {
+            None => match self.config.themes.get(&crate::app::Mode::Global) {
                 Some(themes) => themes,
                 None => {
-                    config
+                    self.config
                         .themes
                         .insert(crate::app::Mode::Global, Theme::default());
-                    config
+                    self.config
                         .themes
                         .get(&crate::app::Mode::Global)
                         .ok_or("This is bad")?
@@ -197,7 +194,7 @@ impl Component for Chat<'_> {
         Ok(())
     }
 
-    fn register_config_handler(&mut self, config: Arc<RwLock<Config>>) -> Result<()> {
+    fn register_config_handler(&mut self, config: Config) -> Result<()> {
         self.config = config;
         Ok(())
     }

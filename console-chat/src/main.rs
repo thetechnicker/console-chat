@@ -17,7 +17,7 @@ mod logging;
 mod network;
 mod tui;
 mod util;
-pub(crate) use error::LockErrorExt;
+//pub(crate) use error::LockErrorExt;
 
 #[tokio::main]
 async fn main() -> Result<()> {

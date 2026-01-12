@@ -43,7 +43,7 @@ pub enum Action {
     ReloadConfig,
     #[subset("ButtonEvent")]
     ResetConfig,
-    #[subset("ButtonEvent", "VimEvent")]
+    #[subset("VimEvent")]
     StoreConfig,
 
     // Small fixed-size payloads
@@ -57,7 +57,7 @@ pub enum Action {
     Me(UserPrivate),
     ReceivedMessage(Message),
 
-    // Error variant skipped in serde; boxed to avoid inflating enum
+    // Error variant skipped in serde
     #[serde(skip)]
     Error(AppError),
 }

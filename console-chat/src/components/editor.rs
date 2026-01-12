@@ -1,8 +1,6 @@
-use crate::LockErrorExt;
 use crate::action::{Result, VimEvent};
 use crate::components::theme::Theme;
 use crate::components::vim::*;
-use std::sync::{Arc, RwLock};
 //use color_eyre::Result;
 use crossterm::event::KeyEvent;
 use ratatui::{prelude::*, widgets::*};
@@ -17,7 +15,7 @@ const STYLE_KEY: crate::app::Mode = crate::app::Mode::Home;
 pub struct ConfigFileEditor<'a> {
     active: bool,
     command_tx: Option<UnboundedSender<Action>>,
-    config: Arc<RwLock<Config>>,
+    config: Config,
     textinput: VimWidget<'a>,
 }
 
@@ -32,23 +30,22 @@ impl Component for ConfigFileEditor<'_> {
         self.active = false;
     }
     fn init(&mut self, _: Size) -> Result<()> {
-        let mut config = self.config.write().error()?;
-        let theme = match config.themes.get(&STYLE_KEY) {
+        let theme = match self.config.themes.get(&STYLE_KEY) {
             Some(themes) => themes,
-            None => match config.themes.get(&crate::app::Mode::Global) {
+            None => match self.config.themes.get(&crate::app::Mode::Global) {
                 Some(themes) => themes,
                 None => {
-                    config
+                    self.config
                         .themes
                         .insert(crate::app::Mode::Global, Theme::default());
-                    config
+                    self.config
                         .themes
                         .get(&crate::app::Mode::Global)
                         .ok_or("This is bad")?
                 }
             },
         };
-        let lines = serde_json::to_string_pretty(&*config)?;
+        let lines = serde_json::to_string_pretty(&self.config)?;
         self.textinput = VimWidget::new(VimType::MultiLine, theme.vi).with_text(lines);
         Ok(())
     }
@@ -58,7 +55,7 @@ impl Component for ConfigFileEditor<'_> {
         Ok(())
     }
 
-    fn register_config_handler(&mut self, config: Arc<RwLock<Config>>) -> Result<()> {
+    fn register_config_handler(&mut self, config: Config) -> Result<()> {
         self.config = config;
         Ok(())
     }

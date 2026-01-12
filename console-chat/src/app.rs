@@ -1,5 +1,4 @@
 use crate::{
-    LockErrorExt,
     action::Action,
     cli::Cli,
     components::{
@@ -8,7 +7,6 @@ use crate::{
         sorted_components,
     },
     config::Config,
-    error::AppError,
     network,
     tui::{Event, Tui},
 };
@@ -16,13 +14,11 @@ use color_eyre::Result;
 use crossterm::event::KeyEvent;
 use ratatui::prelude::Rect;
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
 
 pub struct App {
-    // TODO: No more need for Arc<RwLock<>>
-    config: Arc<RwLock<Config>>,
+    config: Config,
     args: Cli,
     components: Vec<Box<dyn Component>>,
     should_quit: bool,
@@ -66,7 +62,7 @@ impl App {
             ]),
             should_quit: false,
             should_suspend: false,
-            config: Config::new_locked()?,
+            config: Config::new()?,
             mode: Mode::Home,
             last_mode: None,
             last_tick_key_events: Vec::new(),
@@ -121,7 +117,7 @@ impl App {
     }
 
     fn reload_config(&mut self, tui: &mut Tui) -> Result<()> {
-        self.config = Config::new_locked()?;
+        self.config = Config::new()?;
         for component in self.components.iter_mut() {
             component.register_config_handler(self.config.clone())?;
             component.init(tui.size()?)?;
@@ -194,10 +190,8 @@ impl App {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<()> {
-        let conf_arc = self.config.clone();
-        let config = conf_arc.read().error().map_err(AppError::Error)?;
         let action_tx = self.action_tx.clone();
-        let Some(keymap) = config.keybindings.get(&self.mode) else {
+        let Some(keymap) = self.config.keybindings.get(&self.mode) else {
             return Ok(());
         };
         match keymap.get(&vec![key]) {
@@ -221,7 +215,7 @@ impl App {
         }
         // Global keycommands less priority
         if self.mode != Mode::Insert {
-            let Some(keymap) = config.keybindings.get(&Mode::Global) else {
+            let Some(keymap) = self.config.keybindings.get(&Mode::Global) else {
                 return Ok(());
             };
             match keymap.get(&vec![key]) {
@@ -285,16 +279,14 @@ impl App {
                 Action::Error(e) => error!("{e}"),
                 Action::ResetConfig => {
                     {
-                        let mut config = self.config.write().error().map_err(AppError::Error)?;
-                        if config.config.safe_file.exists() {
-                            std::fs::remove_file(config.config.safe_file.clone())?;
+                        if self.config.config.safe_file.exists() {
+                            std::fs::remove_file(self.config.config.safe_file.clone())?;
                         }
-                        *config = Config::new()?;
+                        self.config = Config::new()?;
                         debug!("Reloading config");
                     }
                     self.reload_config(tui)?;
-                    let config = self.config.read().error().map_err(AppError::Error)?;
-                    config.save()?;
+                    self.config.save()?;
                 }
                 _ => {}
             }

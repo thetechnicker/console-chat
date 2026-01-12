@@ -125,17 +125,17 @@ impl From<color_eyre::Report> for AppError {
     }
 }
 
-pub(crate) trait LockErrorExt {
-    type Target;
-    fn error(self) -> Result<Self::Target, String>;
-}
+//pub(crate) trait LockErrorExt {
+//    type Target;
+//    fn error(self) -> Result<Self::Target, String>;
+//}
 
-impl<T> LockErrorExt for std::sync::LockResult<T> {
-    type Target = T;
-    fn error(self) -> Result<Self::Target, String> {
-        self.ok().ok_or("Cannot open lock".to_owned())
-    }
-}
+//impl<T> LockErrorExt for std::sync::LockResult<T> {
+//    type Target = T;
+//    fn error(self) -> Result<Self::Target, String> {
+//        self.ok().ok_or("Cannot open lock".to_owned())
+//    }
+//}
 
 //impl<T> From<T> for AppError
 //where
