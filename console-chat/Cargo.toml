@@ -13,10 +13,11 @@ name = "basic_usage"
 name = "sse_room"
 
 [workspace]
-members = ["openapi"]
+members = ["console-chat-proc-macro","openapi"]
 
 [dependencies]
 openapi = { path = "./openapi", features=["native-tls"]} 
+console-chat-proc-macro={path="./console-chat-proc-macro"}
 alkali = "0.3.0"
 base64 = "0.22.1"
 better-panic = "0.3.0"

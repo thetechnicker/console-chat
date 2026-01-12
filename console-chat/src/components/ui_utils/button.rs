@@ -1,5 +1,8 @@
+use super::EventWidget;
 use super::theme;
-use crate::action::Action;
+use crate::action::ActionSubsetWrapper;
+use crate::action::ButtonEvent;
+use crate::error::Result;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -39,7 +42,7 @@ pub struct Button {
     theme: theme::ButtonStatePalettes,
     label: String,
     sub_titel: String,
-    action: Option<Action>,
+    action: Option<ButtonEvent>,
 }
 
 impl Button {
@@ -47,7 +50,7 @@ impl Button {
         label: impl Into<String>,
         sub_titel: impl Into<String>,
         theme: theme::ButtonStatePalettes,
-        action: Action,
+        action: ButtonEvent,
     ) -> Self {
         Self {
             state: ButtonState::Normal,
@@ -62,7 +65,7 @@ impl Button {
         self.state == ButtonState::Active
     }
 
-    pub fn trigger(&self) -> Option<Action> {
+    pub fn trigger(&self) -> Option<ButtonEvent> {
         self.action.clone()
     }
 
@@ -88,5 +91,25 @@ impl Button {
             &line,
             area.width,
         );
+    }
+}
+
+use crossterm::event::KeyCode;
+use crossterm::event::KeyEvent;
+use crossterm::event::KeyEventKind;
+
+impl EventWidget for Button {
+    fn handle_event(&mut self, key: KeyEvent) -> Result<Option<ActionSubsetWrapper>> {
+        if key.code == KeyCode::Enter {
+            match key.kind {
+                KeyEventKind::Repeat => {}
+                KeyEventKind::Press => {
+                    self.set_state(ButtonState::Active);
+                    return Ok(self.action.as_ref().map(|a| a.into()));
+                }
+                KeyEventKind::Release => self.set_state(ButtonState::Selected),
+            }
+        }
+        Ok(None)
     }
 }

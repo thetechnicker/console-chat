@@ -7,7 +7,7 @@ use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc::UnboundedSender;
 
 use super::Component;
-use crate::{action::Action, config::Config};
+use crate::{action::Action, action::ButtonEvent, config::Config};
 const STYLE_KEY: crate::app::Mode = crate::app::Mode::Home;
 
 #[derive(Default)]
@@ -94,39 +94,44 @@ impl Component for Home {
                     }
                 },
             };
-            self.login = Button::new("Login", "", theme.buttons.accepting, Action::OpenLogin);
+            self.login = Button::new("Login", "", theme.buttons.accepting, ButtonEvent::OpenLogin);
             self.join = Button::new(
                 "Join",
                 "",
                 theme.buttons.mid_accept,
-                Action::OpenJoin(false),
+                ButtonEvent::OpenJoin(false),
             );
             self.join_static = Button::new(
                 "Join Static",
                 "",
                 theme.buttons.mid_accept,
-                Action::OpenJoin(true),
+                ButtonEvent::OpenJoin(true),
             );
             self.random = Button::new(
                 "Join Random",
                 "",
                 theme.buttons.mid_accept,
-                Action::JoinRandom,
+                ButtonEvent::JoinRandom,
             );
-            self.settings = Button::new("Settings", "", theme.buttons.normal, Action::OpenSettings);
+            self.settings = Button::new(
+                "Settings",
+                "",
+                theme.buttons.normal,
+                ButtonEvent::OpenSettings,
+            );
             self.raw_settings = Button::new(
                 "Settings File",
                 "",
                 theme.buttons.normal,
-                Action::OpenRawSettings,
+                ButtonEvent::OpenRawSettings,
             );
             self.reset_config = Button::new(
                 "Reset Config",
                 "",
                 theme.buttons.normal,
-                Action::ResetConfig,
+                ButtonEvent::ResetConfig,
             );
-            self.exit = Button::new("Exit", "", theme.buttons.denying, Action::Quit);
+            self.exit = Button::new("Exit", "", theme.buttons.denying, ButtonEvent::Quit);
             self.home_theme = theme.page;
         }
 
@@ -142,7 +147,7 @@ impl Component for Home {
                     let i = self.index;
                     let buttons = self.get_buttons();
                     buttons[i].set_state(ButtonState::Active);
-                    return Ok(buttons[i].trigger());
+                    return Ok(buttons[i].trigger().map(|a| a.into()));
                 }
                 KeyCode::Char('k') => self.up(),
                 KeyCode::Char('j') => self.down(),

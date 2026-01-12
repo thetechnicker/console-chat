@@ -1,38 +1,54 @@
 pub(crate) use crate::error::{AppError, Result};
 use crate::network::Message;
+use console_chat_proc_macro::Subsetable;
 use openapi::models::UserPrivate;
 use serde::{Deserialize, Serialize};
 use strum::Display;
 
-#[derive(Debug, Clone, PartialEq, Display, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Display, Subsetable, Serialize, Deserialize)]
+#[subsetable(extra_fields={"VimEvent"=["Enter(String)","Up","Down"]})]
 pub enum Action {
     // Unit variants (compact)
     Tick,
     Render,
     Suspend,
     Resume,
+    #[subset("ButtonEvent")]
     Quit,
     ClearScreen,
     Help,
+    #[subset("VimEvent")]
     Insert,
+    #[subset("VimEvent")]
     Normal,
+    #[subset("ButtonEvent")]
     OpenLogin,
+    #[subset("ButtonEvent")]
     OpenSettings,
+    #[subset("ButtonEvent")]
     OpenRawSettings,
+    #[subset("ButtonEvent")]
     OpenChat,
+    #[subset("ButtonEvent")]
     OpenHome,
     Hide,
+    #[subset("ButtonEvent")]
     TriggerLogin,
+    #[subset("ButtonEvent")]
     TriggerJoin,
+    #[subset("ButtonEvent")]
     JoinRandom,
     Leave,
     SyncProfile,
     ReloadConfig,
+    #[subset("ButtonEvent")]
     ResetConfig,
+    #[subset("ButtonEvent", "VimEvent")]
     StoreConfig,
 
     // Small fixed-size payloads
     Resize(u16, u16),
+    #[subset("ButtonEvent")]
     OpenJoin(#[serde(skip)] bool),
 
     PerformLogin(String, String),

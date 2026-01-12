@@ -1,6 +1,9 @@
 pub mod button;
 pub mod theme;
 pub mod vim;
+use crate::action::ActionSubsetWrapper;
+use crate::error::Result;
+use crossterm::event::KeyEvent;
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::Style;
@@ -43,4 +46,8 @@ pub fn render_nice_bg(area: Rect, theme: PageColors, buf: &mut Buffer) -> Rect {
     let area = Layout::vertical(CONTRAINT).split(area)[1];
     //let area = Layout::horizontal(CONTRAINT).split(area)[1];
     area
+}
+
+pub trait EventWidget {
+    fn handle_event(&mut self, event: KeyEvent) -> Result<Option<ActionSubsetWrapper>>;
 }

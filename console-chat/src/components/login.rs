@@ -1,16 +1,17 @@
 use crate::LockErrorExt;
 use crate::action::AppError;
 use crate::action::Result;
-use crate::components::{button::*, render_nice_bg, theme::*, vim::*};
+use crate::components::{EventWidget, button::*, render_nice_bg, theme::*, vim::*};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{prelude::*, widgets::*};
 use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::debug;
-use tui_textarea::TextArea;
 
 use super::Component;
-use crate::{action::Action, config::Config};
+use crate::{
+    action::Action, action::ActionSubsetWrapper, action::ButtonEvent, action::VimEvent,
+    config::Config,
+};
 
 const STYLE_KEY: crate::app::Mode = crate::app::Mode::Login;
 
@@ -20,11 +21,10 @@ pub struct Login<'a> {
     command_tx: Option<UnboundedSender<Action>>,
     config: Arc<RwLock<Config>>,
     theme: PageColors,
-    username: TextArea<'a>,
-    password: TextArea<'a>,
+    username: VimWidget<'a>,
+    password: VimWidget<'a>,
     login: Button,
     exit: Button,
-    vim: [Option<Vim>; 2],
     index: usize,
     size: Size,
 }
@@ -79,23 +79,24 @@ impl Login<'_> {
             }
         }
     }
-}
 
-impl<'a> Login<'a> {
-    fn get_selected_input(&mut self) -> Option<(&mut TextArea<'a>, Vim, usize)> {
-        if self.index >= 2 {
-            return None;
-        }
-        let vim = self.vim[self.index].take().unwrap_or_default();
-        match self.index {
-            0 => Some((&mut self.username, vim, self.index)),
-            1 => Some((&mut self.password, vim, self.index)),
-            _ => None,
+    const fn get_inputs(&mut self) -> [&mut dyn EventWidget; 4] {
+        [
+            &mut self.username,
+            &mut self.password,
+            &mut self.login,
+            &mut self.exit,
+        ]
+    }
+
+    fn send(&mut self, action: Action) {
+        if let Some(action_tx) = self.command_tx.as_ref() {
+            let _ = action_tx.send(action);
         }
     }
 }
 
-impl Component for Login<'_> {
+impl<'a> Component for Login<'a> {
     fn hide(&mut self) {
         self.active = false;
     }
@@ -118,20 +119,18 @@ impl Component for Login<'_> {
                 },
             };
             self.theme = theme.page;
-            self.vim = [Some(Vim::default()), Some(Vim::default())];
-            self.username.set_cursor_line_style(Style::default());
-            self.username
-                .set_style(Style::default().fg(Color::LightGreen));
-            self.username.set_block(VimMode::Normal.highlight_block());
+            self.username = VimWidget::new(VimType::SingleLine, theme.vi);
+            self.password = VimWidget::new(VimType::SingleLine, theme.vi);
 
-            self.password.set_cursor_line_style(Style::default());
-            self.password.set_mask_char('\u{2022}');
-            self.password
-                .set_style(Style::default().fg(Color::LightGreen));
             self.password.set_block(VimMode::Normal.highlight_block());
 
-            self.login = Button::new("Login", "", theme.buttons.accepting, Action::TriggerLogin);
-            self.exit = Button::new("Abort", "<q>", theme.buttons.denying, Action::OpenHome);
+            self.login = Button::new(
+                "Login",
+                "",
+                theme.buttons.accepting,
+                ButtonEvent::TriggerLogin,
+            );
+            self.exit = Button::new("Abort", "<q>", theme.buttons.denying, ButtonEvent::OpenHome);
         }
         self.update_elements();
         Ok(())
@@ -139,65 +138,48 @@ impl Component for Login<'_> {
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
         if self.active {
-            match self.get_selected_input() {
-                Some((textinput, this_vim, i)) => {
-                    self.vim[i] = Some(match this_vim.transition(key.into(), textinput) {
-                        Transition::Mode(mode) if this_vim.mode != mode => {
-                            textinput.set_block(mode.highlight_block());
-                            textinput.set_cursor_style(mode.cursor_style(this_vim.style));
-                            if let Some(command_tx) = self.command_tx.as_ref() {
-                                match mode {
-                                    VimMode::Insert => command_tx.send(Action::Insert)?,
-                                    VimMode::Normal if this_vim.mode == VimMode::Insert => {
-                                        command_tx.send(Action::Normal)?
+            let username = self.username.lines()[0].clone().trim().to_owned();
+            let password = self.password.lines()[0].clone().trim().to_owned();
+            let index = self.index;
+            let inputs = self.get_inputs();
+            let input_event = inputs[index].handle_event(key).clone()?;
+            match key.code {
+                KeyCode::Enter => {
+                    if let Some(event) = input_event {
+                        match event {
+                            ActionSubsetWrapper::VimEvent(vim_event) => match vim_event {
+                                VimEvent::Normal => self.send(Action::Normal),
+                                VimEvent::Insert => self.send(Action::Insert),
+                                VimEvent::Enter(_) => self.down(),
+                                VimEvent::Up => self.up(),
+                                VimEvent::Down => self.down(),
+                                VimEvent::StoreConfig => {}
+                            },
+                            ActionSubsetWrapper::ButtonEvent(ButtonEvent::TriggerLogin) => {
+                                let login_action = match (username.is_empty(), password.is_empty())
+                                {
+                                    (true, true) => {
+                                        Action::Error(AppError::MissingPasswordAndUsername)
                                     }
-                                    _ => {}
+                                    (false, true) => Action::Error(AppError::MissingPassword),
+                                    (true, false) => Action::Error(AppError::MissingUsername),
+                                    (false, false) => {
+                                        self.reset()?;
+                                        Action::PerformLogin(username, password)
+                                    }
                                 };
+                                return Ok(Some(login_action));
                             }
-                            this_vim.update_mode(mode)
-                        }
-                        Transition::Nop | Transition::Mode(_) | Transition::Store => this_vim,
-                        Transition::Pending(input) => this_vim.with_pending(input),
-                        Transition::Up => {
-                            self.up();
-                            this_vim
-                        }
-                        Transition::Down => {
-                            self.down();
-                            this_vim
-                        }
-                        Transition::Enter(content) => {
-                            debug!("{}", content);
-                            self.down();
-                            this_vim.update_mode(VimMode::Normal)
-                        }
-                    });
-                }
-                None => match key.code {
-                    KeyCode::Enter => {
-                        if self.index == 2 {
-                            self.login.set_state(ButtonState::Active);
-                            let username = self.username.lines()[0].clone().trim().to_owned();
-                            let password = self.password.lines()[0].clone().trim().to_owned();
-                            let login_action = match (username.is_empty(), password.is_empty()) {
-                                (true, true) => Action::Error(AppError::MissingPasswordAndUsername),
-                                (false, true) => Action::Error(AppError::MissingPassword),
-                                (true, false) => Action::Error(AppError::MissingUsername),
-                                (false, false) => {
-                                    self.reset()?;
-                                    Action::PerformLogin(username, password)
-                                }
-                            };
-                            return Ok(Some(login_action));
-                        } else if self.index == 3 {
-                            self.exit.set_state(ButtonState::Active);
-                            return Ok(self.exit.trigger());
+                            ActionSubsetWrapper::ButtonEvent(event) => {
+                                return Ok(Some(event.into()));
+                            }
+                            _ => {}
                         }
                     }
-                    KeyCode::Char('k') => self.up(),
-                    KeyCode::Char('j') => self.down(),
-                    _ => {}
-                },
+                }
+                KeyCode::Char('k') => self.up(),
+                KeyCode::Char('j') => self.down(),
+                _ => {}
             }
         }
         Ok(None)

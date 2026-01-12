@@ -1,3 +1,4 @@
+use crate::action::VimEvent;
 use crate::components::theme::ViModePalettes;
 
 use ratatui::style::{Color, Style};
@@ -145,9 +146,9 @@ impl Vim {
         self
     }
 
-    pub fn reset_pending(&mut self) {
-        self.pending = Input::default();
-    }
+    // pub fn reset_pending(&mut self) {
+    //     self.pending = Input::default();
+    // }
 
     pub fn with_pending(self, pending: Input) -> Self {
         Self {
@@ -488,10 +489,9 @@ impl Vim {
     }
 }
 
-use crate::action::Action;
 use crate::error::Result;
 use crossterm::event::KeyEvent;
-use tracing::debug;
+//use tracing::debug;
 
 use std::ops::{Deref, DerefMut};
 #[derive(Debug, Default)]
@@ -514,43 +514,60 @@ impl<'a> DerefMut for VimWidget<'a> {
 
 impl<'a> VimWidget<'a> {
     pub fn new(vim_type: VimType, style: ViModePalettes) -> Self {
-        Self {
-            vim: Vim::new(VimMode::Normal, vim_type, style),
-            textinput: TextArea::default(),
-        }
+        let vim = Vim::new(VimMode::Normal, vim_type, style);
+        let mut textinput = TextArea::default();
+        textinput.set_block(vim.mode.block());
+        textinput.set_cursor_style(vim.mode.cursor_style(vim.style));
+        Self { vim, textinput }
     }
 
-    pub fn handle_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
+    pub fn with_text(mut self, text: impl Into<String>) -> Self {
+        self.textinput = TextArea::from(text.into().split("\n"));
+        self.textinput.set_block(self.vim.mode.block());
+        self.textinput
+            .set_cursor_style(self.vim.mode.cursor_style(self.vim.style));
+        self
+    }
+
+    pub fn handle_event(&mut self, key: KeyEvent) -> Result<Option<VimEvent>> {
         let mut to_return = None;
         let new_vim = self.vim.copy();
         self.vim = match self.vim.transition(key.into(), &mut self.textinput) {
             Transition::Mode(mode) if self.vim.mode != mode => {
-                self.textinput.set_block(mode.block());
-                self.textinput
-                    .set_cursor_style(mode.cursor_style(self.vim.style));
-
                 match mode {
-                    VimMode::Insert => to_return = Some(Action::Insert),
-                    VimMode::Normal if self.vim.mode != mode => to_return = Some(Action::Normal),
+                    VimMode::Insert => to_return = Some(VimEvent::Insert),
+                    VimMode::Normal if self.vim.mode != mode => to_return = Some(VimEvent::Normal),
                     _ => {}
                 }
                 new_vim.update_mode(mode)
             }
             Transition::Nop | Transition::Mode(_) => new_vim,
             Transition::Pending(input) => new_vim.with_pending(input),
-            Transition::Up => new_vim,
-            Transition::Down => new_vim,
+            Transition::Up => {
+                to_return = Some(VimEvent::Up);
+                new_vim
+            }
+            Transition::Down => {
+                to_return = Some(VimEvent::Down);
+                new_vim
+            }
             Transition::Enter(content) => {
-                debug!("{}", content);
+                to_return = Some(VimEvent::Enter(content));
                 new_vim
             }
             Transition::Store => {
-                to_return = Some(Action::StoreConfig);
+                to_return = Some(VimEvent::StoreConfig);
                 new_vim
             }
         };
+        self.textinput.set_block(
+            self.vim
+                .mode
+                .highlight_block()
+                .title_bottom(self.vim.input_seq()),
+        );
         self.textinput
-            .set_block(self.vim.mode.block().title_bottom(self.vim.input_seq()));
+            .set_cursor_style(self.vim.mode.cursor_style(self.vim.style));
         Ok(to_return)
     }
 }
@@ -560,5 +577,14 @@ use ratatui::prelude::*;
 impl Widget for &VimWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         self.textinput.render(area, buf);
+    }
+}
+
+use super::EventWidget;
+use crate::action::ActionSubsetWrapper;
+
+impl<'a> EventWidget for VimWidget<'a> {
+    fn handle_event(&mut self, key: KeyEvent) -> Result<Option<ActionSubsetWrapper>> {
+        VimWidget::handle_event(self, key).map(|o| o.map(|a| a.into()))
     }
 }
