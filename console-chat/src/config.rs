@@ -1,5 +1,6 @@
 #![allow(clippy::unwrap_used)]
 use color_eyre::Result;
+use console_chat_proc_macro::validate_url;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use derive_deref::{Deref, DerefMut};
 use directories::ProjectDirs;
@@ -49,12 +50,6 @@ pub struct NetworkConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ca_cert_path: Option<PathBuf>,
 
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub client_cert_path: Option<PathBuf>,
-
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub client_key_path: Option<PathBuf>,
-
     #[serde(default, skip_serializing_if = "is_false")]
     pub disable_hostname_verification: bool,
 }
@@ -65,12 +60,10 @@ fn is_false(b: &bool) -> bool {
 impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
-            host: Url::parse("https://localhost")
+            host: Url::parse(validate_url!("https://localhost"))
                 .expect("default URL should be valid; this is a source code bug"),
             accept_danger: false,
             ca_cert_path: None,
-            client_cert_path: None,
-            client_key_path: None,
             disable_hostname_verification: false,
         }
     }
