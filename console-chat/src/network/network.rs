@@ -1,34 +1,18 @@
-use crate::action::Action;
 use crate::cli::Cli;
 use crate::config::Config;
 use crate::error::Result;
 use crate::network::error::NetworkError;
-use alkali::asymmetric::cipher::{self, PUBLIC_KEY_LENGTH, PublicKey};
-use alkali::mem::{FullAccess, ReadOnly};
-use alkali::symmetric::cipher::{self as symetric_cipher, Key, NONCE_LENGTH};
-use base64::{Engine as _, engine::general_purpose};
-use chrono::{DateTime, Utc};
-use color_eyre::eyre::OptionExt;
+use alkali::asymmetric::cipher::{self};
+use alkali::mem::ReadOnly;
+use alkali::symmetric::cipher::Key;
 use derive_deref::{Deref, DerefMut};
-use futures_util::stream::StreamExt;
-use lazy_static::lazy_static;
-use openapi::apis::Error as ApiError;
 use openapi::apis::configuration::Configuration;
-use openapi::apis::{rooms_api, users_api};
-use openapi::models::*;
 use reqwest::Certificate;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::str::FromStr;
 use std::sync::Arc;
-use std::sync::atomic;
-use std::sync::atomic::Ordering;
-use tokio::sync::OnceCell;
 use tokio::sync::RwLock;
-use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error};
 
 #[derive(Deref, DerefMut)]
 pub(crate) struct Keypair(pub cipher::Keypair);
@@ -49,14 +33,10 @@ impl std::fmt::Debug for Keypair {
 
 #[derive(Default, Debug)]
 pub(crate) struct NetworkData {
-    pub room: atomic::AtomicPtr<String>,
+    pub room: RwLock<Option<String>>,
     pub conf: RwLock<Configuration>,
     pub asym_key: Option<Keypair>,
     pub keys: RwLock<HashMap<String, Key<ReadOnly>>>,
-}
-
-lazy_static! {
-    pub(crate) static ref CLIENT: OnceCell<NetworkClient> = OnceCell::new();
 }
 
 #[derive(Debug)]
@@ -73,7 +53,7 @@ pub(crate) struct NetworkClient {
 }
 
 impl NetworkClient {
-    pub fn init(args: Cli, config: Config) -> Result<bool, NetworkError> {
+    pub fn new(args: Cli, config: Config) -> Result<Self, NetworkError> {
         let conf_copy = config.clone();
         let mut conf = Configuration::new();
         conf.base_path = config.network.host.as_str().to_owned();
@@ -94,17 +74,26 @@ impl NetworkClient {
 
         conf.client = builder.build()?;
 
-        Ok(CLIENT
-            .set(Self {
-                config: conf_copy,
-                data: Arc::new(NetworkData {
-                    room: atomic::AtomicPtr::new(std::ptr::null_mut()),
-                    conf: RwLock::new(conf),
-                    asym_key: cipher::Keypair::generate().ok().map(|k| k.into()),
-                    keys: RwLock::new(HashMap::new()),
-                }),
-                listen_thread: None,
-            })
-            .is_ok())
+        Ok(Self {
+            config: conf_copy,
+            data: Arc::new(NetworkData {
+                room: RwLock::new(None),
+                conf: RwLock::new(conf),
+                asym_key: cipher::Keypair::generate().ok().map(|k| k.into()),
+                keys: RwLock::new(HashMap::new()),
+            }),
+            listen_thread: None,
+        })
     }
+
+    async fn join(&mut self, room: impl Into<String>) -> Result<()> {
+        Ok(())
+    }
+    async fn leave(&mut self) -> Result<()> {
+        Ok(())
+    }
+}
+
+fn listen(data: Arc<NetworkData>, cancel_token: CancellationToken) -> Result<()> {
+    Ok(())
 }
