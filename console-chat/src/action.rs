@@ -4,9 +4,22 @@ use console_chat_proc_macro::Subsetable;
 use openapi::models::UserPrivate;
 use serde::{Deserialize, Serialize};
 use strum::Display;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Display, Subsetable, Serialize, Deserialize)]
-#[subsetable(extra_fields={"VimEvent"=["Enter(String)","Up","Down"]})]
+#[subsetable(
+    extra_fields={
+        "VimEvent"=[
+            "Enter(String)",
+            "Up",
+            "Down"
+        ],
+        "NetworkEvent"=[
+            "RequestMe(Uuid)"
+        ]
+    },
+    serialization={"NetworkEvent"=false}
+)]
 pub enum Action {
     // Unit variants (compact)
     Tick,
@@ -51,13 +64,19 @@ pub enum Action {
     #[subset("ButtonEvent")]
     OpenJoin(#[serde(skip)] bool),
 
+    #[subset("NetworkEvent")]
     PerformLogin(String, String),
+    #[subset("NetworkEvent")]
     PerformJoin(String, bool),
+    #[subset("NetworkEvent")]
     SendMessage(String),
+    #[subset("NetworkEvent")]
     Me(UserPrivate),
+    #[subset("NetworkEvent")]
     ReceivedMessage(Message),
 
     // Error variant skipped in serde
+    #[subset("NetworkEvent")]
     #[serde(skip)]
     Error(AppError),
 }

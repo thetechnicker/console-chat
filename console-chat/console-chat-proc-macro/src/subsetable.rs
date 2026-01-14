@@ -13,6 +13,7 @@ struct TargetEnums(#[deluxe(flatten)] Vec<String>);
 #[deluxe(attributes(subsetable))]
 struct SubsetDefaults {
     extra_fields: HashMap<String, Vec<String>>,
+    serialization: HashMap<String, bool>,
 }
 
 pub(crate) fn subsetable_derive_macro2(
@@ -80,10 +81,16 @@ pub(crate) fn subsetable_derive_macro2(
 
     let mut generated = TokenStream::new();
 
-    let derive_attrs = quote! {
-               #[derive(Debug, Clone, PartialEq, Display, Serialize, Deserialize)]
-    };
     for (target_name, (variants, has_custom_variants)) in targets.iter() {
+        let derive_attrs = if defaults.serialization.get(target_name).is_some_and(|x| !*x) {
+            quote! {
+                #[derive(Debug, Clone, PartialEq, Display)]
+            }
+        } else {
+            quote! {
+               #[derive(Debug, Clone, PartialEq, Display, Serialize, Deserialize)]
+            }
+        };
         let has_custom_variants = *has_custom_variants;
         let target_ident = format_ident!("{}", target_name);
         // reproduce visibility of source for generated enum
@@ -248,7 +255,7 @@ pub(crate) fn subsetable_derive_macro2(
         .collect();
 
     let wrapper_gen = quote! {
-        #derive_attrs
+        #[derive(Debug, Clone, PartialEq, Display)]
         #vis enum #wrapper_ident {
             #(#wrapper_variant_defs),*,
             #src_variant (#src_ident),

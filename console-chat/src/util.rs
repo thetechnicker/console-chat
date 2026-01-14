@@ -62,7 +62,7 @@ impl Deref for TypeErasedWrapper {
 //
 
 mod safe_atomic_ptr;
-pub(crate) use safe_atomic_ptr::*;
+//pub(crate) use safe_atomic_ptr::*;
 
 #[cfg(test)]
 mod test {

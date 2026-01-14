@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use derive_deref::{Deref, DerefMut};
 use std::ptr::null_mut;
 use std::sync::atomic::{AtomicPtr, Ordering};

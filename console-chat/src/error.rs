@@ -2,7 +2,6 @@ use crate::network::error::NetworkError;
 use serde::{Deserialize, Deserializer};
 use std::error::Error;
 use std::sync::Arc;
-//use strum::Display;
 
 pub(crate) type Result<T, E = AppError> = std::result::Result<T, E>;
 
@@ -125,23 +124,16 @@ impl From<color_eyre::Report> for AppError {
     }
 }
 
+//use color_eyre::eyre::OptionExt;
+//
 //pub(crate) trait LockErrorExt {
 //    type Target;
-//    fn error(self) -> Result<Self::Target, String>;
+//    fn error(self) -> Result<Self::Target, color_eyre::Report>;
 //}
-
+//
 //impl<T> LockErrorExt for std::sync::LockResult<T> {
 //    type Target = T;
-//    fn error(self) -> Result<Self::Target, String> {
-//        self.ok().ok_or("Cannot open lock".to_owned())
-//    }
-//}
-
-//impl<T> From<T> for AppError
-//where
-//    T: std::error::Error + 'static + std::marker::Send + std::marker::Sync,
-//{
-//    fn from(err: T) -> Self {
-//        AppError::Eyre(Arc::new(err.into()))
+//    fn error(self) -> Result<Self::Target, color_eyre::Report> {
+//        self.ok().ok_or_eyre("Cannot open lock".to_owned())
 //    }
 //}

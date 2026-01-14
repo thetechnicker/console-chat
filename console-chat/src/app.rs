@@ -72,9 +72,11 @@ impl App {
     }
 
     pub async fn run(&mut self) -> Result<()> {
-        network::init(self.args.clone(), self.action_tx.clone())
-            .await
-            .map_err(|e| color_eyre::Report::new(e))?;
+        let _ = network::network::NetworkStack::new(
+            self.args.clone(),
+            self.config.clone(),
+            self.action_tx.clone(),
+        )?;
         let mut tui = Tui::new()?
             .mouse(true) // uncomment this line to enable mouse support
             .tick_rate(self.args.tick_rate)
@@ -94,7 +96,7 @@ impl App {
         let action_tx = self.action_tx.clone();
         loop {
             self.handle_events(&mut tui).await?;
-            self.handle_actions(&mut tui).await?;
+            self.handle_actions(&mut tui)?;
             if self.should_suspend {
                 tui.suspend()?;
                 action_tx.send(Action::Resume)?;
@@ -247,7 +249,7 @@ impl App {
         Ok(())
     }
 
-    async fn handle_actions(&mut self, tui: &mut Tui) -> Result<()> {
+    fn handle_actions(&mut self, tui: &mut Tui) -> Result<()> {
         while let Ok(action) = self.action_rx.try_recv() {
             if action != Action::Tick && action != Action::Render {
                 debug!("{action:?}");
@@ -295,17 +297,17 @@ impl App {
                     self.action_tx.send(action)?
                 }
             }
-            match network::handle_actions(action.clone()).await {
-                Ok(action) => {
-                    if let Some(action) = action {
-                        self.action_tx.send(action)?
-                    }
-                }
-                Err(e) => {
-                    let _ = self.action_tx.send(Action::Error(e.into()));
-                    let _ = self.action_tx.send(Action::OpenHome);
-                }
-            }
+            //       match network::handle_actions(action.clone()).await {
+            //           Ok(action) => {
+            //               if let Some(action) = action {
+            //                   self.action_tx.send(action)?
+            //               }
+            //           }
+            //           Err(e) => {
+            //               let _ = self.action_tx.send(Action::Error(e.into()));
+            //               let _ = self.action_tx.send(Action::OpenHome);
+            //           }
+            //       }
         }
         Ok(())
     }

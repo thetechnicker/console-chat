@@ -45,6 +45,8 @@ services:
     image: nginx:latest
     hostname: console-chat
     restart: on-failure
+    env_file:
+      - .env
     depends_on:
       - chat-server
     ports:

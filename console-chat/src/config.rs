@@ -1,6 +1,5 @@
 #![allow(clippy::unwrap_used)]
 use color_eyre::Result;
-use console_chat_proc_macro::validate_url;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use derive_deref::{Deref, DerefMut};
 use directories::ProjectDirs;
@@ -12,7 +11,6 @@ use std::{
     path::PathBuf,
 };
 use tracing::error;
-use url::Url;
 
 use crate::{action::Action, app::Mode};
 
@@ -42,7 +40,7 @@ pub struct Config {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct NetworkConfig {
-    pub host: Url,
+    pub host: String,
 
     #[serde(default, skip_serializing_if = "is_false")]
     pub accept_danger: bool,
@@ -60,8 +58,7 @@ fn is_false(b: &bool) -> bool {
 impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
-            host: Url::parse(validate_url!("https://localhost"))
-                .expect("default URL should be valid; this is a source code bug"),
+            host: "https://localhost".to_owned(),
             accept_danger: false,
             ca_cert_path: None,
             disable_hostname_verification: false,

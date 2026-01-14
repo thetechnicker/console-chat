@@ -2,7 +2,7 @@ use super::Component;
 use crate::action::Result;
 use crate::components::theme::Theme;
 use crate::components::vim::*;
-use crate::network::{Message, USERNAME};
+use crate::network::Message;
 use crate::{action::Action, config::Config};
 use chrono::Local;
 use crossterm::event::{KeyCode, KeyEvent};
@@ -21,16 +21,8 @@ struct MessageComponent {
 }
 impl MessageComponent {
     fn new(content: Message) -> Self {
-        let user = content
-            .user
-            .clone()
-            .unwrap_or(UserPublic::new(AppearancePublic::new("#c0ffee".to_owned())));
-        let alignment = if let Ok(me) = USERNAME.read() {
-            if *me == user.username {
-                Alignment::Right
-            } else {
-                Alignment::Left
-            }
+        let alignment = if content.is_me {
+            Alignment::Right
         } else {
             Alignment::Left
         };
