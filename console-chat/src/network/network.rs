@@ -1,65 +1,25 @@
-use super::*;
+use super::Keys;
+use super::listen_thread::ListenThreadData;
+use super::misc_thread::MiscThreadData;
 use crate::action::Action;
 use crate::action::NetworkEvent;
 use crate::cli::Cli;
 use crate::config::Config;
 use crate::network::Result;
-use alkali::asymmetric::cipher::{self};
-use alkali::mem::ReadOnly;
-use alkali::symmetric::cipher::Key;
-use derive_deref::{Deref, DerefMut};
 use openapi::apis::configuration::Configuration;
-use openapi::apis::users_api;
-use openapi::models::Token;
+use openapi::models::UserPrivate;
 use reqwest::Certificate;
-use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::sync::Mutex;
+use tokio::sync::Notify;
+use tokio::sync::RwLock;
+use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::mpsc::unbounded_channel;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::sync::watch::Sender;
+use tokio::sync::watch::channel;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
-
-#[derive(Deref, DerefMut)]
-pub(crate) struct Keypair(pub cipher::Keypair);
-impl From<cipher::Keypair> for Keypair {
-    fn from(c: cipher::Keypair) -> Keypair {
-        Keypair(c)
-    }
-}
-
-impl std::fmt::Debug for Keypair {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Keypair")
-            .field("private_key", &"*".repeat(self.private_key.len()))
-            .field("public_key", &self.public_key)
-            .finish()
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct Keys {
-    pub symetric_keys: Mutex<HashMap<String, Key<ReadOnly>>>, // Protect with Mutex
-    pub asymetric_keys: Option<Keypair>,
-}
-
-#[derive(Debug)]
-pub struct MiscThreadData {
-    pub conf: Arc<Mutex<Configuration>>, // Use Arc<Mutex> for shared access
-    pub sender_main: UnboundedSender<Action>, // Thread-local; no protection needed
-    pub sender_inner: UnboundedSender<NetworkEvent>, // Thread-local; no protection needed
-    pub receiver: UnboundedReceiver<NetworkEvent>, // Thread-local; no protection needed
-}
-
-#[derive(Debug)]
-pub struct ListenThreadData {
-    pub room: String,
-    pub keys: Arc<Keys>,                 // Shared ownership via Arc
-    pub conf: Arc<Mutex<Configuration>>, // Use Arc<Mutex> for shared access
-    pub sender: UnboundedSender<Action>, // Thread-local; no protection needed
-}
 
 #[derive(Debug)]
 pub struct ThreadManagement<T> {
@@ -69,11 +29,14 @@ pub struct ThreadManagement<T> {
 
 #[derive(Debug)]
 pub struct NetworkStack {
-    room: Option<String>,
+    me: Arc<Mutex<Option<UserPrivate>>>,
     keys: Arc<Keys>,                             // Shared ownership via Arc
-    conf: Arc<Mutex<Configuration>>,             // Use Arc<Mutex> to allow controlled access
+    conf: Arc<RwLock<Configuration>>,            // Use Arc<Mutex> to allow controlled access
     sender_inner: UnboundedSender<NetworkEvent>, // Thread-local; no protection needed
     sender_main: UnboundedSender<Action>,        // Thread-local; no protection needed
+
+    signal: Arc<Notify>,
+    room_tx: Sender<String>,
 
     listen_thread: Option<ThreadManagement<Result<()>>>,
     misc_thread: ThreadManagement<Result<()>>,
@@ -83,6 +46,8 @@ impl NetworkStack {
     pub fn new(cli: Cli, config: Config, sender: UnboundedSender<Action>) -> Result<Self> {
         debug!("Network config: {:#?}", config.network);
         let mut conf = Configuration::new();
+        let me = Arc::new(Mutex::new(None));
+        let signal = Arc::new(Notify::new());
 
         conf.base_path = config.network.host.clone();
 
@@ -105,26 +70,34 @@ impl NetworkStack {
         conf.client = builder.build()?;
         debug!("Config: {conf:#?}");
 
-        let conf = Arc::new(Mutex::new(conf));
+        let conf = Arc::new(RwLock::new(conf));
 
         let (sender_a, receiver_a) = unbounded_channel();
+        let (room_tx, room_rx) = channel(String::new());
 
-        let misc_data = MiscThreadData {
-            conf: Arc::clone(&conf),
-            sender_main: sender.clone(),
-            sender_inner: sender_a.clone(),
-            receiver: receiver_a,
-        };
+        let misc_data = MiscThreadData::new(
+            me.clone(),
+            Arc::clone(&conf),
+            signal.clone(),
+            room_rx,
+            sender.clone(),
+            sender_a.clone(),
+            receiver_a,
+        );
+
         let cancel_token = CancellationToken::new();
-        let misc_thread = tokio::spawn(misc_loop(misc_data, cancel_token.clone()));
+        let misc_token = cancel_token.clone();
+        let misc_thread = tokio::spawn(async move { misc_data.misc_loop(misc_token).await });
         let misc_thread_manager = ThreadManagement {
             join_handle: misc_thread,
             cancellation_token: cancel_token,
         };
 
         Ok(Self {
-            room: None,
+            room_tx,
+            signal,
             conf,
+            me,
             keys: Arc::new(Keys::default()),
             listen_thread: None,
             misc_thread: misc_thread_manager,
@@ -132,39 +105,47 @@ impl NetworkStack {
             sender_inner: sender_a,
         })
     }
-}
 
-async fn token_refresh(data: &MiscThreadData) -> Result<Token> {
-    let mut conf = data.conf.lock().await;
-    let response = users_api::users_online(&conf, None).await?;
-    let token = response.token.clone();
-    conf.bearer_access_token = Some(token.token);
-    send_no_err(&data.sender_inner, NetworkEvent::RequestMe(response.user));
-    Ok(response.token)
-}
-
-async fn handle_network_event(_event: NetworkEvent, _data: &MiscThreadData) -> Result<()> {
-    Ok(())
-}
-
-async fn misc_loop(mut data: MiscThreadData, cancel_token: CancellationToken) -> Result<()> {
-    let token = token_refresh(&data).await?;
-    let mut token_refresh_interval = tokio::time::interval(Duration::from_secs(token.ttl as u64));
-    loop {
-        tokio::select! {
-            _ = cancel_token.cancelled() => {
-                break
-            }
-            _ = token_refresh_interval.tick() => {
-                let token = token_refresh(&data).await?;
-                if token_refresh_interval.period().as_secs() != token.ttl as u64 {
-                    token_refresh_interval = tokio::time::interval(Duration::from_secs(token.ttl as u64));
+    pub fn handle_action(&mut self, action: Action) -> Result<()> {
+        if let Some(network_event) = action.try_into().ok() {
+            match network_event {
+                NetworkEvent::PerformJoin(room, is_static) => self.join(room, is_static)?,
+                _ => {
+                    let _ = self.sender_inner.send(network_event);
                 }
             }
-            Some(event) = data.receiver.recv()=>{
-                handle_network_event(event, &data).await?;
-            }
+        }
+        Ok(())
+    }
+
+    pub fn join(&mut self, room: String, is_static: bool) -> Result<()> {
+        let listen_thread_data = ListenThreadData::new(
+            is_static,
+            room,
+            self.keys.clone(),
+            self.signal.clone(),
+            self.room_tx.clone(),
+            self.me.clone(),
+            self.conf.clone(),
+            self.sender_main.clone(),
+        );
+        let cancellation_token = CancellationToken::new();
+        let listen_thread = ThreadManagement {
+            join_handle: tokio::spawn(listen_thread_data.run(cancellation_token.clone())),
+            cancellation_token,
+        };
+        self.listen_thread = Some(listen_thread);
+        Ok(())
+    }
+}
+
+impl Drop for NetworkStack {
+    fn drop(&mut self) {
+        self.misc_thread.cancellation_token.cancel();
+        self.misc_thread.join_handle.abort();
+        if let Some(listen_thread) = self.listen_thread.take() {
+            listen_thread.cancellation_token.cancel();
+            listen_thread.join_handle.abort();
         }
     }
-    Ok(())
 }

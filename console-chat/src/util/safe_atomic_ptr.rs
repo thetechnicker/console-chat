@@ -51,7 +51,8 @@ impl<T> Drop for SafeAtomicPtr<T> {
 fn test_attributes<T>() {
     fn is_send<T: Send>() {}
     fn is_sync<T: Sync>() {}
-
+    fn is_send_sync<T: Send + Sync>() {}
     is_send::<SafeAtomicPtr<T>>();
     is_sync::<SafeAtomicPtr<T>>();
+    is_send_sync::<SafeAtomicPtr<T>>();
 }

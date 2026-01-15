@@ -61,7 +61,11 @@ impl Deref for TypeErasedWrapper {
 //}
 //
 
+mod poison_free_mutex;
 mod safe_atomic_ptr;
+pub(crate) use poison_free_mutex::PoisonFreeMutex;
+pub(crate) use safe_atomic_ptr::SafeAtomicPtr;
+
 //pub(crate) use safe_atomic_ptr::*;
 
 #[cfg(test)]

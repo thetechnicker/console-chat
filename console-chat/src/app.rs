@@ -7,7 +7,7 @@ use crate::{
         sorted_components,
     },
     config::Config,
-    network,
+    network::network::NetworkStack,
     tui::{Event, Tui},
 };
 use color_eyre::Result;
@@ -72,7 +72,7 @@ impl App {
     }
 
     pub async fn run(&mut self) -> Result<()> {
-        let _ = network::network::NetworkStack::new(
+        let mut network_stack = NetworkStack::new(
             self.args.clone(),
             self.config.clone(),
             self.action_tx.clone(),
@@ -96,7 +96,7 @@ impl App {
         let action_tx = self.action_tx.clone();
         loop {
             self.handle_events(&mut tui).await?;
-            self.handle_actions(&mut tui)?;
+            self.handle_actions(&mut tui, &mut network_stack)?;
             if self.should_suspend {
                 tui.suspend()?;
                 action_tx.send(Action::Resume)?;
@@ -249,7 +249,7 @@ impl App {
         Ok(())
     }
 
-    fn handle_actions(&mut self, tui: &mut Tui) -> Result<()> {
+    fn handle_actions(&mut self, tui: &mut Tui, network_stack: &mut NetworkStack) -> Result<()> {
         while let Ok(action) = self.action_rx.try_recv() {
             if action != Action::Tick && action != Action::Render {
                 debug!("{action:?}");
@@ -297,17 +297,7 @@ impl App {
                     self.action_tx.send(action)?
                 }
             }
-            //       match network::handle_actions(action.clone()).await {
-            //           Ok(action) => {
-            //               if let Some(action) = action {
-            //                   self.action_tx.send(action)?
-            //               }
-            //           }
-            //           Err(e) => {
-            //               let _ = self.action_tx.send(Action::Error(e.into()));
-            //               let _ = self.action_tx.send(Action::OpenHome);
-            //           }
-            //       }
+            network_stack.handle_action(action)?;
         }
         Ok(())
     }

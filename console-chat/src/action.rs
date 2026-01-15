@@ -49,7 +49,7 @@ pub enum Action {
     TriggerLogin,
     #[subset("ButtonEvent")]
     TriggerJoin,
-    #[subset("ButtonEvent")]
+    #[subset("ButtonEvent", "NetworkEvent")]
     JoinRandom,
     Leave,
     SyncProfile,
