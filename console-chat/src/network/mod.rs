@@ -82,9 +82,9 @@ async fn send_message(
     room: &str,
     is_static: bool,
     message_content: &str,
-    key: Option<Key<impl alkali::mem::MprotectReadable>>,
+    key: Option<&Key<impl alkali::mem::MprotectReadable>>,
 ) -> Result<()> {
-    if let Some(key) = key.as_ref() {
+    if let Some(key) = key {
         debug!("Sending encrypted Message");
         let plaintext = message_content.as_bytes();
         let mut ciphertext = vec![0u8; plaintext.len() + cipher::MAC_LENGTH];

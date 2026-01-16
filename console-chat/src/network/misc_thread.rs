@@ -7,10 +7,8 @@ use alkali::symmetric::cipher::Key;
 use openapi::apis::configuration::Configuration;
 use openapi::apis::users_api;
 use openapi::models::Token;
-use openapi::models::UserPrivate;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::Mutex;
 use tokio::sync::Notify;
 use tokio::sync::RwLock;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
@@ -19,14 +17,14 @@ use tokio_util::sync::CancellationToken;
 
 #[derive(Debug)]
 pub struct MiscThreadData {
-    me: Arc<Mutex<Option<UserPrivate>>>,
     conf: Arc<RwLock<Configuration>>, // Use Arc<Mutex> for shared access
 
     used_key: Option<Key<ReadOnly>>,
+    id: Option<uuid::Uuid>,
 
     signal: Arc<Notify>,
-    room_rx: Receiver<String>,
-    room: Option<String>,
+    room_rx: Receiver<(String, bool)>,
+    room: Option<(String, bool)>,
     sender_main: UnboundedSender<Action>, // Thread-local; no protection needed
     sender_inner: UnboundedSender<NetworkEvent>, // Thread-local; no protection needed
     receiver: UnboundedReceiver<NetworkEvent>, // Thread-local; no protection needed
@@ -34,20 +32,19 @@ pub struct MiscThreadData {
 
 impl MiscThreadData {
     pub fn new(
-        me: Arc<Mutex<Option<UserPrivate>>>,
         conf: Arc<RwLock<Configuration>>,
         signal: Arc<Notify>,
-        room_rx: Receiver<String>,
+        room_rx: Receiver<(String, bool)>,
         sender_main: UnboundedSender<Action>,
         sender_inner: UnboundedSender<NetworkEvent>,
         receiver: UnboundedReceiver<NetworkEvent>,
     ) -> Self {
         Self {
-            me,
             conf,
             room_rx: room_rx,
             room: None,
-            used_key: None, // Default value for non-public field
+            used_key: None,
+            id: None,
             signal,
             sender_main,
             sender_inner,
@@ -55,25 +52,36 @@ impl MiscThreadData {
         }
     }
 
-    pub async fn token_refresh(&self) -> Result<Token> {
+    pub async fn token_refresh(&mut self) -> Result<Token> {
         let mut conf = self.conf.write().await;
         let response = users_api::users_online(&conf, None).await?;
         let token = response.token.clone();
+        self.id = Some(response.user);
         conf.bearer_access_token = Some(token.token);
-        let _ = self
-            .sender_inner
-            .send(NetworkEvent::RequestMe(response.user));
+        let _ = self.sender_inner.send(NetworkEvent::RequestMe);
         Ok(response.token)
+    }
+
+    pub async fn request_me(&self) -> Result<()> {
+        let conf = self.conf.read().await;
+        let user = users_api::users_get_me(&conf).await?;
+        let _ = self.sender_main.send(Action::Me(user));
+        Ok(())
+    }
+    pub async fn send_msg(&self, msg: &str) -> Result<()> {
+        if let Some((room, is_static)) = self.room.as_ref() {
+            let conf = self.conf.read().await;
+            send_message(&conf, room, *is_static, msg, self.used_key.as_ref()).await?;
+        }
+        Ok(())
     }
 
     #[allow(unused_variables)]
     pub async fn handle_network_event(&self, event: NetworkEvent) -> Result<()> {
         match event {
             NetworkEvent::PerformLogin(username, password) => todo!(),
-            NetworkEvent::RequestMe(id) => todo!(),
-            NetworkEvent::SendMessage(msg) => {
-                todo!();
-            }
+            NetworkEvent::RequestMe => self.request_me().await?,
+            NetworkEvent::SendMessage(msg) => self.send_msg(&msg).await?,
             _ => {}
         }
         Ok(())
@@ -99,7 +107,7 @@ impl MiscThreadData {
                 Some(event) = self.receiver.recv()=>{
                     self.handle_network_event(event ).await?;
                 }
-                Ok(room)=self.room_rx.changed()=>{
+                Ok(_)=self.room_rx.changed()=>{
                     self.room=Some(self.room_rx.borrow_and_update().to_owned());
                     self.room_rx.mark_unchanged();
                 }
@@ -109,11 +117,17 @@ impl MiscThreadData {
     }
 }
 
-fn test_attributes<T>() {
-    fn is_send<T: Send>() {}
-    fn is_sync<T: Sync>() {}
-    fn is_send_sync<T: Send + Sync>() {}
-    is_send::<MiscThreadData>();
-    is_sync::<MiscThreadData>();
-    is_send_sync::<MiscThreadData>();
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[allow(dead_code)]
+    fn test_attributes<T>() {
+        fn is_send<T: Send>() {}
+        fn is_sync<T: Sync>() {}
+        fn is_send_sync<T: Send + Sync>() {}
+        is_send::<MiscThreadData>();
+        is_sync::<MiscThreadData>();
+        is_send_sync::<MiscThreadData>();
+    }
 }

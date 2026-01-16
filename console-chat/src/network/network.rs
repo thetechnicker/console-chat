@@ -10,7 +10,6 @@ use openapi::apis::configuration::Configuration;
 use openapi::models::UserPrivate;
 use reqwest::Certificate;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 use tokio::sync::Notify;
 use tokio::sync::RwLock;
 use tokio::sync::mpsc::UnboundedSender;
@@ -29,14 +28,14 @@ pub struct ThreadManagement<T> {
 
 #[derive(Debug)]
 pub struct NetworkStack {
-    me: Arc<Mutex<Option<UserPrivate>>>,
+    me: Option<UserPrivate>,
     keys: Arc<Keys>,                             // Shared ownership via Arc
     conf: Arc<RwLock<Configuration>>,            // Use Arc<Mutex> to allow controlled access
     sender_inner: UnboundedSender<NetworkEvent>, // Thread-local; no protection needed
     sender_main: UnboundedSender<Action>,        // Thread-local; no protection needed
 
     signal: Arc<Notify>,
-    room_tx: Sender<String>,
+    room_tx: Sender<(String, bool)>,
 
     listen_thread: Option<ThreadManagement<Result<()>>>,
     misc_thread: ThreadManagement<Result<()>>,
@@ -46,7 +45,6 @@ impl NetworkStack {
     pub fn new(cli: Cli, config: Config, sender: UnboundedSender<Action>) -> Result<Self> {
         debug!("Network config: {:#?}", config.network);
         let mut conf = Configuration::new();
-        let me = Arc::new(Mutex::new(None));
         let signal = Arc::new(Notify::new());
 
         conf.base_path = config.network.host.clone();
@@ -73,10 +71,9 @@ impl NetworkStack {
         let conf = Arc::new(RwLock::new(conf));
 
         let (sender_a, receiver_a) = unbounded_channel();
-        let (room_tx, room_rx) = channel(String::new());
+        let (room_tx, room_rx) = channel((String::new(), false));
 
         let misc_data = MiscThreadData::new(
-            me.clone(),
             Arc::clone(&conf),
             signal.clone(),
             room_rx,
@@ -97,7 +94,7 @@ impl NetworkStack {
             room_tx,
             signal,
             conf,
-            me,
+            me: None,
             keys: Arc::new(Keys::default()),
             listen_thread: None,
             misc_thread: misc_thread_manager,
@@ -110,6 +107,7 @@ impl NetworkStack {
         if let Some(network_event) = action.try_into().ok() {
             match network_event {
                 NetworkEvent::PerformJoin(room, is_static) => self.join(room, is_static)?,
+                NetworkEvent::Me(me) => self.me = Some(me),
                 _ => {
                     let _ = self.sender_inner.send(network_event);
                 }
@@ -119,13 +117,17 @@ impl NetworkStack {
     }
 
     pub fn join(&mut self, room: String, is_static: bool) -> Result<()> {
+        let Some(me) = self.me.clone() else {
+            let _ = self.sender_inner.send(NetworkEvent::RequestMe);
+            return Ok(());
+        };
         let listen_thread_data = ListenThreadData::new(
             is_static,
             room,
             self.keys.clone(),
             self.signal.clone(),
             self.room_tx.clone(),
-            self.me.clone(),
+            me,
             self.conf.clone(),
             self.sender_main.clone(),
         );

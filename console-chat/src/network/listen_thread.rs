@@ -7,7 +7,7 @@ use super::to_base64;
 use crate::action::Action;
 use crate::network::Result;
 use alkali::asymmetric::cipher::{self, PUBLIC_KEY_LENGTH, PublicKey};
-use alkali::mem::ReadOnly;
+use alkali::mem::ProtectReadOnly;
 use alkali::symmetric::cipher::{self as symetric_cipher, Key, NONCE_LENGTH};
 use chrono::{DateTime, Utc};
 use futures_util::stream::StreamExt;
@@ -20,7 +20,6 @@ use openapi::models::MessagePublic;
 use openapi::models::UserPrivate;
 use std::str::FromStr;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 use tokio::sync::Notify;
 use tokio::sync::RwLock;
 use tokio::sync::mpsc::UnboundedSender;
@@ -34,10 +33,12 @@ pub struct ListenThreadData {
     is_static: bool,
     room: String,
     keys: Arc<Keys>, // Shared ownership via Arc
-    //used_key: Option<Key<ReadOnly>>,
-    me: Arc<Mutex<Option<UserPrivate>>>,
+    first: bool,
+
+    me: UserPrivate,
+
     signal: Arc<Notify>,
-    room_tx: Sender<String>,
+    room_tx: Sender<(String, bool)>,
 
     conf: Arc<RwLock<Configuration>>, // Use Arc<Mutex> for shared access
     sender: UnboundedSender<Action>,  // Thread-local; no protection needed
@@ -49,8 +50,8 @@ impl ListenThreadData {
         room: String,
         keys: Arc<Keys>,
         signal: Arc<Notify>,
-        room_tx: Sender<String>,
-        me: Arc<Mutex<Option<UserPrivate>>>,
+        room_tx: Sender<(String, bool)>,
+        me: UserPrivate,
         conf: Arc<RwLock<Configuration>>, // Use Arc<Mutex> for shared access
         sender: UnboundedSender<Action>,  // Thread-local; no protection needed
     ) -> Self {
@@ -59,7 +60,7 @@ impl ListenThreadData {
             room,
             keys,
             room_tx,
-            //used_key: None,
+            first: false,
             me,
             signal,
             conf,
@@ -77,7 +78,8 @@ impl ListenThreadData {
             }
         };
         let _ = self.sender.send(Action::OpenChat);
-        self.room_tx.send_replace(self.room.clone());
+        self.room_tx
+            .send_replace((self.room.clone(), self.is_static));
 
         debug!("Starting listening on room: {}", self.room);
 
@@ -88,9 +90,13 @@ impl ListenThreadData {
                 match serde_json::from_str::<MessagePublic>(&event.data) {
                     Ok(message) => {
                         debug!("Parsed Content: {:#?}", message);
+                        let is_me = message
+                            .sender
+                            .as_ref()
+                            .is_some_and(|user| user.username == self.me.username);
                         let mut received_message = Message {
                             user: message.sender,
-                            is_me: false,
+                            is_me,
                             send_at: message
                                 .send_at
                                 .and_then(|send_at| DateTime::<Utc>::from_str(&send_at).ok()),
@@ -133,39 +139,52 @@ impl ListenThreadData {
 
         match content {
             Content::Encrypted(encrypted) => {
-                match symetric_key {
-                    Some(key) => {
-                        let mut nonce = [0u8; NONCE_LENGTH];
-                        let nonce_vec = from_base64(&encrypted.nonce)?;
-                        let msg_vec = from_base64(&encrypted.content_base64)?;
-                        let mut x = vec![0u8; msg_vec.len() - symetric_cipher::MAC_LENGTH];
-                        nonce.copy_from_slice(&nonce_vec);
-                        match symetric_cipher::decrypt(&msg_vec, key, &nonce, &mut x) {
-                            Ok(_) => {
-                                let msg = str::from_utf8(&x)?;
-                                debug!("Decrypted message content: {}", msg);
-                                return Ok(Some(msg.to_owned()));
-                            }
-                            Err(e) => {
-                                error!("{e}");
-                                let _ = self
-                                    .sender
-                                    .send(Action::Error(NetworkError::from(e).into()));
-                                //if KEYS.first.load(Ordering::Relaxed) {
-                                //    //   let mut key = KEYS.symetric_key.write().await;
-                                //    //   if key.is_none() {
-                                //    //       *key = Some(Key::generate()?);
-                                //    //   }
-                                //} else {
-                                //    let key_pair = KEYS.asymetric_key.read().await;
-                                //    let msg = KeyRequest::new(to_base64(&key_pair.public_key));
-                                //    send_message_from_content(Content::KeyRequest(msg)).await?;
-                                //}
+                if let Some(asymmetric_key) = self.keys.asymetric_keys.as_ref() {
+                    match symetric_key {
+                        Some(key) => {
+                            let mut nonce = [0u8; NONCE_LENGTH];
+                            let nonce_vec = from_base64(&encrypted.nonce)?;
+                            let msg_vec = from_base64(&encrypted.content_base64)?;
+                            let mut x = vec![0u8; msg_vec.len() - symetric_cipher::MAC_LENGTH];
+                            nonce.copy_from_slice(&nonce_vec);
+                            match symetric_cipher::decrypt(&msg_vec, key, &nonce, &mut x) {
+                                Ok(_) => {
+                                    let msg = str::from_utf8(&x)?;
+                                    debug!("Decrypted message content: {}", msg);
+                                    return Ok(Some(msg.to_owned()));
+                                }
+                                Err(e) => {
+                                    error!("{e}");
+                                    let _ = self
+                                        .sender
+                                        .send(Action::Error(NetworkError::from(e).into()));
+                                    if self.first {
+                                        if symetric_key.is_none() {
+                                            drop(key_map);
+                                            let mut key_map = self.keys.symetric_keys.write().await;
+                                            key_map.insert(
+                                                self.room.clone(),
+                                                Key::generate()?.protect_read_only()?,
+                                            );
+                                            self.signal.notify_waiters();
+                                        }
+                                    } else {
+                                        let msg =
+                                            KeyRequest::new(to_base64(&asymmetric_key.public_key));
+                                        send_message_from_content(
+                                            &*self.conf.read().await,
+                                            &self.room,
+                                            self.is_static,
+                                            Content::KeyRequest(msg),
+                                        )
+                                        .await?;
+                                    }
+                                }
                             }
                         }
-                    }
-                    None => {
-                        error!("Symmetric key not found for decryption.");
+                        None => {
+                            error!("Symmetric key not found for decryption.");
+                        }
                     }
                 }
             }
@@ -188,8 +207,12 @@ impl ListenThreadData {
                         .await?;
                     } else {
                         debug!("First to join, generating Key");
-                        if symetric_key.is_none() {
-                            // TODO: Get KEY
+                        if symetric_key.is_none() && self.keys.asymetric_keys.is_some() {
+                            drop(key_map);
+                            let mut key_map = self.keys.symetric_keys.write().await;
+                            key_map
+                                .insert(self.room.clone(), Key::generate()?.protect_read_only()?);
+                            self.signal.notify_waiters();
                         }
                     }
                 }

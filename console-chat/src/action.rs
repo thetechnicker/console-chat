@@ -4,7 +4,6 @@ use console_chat_proc_macro::Subsetable;
 use openapi::models::UserPrivate;
 use serde::{Deserialize, Serialize};
 use strum::Display;
-use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Display, Subsetable, Serialize, Deserialize)]
 #[subsetable(
@@ -15,7 +14,7 @@ use uuid::Uuid;
             "Down"
         ],
         "NetworkEvent"=[
-            "RequestMe(Uuid)"
+            "RequestMe"
         ]
     },
     serialization={"NetworkEvent"=false}
