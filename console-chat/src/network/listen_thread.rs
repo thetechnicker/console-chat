@@ -223,8 +223,8 @@ impl ListenThreadData {
                 //let mut _key = SYMETRIC_KEY.write().await;
             }
             Content::KeyRequest(request_content) => {
-                if let Some(asymmetric_key) = self.keys.asymetric_keys.as_ref() {
-                    if let Some(key) = symetric_key {
+                if let Some(asymmetric_key) = self.keys.asymetric_keys.as_ref()
+                    && let Some(key) = symetric_key {
                         let mut public_key: PublicKey = [0u8; PUBLIC_KEY_LENGTH];
                         let public_key_vec = from_base64(&request_content.public_key)?;
                         public_key.copy_from_slice(public_key_vec.as_slice());
@@ -255,7 +255,6 @@ impl ListenThreadData {
                         )
                         .await?;
                     }
-                }
             }
         }
         Ok(None)

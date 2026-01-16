@@ -32,7 +32,7 @@ impl<T> PoisonFreeMutex<T> {
         }
     }
 
-    pub fn lock(&self) -> MutexGuard<T> {
+    pub fn lock(&self) -> MutexGuard<'_, T> {
         match self.inner.lock() {
             Ok(guard) => guard,
             Err(poisoned) => (self.on_reset)(poisoned),

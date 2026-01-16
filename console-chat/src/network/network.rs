@@ -57,13 +57,12 @@ impl NetworkStack {
                 config.network.accept_danger || cli.accept_invalid_certificate,
             );
 
-        if let Some(ca_path) = config.network.ca_cert_path {
-            if ca_path.is_file() {
+        if let Some(ca_path) = config.network.ca_cert_path
+            && ca_path.is_file() {
                 let ca_vec = std::fs::read(&ca_path)?;
                 let ca = Certificate::from_pem(ca_vec.as_slice())?;
                 builder = builder.add_root_certificate(ca)
             }
-        }
         debug!("Client Builder: {builder:#?}");
         conf.client = builder.build()?;
         debug!("Config: {conf:#?}");
@@ -104,7 +103,7 @@ impl NetworkStack {
     }
 
     pub fn handle_action(&mut self, action: Action) -> Result<()> {
-        if let Some(network_event) = action.try_into().ok() {
+        if let Ok(network_event) = action.try_into() {
             match network_event {
                 NetworkEvent::PerformJoin(room, is_static) => self.join(room, is_static)?,
                 NetworkEvent::Me(me) => self.me = Some(me),

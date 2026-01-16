@@ -43,9 +43,9 @@ pub fn render_nice_bg(area: Rect, theme: PageColors, buf: &mut Buffer) -> Rect {
     //    buf.set_string(area.x - 1, y, "▐", style);
     //    buf.set_string(area.width + area.x, y, "▌", style);
     //}
-    let area = Layout::vertical(CONTRAINT).split(area)[1];
+    
     //let area = Layout::horizontal(CONTRAINT).split(area)[1];
-    area
+    Layout::vertical(CONTRAINT).split(area)[1]
 }
 
 pub trait EventWidget {

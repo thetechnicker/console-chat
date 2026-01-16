@@ -41,7 +41,7 @@ impl MiscThreadData {
     ) -> Self {
         Self {
             conf,
-            room_rx: room_rx,
+            room_rx,
             room: None,
             used_key: None,
             id: None,

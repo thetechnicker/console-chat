@@ -61,18 +61,14 @@ impl Component for ConfigFileEditor<'_> {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
-        if self.active {
-            if let Some(event) = self.textinput.handle_event(key)? {
-                match event {
-                    VimEvent::StoreConfig => {
-                        if let Some(command_tx) = self.command_tx.as_ref() {
-                            let _ = command_tx.send(Action::StoreConfig);
-                        }
+        if self.active
+            && let Some(event) = self.textinput.handle_event(key)? {
+                if event == VimEvent::StoreConfig {
+                    if let Some(command_tx) = self.command_tx.as_ref() {
+                        let _ = command_tx.send(Action::StoreConfig);
                     }
-                    _ => {}
                 }
             }
-        }
         Ok(None)
     }
 
