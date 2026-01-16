@@ -224,37 +224,34 @@ impl ListenThreadData {
             }
             Content::KeyRequest(request_content) => {
                 if let Some(asymmetric_key) = self.keys.asymetric_keys.as_ref()
-                    && let Some(key) = symetric_key {
-                        let mut public_key: PublicKey = [0u8; PUBLIC_KEY_LENGTH];
-                        let public_key_vec = from_base64(&request_content.public_key)?;
-                        public_key.copy_from_slice(public_key_vec.as_slice());
-                        let mut ciphertext = vec![0u8; key.len() + cipher::MAC_LENGTH];
-                        let (_, nonce) = asymmetric_key.encrypt(
-                            key.as_slice(),
-                            &public_key,
-                            None,
-                            &mut ciphertext,
-                        )?;
-                        let encrypted_key_str = to_base64(&ciphertext);
-                        let my_public_key_str = to_base64(&asymmetric_key.public_key);
-                        let nonse_str = to_base64(&nonce);
-                        let mut ciphertext = vec![0u8; key.len() + cipher::MAC_LENGTH];
-                        symetric_cipher::encrypt("TEST".as_bytes(), key, None, &mut ciphertext)?;
-                        let test_msg = to_base64(&ciphertext);
-                        let key_response = KeyResponse::new(
-                            encrypted_key_str,
-                            test_msg,
-                            my_public_key_str,
-                            nonse_str,
-                        );
-                        send_message_from_content(
-                            &*self.conf.read().await,
-                            &self.room,
-                            self.is_static,
-                            Content::KeyResponse(key_response),
-                        )
-                        .await?;
-                    }
+                    && let Some(key) = symetric_key
+                {
+                    let mut public_key: PublicKey = [0u8; PUBLIC_KEY_LENGTH];
+                    let public_key_vec = from_base64(&request_content.public_key)?;
+                    public_key.copy_from_slice(public_key_vec.as_slice());
+                    let mut ciphertext = vec![0u8; key.len() + cipher::MAC_LENGTH];
+                    let (_, nonce) = asymmetric_key.encrypt(
+                        key.as_slice(),
+                        &public_key,
+                        None,
+                        &mut ciphertext,
+                    )?;
+                    let encrypted_key_str = to_base64(&ciphertext);
+                    let my_public_key_str = to_base64(&asymmetric_key.public_key);
+                    let nonse_str = to_base64(&nonce);
+                    let mut ciphertext = vec![0u8; key.len() + cipher::MAC_LENGTH];
+                    symetric_cipher::encrypt("TEST".as_bytes(), key, None, &mut ciphertext)?;
+                    let test_msg = to_base64(&ciphertext);
+                    let key_response =
+                        KeyResponse::new(encrypted_key_str, test_msg, my_public_key_str, nonse_str);
+                    send_message_from_content(
+                        &*self.conf.read().await,
+                        &self.room,
+                        self.is_static,
+                        Content::KeyResponse(key_response),
+                    )
+                    .await?;
+                }
             }
         }
         Ok(None)

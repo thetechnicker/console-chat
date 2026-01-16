@@ -40,11 +40,11 @@ pub struct Keys {
     pub asymetric_keys: Option<Keypair>,
 }
 
- fn to_base64(arg: &[u8]) -> String {
+fn to_base64(arg: &[u8]) -> String {
     general_purpose::STANDARD.encode(arg)
 }
 
- fn from_base64(arg: &str) -> Result<Vec<u8>> {
+fn from_base64(arg: &str) -> Result<Vec<u8>> {
     Ok(general_purpose::STANDARD.decode(arg)?)
 }
 

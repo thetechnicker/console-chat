@@ -43,7 +43,7 @@ pub fn render_nice_bg(area: Rect, theme: PageColors, buf: &mut Buffer) -> Rect {
     //    buf.set_string(area.x - 1, y, "▐", style);
     //    buf.set_string(area.width + area.x, y, "▌", style);
     //}
-    
+
     //let area = Layout::horizontal(CONTRAINT).split(area)[1];
     Layout::vertical(CONTRAINT).split(area)[1]
 }

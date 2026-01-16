@@ -58,11 +58,12 @@ impl NetworkStack {
             );
 
         if let Some(ca_path) = config.network.ca_cert_path
-            && ca_path.is_file() {
-                let ca_vec = std::fs::read(&ca_path)?;
-                let ca = Certificate::from_pem(ca_vec.as_slice())?;
-                builder = builder.add_root_certificate(ca)
-            }
+            && ca_path.is_file()
+        {
+            let ca_vec = std::fs::read(&ca_path)?;
+            let ca = Certificate::from_pem(ca_vec.as_slice())?;
+            builder = builder.add_root_certificate(ca)
+        }
         debug!("Client Builder: {builder:#?}");
         conf.client = builder.build()?;
         debug!("Config: {conf:#?}");
