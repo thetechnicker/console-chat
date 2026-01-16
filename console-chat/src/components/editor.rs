@@ -64,9 +64,10 @@ impl Component for ConfigFileEditor<'_> {
         if self.active
             && let Some(event) = self.textinput.handle_event(key)?
             && event == VimEvent::StoreConfig
-                && let Some(command_tx) = self.command_tx.as_ref() {
-                    let _ = command_tx.send(Action::StoreConfig);
-                }
+            && let Some(command_tx) = self.command_tx.as_ref()
+        {
+            let _ = command_tx.send(Action::StoreConfig);
+        }
         Ok(None)
     }
 
