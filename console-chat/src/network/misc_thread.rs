@@ -4,6 +4,7 @@ use crate::network::Keys;
 use crate::network::Result;
 use crate::network::send_message;
 use openapi::apis::configuration::Configuration;
+use openapi::apis::rooms_api;
 use openapi::apis::users_api;
 use openapi::models::Token;
 use std::sync::Arc;
@@ -79,10 +80,18 @@ impl MiscThreadData {
     pub async fn handle_network_event(&self, event: NetworkEvent) -> Result<()> {
         match event {
             NetworkEvent::PerformLogin(username, password) => todo!(),
+            NetworkEvent::JoinRandom => self.join_random_room().await?,
             NetworkEvent::RequestMe => self.request_me().await?,
             NetworkEvent::SendMessage(msg) => self.send_msg(&msg).await?,
             _ => {}
         }
+        Ok(())
+    }
+
+    pub async fn join_random_room(&self) -> Result<()> {
+        let conf = self.conf.read().await;
+        let room = rooms_api::rooms_random_room(&conf).await?;
+        let _ = self.sender_main.send(Action::PerformJoin(room, false));
         Ok(())
     }
 
