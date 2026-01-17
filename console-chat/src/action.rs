@@ -1,8 +1,10 @@
+use crate::config::Config;
 pub(crate) use crate::error::{AppError, Result};
 use crate::network::Message;
 use console_chat_proc_macro::Subsetable;
 use openapi::models::UserPrivate;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use strum::Display;
 
 #[derive(Debug, Clone, PartialEq, Display, Subsetable, Serialize, Deserialize)]
@@ -53,13 +55,14 @@ pub enum Action {
     ReloadConfig,
     #[subset("ButtonEvent")]
     ResetConfig,
-    #[subset("VimEvent")]
-    StoreConfig,
 
     // Small fixed-size payloads
     Resize(u16, u16),
     #[subset("ButtonEvent")]
     OpenJoin(#[serde(skip)] bool),
+
+    #[subset("VimEvent")]
+    StoreConfig(#[serde(skip)] String),
 
     #[subset("NetworkEvent")]
     PerformLogin(String, String),

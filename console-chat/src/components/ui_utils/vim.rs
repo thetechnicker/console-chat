@@ -534,6 +534,10 @@ impl<'a> VimWidget<'a> {
         let new_vim = self.vim.copy();
         self.vim = match self.vim.transition(key.into(), &mut self.textinput) {
             Transition::Mode(mode) if self.vim.mode != mode => {
+                self.textinput.set_block(mode.block());
+                self.textinput
+                    .set_cursor_style(mode.cursor_style(self.vim.style));
+
                 match mode {
                     VimMode::Insert => to_return = Some(VimEvent::Insert),
                     VimMode::Normal if self.vim.mode != mode => to_return = Some(VimEvent::Normal),
@@ -556,16 +560,14 @@ impl<'a> VimWidget<'a> {
                 new_vim
             }
             Transition::Store => {
-                to_return = Some(VimEvent::StoreConfig);
+                to_return = Some(VimEvent::StoreConfig(
+                    self.textinput.lines().join("\n").to_string(),
+                ));
                 new_vim
             }
         };
-        self.textinput.set_block(
-            self.vim
-                .mode
-                .highlight_block()
-                .title_bottom(self.vim.input_seq()),
-        );
+        self.textinput
+            .set_block(self.vim.mode.block().title_bottom(self.vim.input_seq()));
         self.textinput
             .set_cursor_style(self.vim.mode.cursor_style(self.vim.style));
         Ok(to_return)

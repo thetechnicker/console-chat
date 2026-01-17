@@ -150,7 +150,7 @@ impl<'a> Component for Login<'a> {
                                 VimEvent::Enter(_) => self.down(),
                                 VimEvent::Up => self.up(),
                                 VimEvent::Down => self.down(),
-                                VimEvent::StoreConfig => {}
+                                VimEvent::StoreConfig(_) => {}
                             },
                             ActionSubsetWrapper::ButtonEvent(ButtonEvent::TriggerLogin) => {
                                 let login_action = match (username.is_empty(), password.is_empty())

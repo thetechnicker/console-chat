@@ -128,7 +128,7 @@ impl Component for Join<'_> {
                         VimEvent::Enter(_) => self.down(),
                         VimEvent::Up => self.up(),
                         VimEvent::Down => self.down(),
-                        VimEvent::StoreConfig => {}
+                        VimEvent::StoreConfig(_) => {}
                     }
                 }
             } else {

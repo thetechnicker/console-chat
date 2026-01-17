@@ -3,7 +3,6 @@ use crate::action::VimEvent;
 use crate::app::Mode;
 use crate::components::theme::Theme;
 use crate::components::vim::VimWidget;
-use crossterm::event::KeyModifiers;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     prelude::*,
@@ -12,7 +11,6 @@ use ratatui::{
 };
 use strum::{Display, EnumIter, FromRepr, IntoEnumIterator};
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::debug;
 use tui_textarea::Input;
 
 use super::Component;
@@ -233,16 +231,12 @@ impl Component for Settings<'_> {
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
         if self.active {
             let input: Input = key.into();
-            if input.shift {
-                match key.code {
-                    KeyCode::Char('H') => self.previous_tab(),
-                    KeyCode::Char('L') => self.next_tab(),
-                    KeyCode::Char('J') => self.previous_mode(),
-                    KeyCode::Char('K') => self.next_mode(),
-                    _ => {}
-                }
-            } else {
-                match self.selected_tab {
+            match key.code {
+                KeyCode::Char('H') if input.shift => self.previous_tab(),
+                KeyCode::Char('L') if input.shift => self.next_tab(),
+                KeyCode::Char('J') if input.shift => self.previous_mode(),
+                KeyCode::Char('K') if input.shift => self.next_mode(),
+                _ => match self.selected_tab {
                     Chategory::Basic => {}
                     Chategory::Desing => {}
                     Chategory::Shortcuts => {}
@@ -252,12 +246,14 @@ impl Component for Settings<'_> {
                             match event {
                                 VimEvent::Normal => self.send(Action::Normal),
                                 VimEvent::Insert => self.send(Action::Insert),
-                                VimEvent::StoreConfig => self.send(Action::StoreConfig),
+                                VimEvent::StoreConfig(content) => {
+                                    self.send(Action::StoreConfig(content))
+                                }
                                 _ => {}
                             }
                         }
                     }
-                }
+                },
             }
         }
         Ok(None)

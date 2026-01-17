@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 pub const LIGHT_GRAY: Color = Color::Rgb(192, 192, 192);
 
 /// A single 4-color button palette: text, background, shadow, highlight.
-#[derive(Clone, Debug, Serialize, Deserialize, Copy)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Copy)]
 pub struct ButtonPalette {
     pub text: Color,
     pub background: Color,
@@ -24,7 +24,7 @@ impl Default for ButtonPalette {
 }
 
 /// Four button states: Active, Normal, Pressed.
-#[derive(Clone, Debug, Serialize, Deserialize, Copy)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Copy)]
 pub struct ButtonStatePalettes {
     pub active: ButtonPalette,
     pub normal: ButtonPalette,
@@ -57,7 +57,7 @@ impl Default for ButtonStatePalettes {
 }
 
 /// Semantic kinds of buttons.
-#[derive(Clone, Debug, Serialize, Deserialize, Copy)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Copy)]
 pub struct SemanticButtons {
     pub accepting: ButtonStatePalettes,
     pub mid_accept: ButtonStatePalettes,
@@ -66,7 +66,7 @@ pub struct SemanticButtons {
 }
 
 /// Surrounding or page-level colors.
-#[derive(Clone, Debug, Serialize, Deserialize, Copy)]
+#[derive(Clone, Debug, Serialize, PartialEq, Deserialize, Copy)]
 pub struct PageColors {
     pub background: Color,
     pub foreground: Color,
@@ -86,7 +86,7 @@ impl Default for PageColors {
 }
 
 /// Vi-like input palette and cursor color mapping.
-#[derive(Clone, Debug, Serialize, Deserialize, Copy)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Copy)]
 pub struct ViModePalettes {
     pub normal: Color,
     pub insert: Color,
@@ -105,7 +105,7 @@ impl Default for ViModePalettes {
     }
 }
 /// Top-level theme containing everything.
-#[derive(Clone, Debug, Serialize, Deserialize, Copy)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Copy)]
 pub struct Theme {
     pub buttons: SemanticButtons,
     pub page: PageColors,

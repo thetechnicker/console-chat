@@ -274,6 +274,11 @@ impl App {
                 }
                 Action::Normal => self.restore_prev_mode()?,
                 Action::Error(e) => error!("{e}"),
+                Action::StoreConfig(config_str) => {
+                    self.config = serde_json::from_str(&config_str)?;
+                    self.config.save()?;
+                    self.reload_config(tui)?;
+                }
                 Action::ResetConfig => {
                     {
                         if self.config.config.safe_file.exists() {

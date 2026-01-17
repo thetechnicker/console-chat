@@ -16,7 +16,7 @@ use crate::{action::Action, app::Mode};
 
 const CONFIG: &str = include_str!("../.config/config.json5");
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Default)]
 pub struct AppConfig {
     #[serde(default)]
     pub data_dir: PathBuf,
@@ -26,7 +26,7 @@ pub struct AppConfig {
     pub safe_file: PathBuf,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, PartialEq, Debug, Default, Deserialize, Serialize)]
 pub struct Config {
     #[serde(default, flatten)]
     pub config: AppConfig,
@@ -38,7 +38,7 @@ pub struct Config {
     pub themes: Themes,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct NetworkConfig {
     pub host: String,
 
@@ -191,7 +191,7 @@ fn project_directory() -> Option<ProjectDirs> {
     ProjectDirs::from("com", "lucalhost", env!("CARGO_PKG_NAME"))
 }
 
-#[derive(Clone, Debug, Default, Deref, DerefMut)]
+#[derive(Clone, PartialEq, Debug, Default, Deref, DerefMut)]
 pub struct KeyBindings(pub HashMap<Mode, HashMap<Vec<KeyEvent>, Action>>);
 
 impl<'de> Deserialize<'de> for KeyBindings {
@@ -420,7 +420,7 @@ impl Serialize for KeyBindings {
     }
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Deref, DerefMut)]
+#[derive(Clone, PartialEq, Debug, Default, Deserialize, Deref, DerefMut)]
 pub struct Themes(pub HashMap<Mode, crate::components::theme::Theme>);
 
 impl Serialize for Themes {
