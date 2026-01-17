@@ -50,22 +50,6 @@ impl Deref for TypeErasedWrapper {
     }
 }
 
-//use derive_deref::{Deref, DerefMut};
-//
-//#[derive(Debug, Default, DerefMut, Deref)]
-//pub struct UnEqualWrapper<T>(pub T);
-//impl<T> PartialEq for UnEqualWrapper<T> {
-//    fn eq(&self, _: &Self) -> bool {
-//        false
-//    }
-//}
-//
-
-mod poison_free_mutex;
-mod safe_atomic_ptr;
-
-//pub(crate) use safe_atomic_ptr::*;
-
 #[cfg(test)]
 mod test {
     use super::*;
