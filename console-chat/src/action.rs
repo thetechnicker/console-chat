@@ -101,7 +101,9 @@ mod tests {
             action4: Action::Quit,
             action5: Action::OpenChat,
         };
-        let a = serde_json::to_string(&x).unwrap();
+        let Ok(a) = serde_json::to_string(&x) else {
+            panic!("failed to serialize Actions");
+        };
         assert_eq!(
             a,
             "{\"action1\":\"OpenJoin\",\"action2\":\"Tick\",\"action3\":\"OpenHome\",\"action4\":\"Quit\",\"action5\":\"OpenChat\"}"

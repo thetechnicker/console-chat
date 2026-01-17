@@ -544,15 +544,15 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn test_config_size() -> Result<()> {
-        let c = Config::new()?;
-        println!(
-            "Size of default instance: {} bytes",
-            std::mem::size_of_val(&c)
-        );
-        println!("Size of Type: {} bytes", std::mem::size_of::<Config>());
-        assert!(true);
-        Ok(())
-    }
+    //#[test]
+    //fn test_config_size() -> Result<()> {
+    //    let c = Config::new()?;
+    //    println!(
+    //        "Size of default instance: {} bytes",
+    //        std::mem::size_of_val(&c)
+    //    );
+    //    println!("Size of Type: {} bytes", std::mem::size_of::<Config>());
+    //    assert!(true);
+    //    Ok(())
+    //}
 }
