@@ -19,7 +19,6 @@ pub struct Home {
     join_static: Button,
     login: Button,
     settings: Button,
-    raw_settings: Button,
     exit: Button,
     reset_config: Button,
 
@@ -27,7 +26,7 @@ pub struct Home {
 }
 
 impl Home {
-    pub const MAX_ELEMENTS: usize = 8;
+    pub const MAX_ELEMENTS: usize = 7;
 
     pub fn new() -> Self {
         Self::default()
@@ -62,7 +61,6 @@ impl Home {
             &mut self.join_static,
             &mut self.login,
             &mut self.settings,
-            &mut self.raw_settings,
             &mut self.reset_config,
             &mut self.exit,
         ]
@@ -115,12 +113,6 @@ impl Component for Home {
                 "",
                 theme.buttons.normal,
                 ButtonEvent::OpenSettings,
-            );
-            self.raw_settings = Button::new(
-                "Settings File",
-                "",
-                theme.buttons.normal,
-                ButtonEvent::OpenRawSettings,
             );
             self.reset_config = Button::new(
                 "Reset Config",

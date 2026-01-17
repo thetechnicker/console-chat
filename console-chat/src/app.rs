@@ -2,9 +2,8 @@ use crate::{
     action::Action,
     cli::Cli,
     components::{
-        Component, chat::Chat, editor::ConfigFileEditor, error_display::ErrorDisplay,
-        fps::FpsCounter, home::Home, join::Join, login::Login, settings::Settings,
-        sorted_components,
+        Component, chat::Chat, error_display::ErrorDisplay, fps::FpsCounter, home::Home,
+        join::Join, login::Login, settings::Settings, sorted_components,
     },
     config::Config,
     network::NetworkStack,
@@ -40,7 +39,6 @@ pub enum Mode {
     Join,
     Chat,
     Settings,
-    RawSettings,
     Insert, //Special, for when one element should consume all key inputs
     Global, //Special, should never be used, only for key shortcuts that should work everywhere
 }
@@ -54,7 +52,6 @@ impl App {
                 Box::new(Home::new()),
                 Box::new(Chat::new()),
                 Box::new(Join::new()),
-                Box::new(ConfigFileEditor::new()),
                 Box::new(Settings::new()),
                 Box::new(Login::new()),
                 Box::new(ErrorDisplay::new()),
@@ -136,7 +133,6 @@ impl App {
             Mode::Login => self.action_tx.send(Action::OpenLogin),
             Mode::Chat => self.action_tx.send(Action::OpenChat),
             Mode::Settings => self.action_tx.send(Action::OpenSettings),
-            Mode::RawSettings => self.action_tx.send(Action::OpenRawSettings),
             Mode::Insert => {
                 self.restore_prev_mode()?;
                 if self.mode == Mode::Insert {
@@ -271,7 +267,6 @@ impl App {
                 Action::OpenLogin => self.set_mode(Mode::Login)?,
                 Action::OpenHome => self.set_mode(Mode::Home)?,
                 Action::OpenChat => self.set_mode(Mode::Chat)?,
-                Action::OpenRawSettings => self.set_mode(Mode::RawSettings)?,
                 Action::Hide => self.hide_all(),
                 Action::Insert => {
                     self.last_mode = Some(self.mode);

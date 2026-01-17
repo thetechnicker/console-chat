@@ -38,8 +38,6 @@ pub enum Action {
     #[subset("ButtonEvent")]
     OpenSettings,
     #[subset("ButtonEvent")]
-    OpenRawSettings,
-    #[subset("ButtonEvent")]
     OpenChat,
     #[subset("ButtonEvent")]
     OpenHome,

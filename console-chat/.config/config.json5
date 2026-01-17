@@ -24,9 +24,6 @@
     "Settings": {
       "<q>": "OpenHome",
     },
-    "RawSettings": {
-      "<q>": "OpenHome",
-    },
     "Insert":{
       "<Ctrl-c>": "Quit",
       "<Ctrl-z>": "Suspend"
