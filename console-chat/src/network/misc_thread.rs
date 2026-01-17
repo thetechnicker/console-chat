@@ -128,7 +128,7 @@ mod test {
     use super::*;
 
     #[allow(dead_code)]
-    fn test_attributes<T>() {
+    fn test_attributes() {
         fn is_send<T: Send>() {}
         fn is_sync<T: Sync>() {}
         fn is_send_sync<T: Send + Sync>() {}
