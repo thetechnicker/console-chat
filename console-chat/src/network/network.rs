@@ -10,7 +10,6 @@ use openapi::apis::configuration::Configuration;
 use openapi::models::UserPrivate;
 use reqwest::Certificate;
 use std::sync::Arc;
-use tokio::sync::Notify;
 use tokio::sync::RwLock;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::mpsc::unbounded_channel;
@@ -34,7 +33,6 @@ pub struct NetworkStack {
     sender_inner: UnboundedSender<NetworkEvent>, // Thread-local; no protection needed
     sender_main: UnboundedSender<Action>,        // Thread-local; no protection needed
 
-    signal: Arc<Notify>,
     room_tx: Sender<(String, bool)>,
 
     listen_thread: Option<ThreadManagement<Result<()>>>,
@@ -45,7 +43,6 @@ impl NetworkStack {
     pub fn new(cli: Cli, config: Config, sender: UnboundedSender<Action>) -> Result<Self> {
         debug!("Network config: {:#?}", config.network);
         let mut conf = Configuration::new();
-        let signal = Arc::new(Notify::new());
 
         conf.base_path = config.network.host.clone();
 
@@ -72,10 +69,11 @@ impl NetworkStack {
 
         let (sender_a, receiver_a) = unbounded_channel();
         let (room_tx, room_rx) = channel((String::new(), false));
+        let keys = Arc::new(Keys::default());
 
         let misc_data = MiscThreadData::new(
             Arc::clone(&conf),
-            signal.clone(),
+            keys.clone(),
             room_rx,
             sender.clone(),
             sender_a.clone(),
@@ -92,10 +90,9 @@ impl NetworkStack {
 
         Ok(Self {
             room_tx,
-            signal,
             conf,
             me: None,
-            keys: Arc::new(Keys::default()),
+            keys,
             listen_thread: None,
             misc_thread: misc_thread_manager,
             sender_main: sender.clone(),
@@ -125,7 +122,6 @@ impl NetworkStack {
             is_static,
             room,
             self.keys.clone(),
-            self.signal.clone(),
             self.room_tx.clone(),
             me,
             self.conf.clone(),

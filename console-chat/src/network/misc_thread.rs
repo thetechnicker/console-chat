@@ -1,15 +1,13 @@
 use crate::action::Action;
 use crate::action::NetworkEvent;
+use crate::network::Keys;
 use crate::network::Result;
 use crate::network::send_message;
-use alkali::mem::ReadOnly;
-use alkali::symmetric::cipher::Key;
 use openapi::apis::configuration::Configuration;
 use openapi::apis::users_api;
 use openapi::models::Token;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::Notify;
 use tokio::sync::RwLock;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::watch::Receiver;
@@ -18,13 +16,13 @@ use tokio_util::sync::CancellationToken;
 #[derive(Debug)]
 pub struct MiscThreadData {
     conf: Arc<RwLock<Configuration>>, // Use Arc<Mutex> for shared access
-
-    used_key: Option<Key<ReadOnly>>,
     id: Option<uuid::Uuid>,
 
-    signal: Arc<Notify>,
+    keys: Arc<Keys>, // Shared ownership via Arc
+
     room_rx: Receiver<(String, bool)>,
     room: Option<(String, bool)>,
+
     sender_main: UnboundedSender<Action>, // Thread-local; no protection needed
     sender_inner: UnboundedSender<NetworkEvent>, // Thread-local; no protection needed
     receiver: UnboundedReceiver<NetworkEvent>, // Thread-local; no protection needed
@@ -33,7 +31,7 @@ pub struct MiscThreadData {
 impl MiscThreadData {
     pub fn new(
         conf: Arc<RwLock<Configuration>>,
-        signal: Arc<Notify>,
+        keys: Arc<Keys>, // Shared ownership via Arc
         room_rx: Receiver<(String, bool)>,
         sender_main: UnboundedSender<Action>,
         sender_inner: UnboundedSender<NetworkEvent>,
@@ -42,10 +40,9 @@ impl MiscThreadData {
         Self {
             conf,
             room_rx,
+            keys,
             room: None,
-            used_key: None,
             id: None,
-            signal,
             sender_main,
             sender_inner,
             receiver,
@@ -71,7 +68,9 @@ impl MiscThreadData {
     pub async fn send_msg(&self, msg: &str) -> Result<()> {
         if let Some((room, is_static)) = self.room.as_ref() {
             let conf = self.conf.read().await;
-            send_message(&conf, room, *is_static, msg, self.used_key.as_ref()).await?;
+            let key_map = self.keys.symetric_keys.read().await;
+            let symetric_key = key_map.get(room);
+            send_message(&conf, room, *is_static, msg, symetric_key).await?;
         }
         Ok(())
     }
@@ -93,8 +92,6 @@ impl MiscThreadData {
             tokio::time::interval(Duration::from_secs(token.ttl as u64));
         loop {
             tokio::select! {
-                _ = self.signal.notified() => {
-                }
                 _ = cancel_token.cancelled() => {
                     break
                 }

@@ -34,10 +34,19 @@ impl std::fmt::Debug for Keypair {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Keys {
     pub symetric_keys: RwLock<HashMap<String, Key<ReadOnly>>>, // Protect with Mutex
     pub asymetric_keys: Option<Keypair>,
+}
+
+impl Default for Keys {
+    fn default() -> Self {
+        Self {
+            symetric_keys: RwLock::new(HashMap::new()),
+            asymetric_keys: cipher::Keypair::generate().ok().map(|k| k.into()),
+        }
+    }
 }
 
 fn to_base64(arg: &[u8]) -> String {

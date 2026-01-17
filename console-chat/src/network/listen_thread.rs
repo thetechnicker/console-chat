@@ -20,7 +20,6 @@ use openapi::models::MessagePublic;
 use openapi::models::UserPrivate;
 use std::str::FromStr;
 use std::sync::Arc;
-use tokio::sync::Notify;
 use tokio::sync::RwLock;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::watch::Sender;
@@ -37,7 +36,6 @@ pub struct ListenThreadData {
 
     me: UserPrivate,
 
-    signal: Arc<Notify>,
     room_tx: Sender<(String, bool)>,
 
     conf: Arc<RwLock<Configuration>>, // Use Arc<Mutex> for shared access
@@ -49,7 +47,6 @@ impl ListenThreadData {
         is_static: bool,
         room: String,
         keys: Arc<Keys>,
-        signal: Arc<Notify>,
         room_tx: Sender<(String, bool)>,
         me: UserPrivate,
         conf: Arc<RwLock<Configuration>>, // Use Arc<Mutex> for shared access
@@ -62,7 +59,6 @@ impl ListenThreadData {
             room_tx,
             first: false,
             me,
-            signal,
             conf,
             sender,
         }
@@ -166,7 +162,6 @@ impl ListenThreadData {
                                                 self.room.clone(),
                                                 Key::generate()?.protect_read_only()?,
                                             );
-                                            self.signal.notify_waiters();
                                         }
                                     } else {
                                         let msg =
@@ -212,7 +207,6 @@ impl ListenThreadData {
                             let mut key_map = self.keys.symetric_keys.write().await;
                             key_map
                                 .insert(self.room.clone(), Key::generate()?.protect_read_only()?);
-                            self.signal.notify_waiters();
                         }
                     }
                 }
