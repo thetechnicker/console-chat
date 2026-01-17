@@ -7,7 +7,7 @@ use crate::{
         sorted_components,
     },
     config::Config,
-    network::network::NetworkStack,
+    network::NetworkStack,
     tui::{Event, Tui},
 };
 use color_eyre::Result;
