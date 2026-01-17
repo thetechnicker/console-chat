@@ -43,12 +43,8 @@ pub(crate) fn subsetable_derive_macro2(
             match syn::parse_str::<syn::Variant>(field) {
                 Ok(variant) => {
                     let target = key.to_string();
-                    if targets.contains_key(&target) {
-                        if let Some(v) = targets
-                            .get_mut(&target) { v.0.push((variant.clone(), true)) }
-                    } else {
-                        targets.insert(target, (vec![(variant.clone(), true)], true));
-                    }
+                    let entry = targets.entry(target).or_insert((vec![], true));
+                    entry.0.push((variant.clone(), true));
                 }
                 Err(e) => errors.push(Span::call_site(), e),
             }
@@ -63,12 +59,8 @@ pub(crate) fn subsetable_derive_macro2(
     for variant in data_enum.variants.iter_mut() {
         let TargetEnums(target_names) = deluxe::extract_attributes(variant)?;
         for target in target_names.into_iter() {
-            if targets.contains_key(&target) {
-                if let Some(v) = targets
-                    .get_mut(&target) { v.0.push((variant.clone(), false)) }
-            } else {
-                targets.insert(target, (vec![(variant.clone(), false)], false));
-            }
+            let entry = targets.entry(target).or_insert((vec![], false));
+            entry.0.push((variant.clone(), false));
         }
     }
 
@@ -219,7 +211,9 @@ pub(crate) fn subsetable_derive_macro2(
     }
 
     //
-    let wrapper_variants: Result<Vec<(syn::Variant, syn::Ident)>> = targets.into_keys().map(|target| {
+    let wrapper_variants: Result<Vec<(syn::Variant, syn::Ident)>> = targets
+        .into_keys()
+        .map(|target| {
             Ok((
                 syn::parse_str::<syn::Variant>(&target)?,
                 format_ident!("{}", target),
