@@ -53,6 +53,8 @@ pub enum Action {
     ReloadConfig,
     #[subset("ButtonEvent")]
     ResetConfig,
+    #[subset("ButtonEvent")]
+    OpenStaticRoomManagement,
 
     // Small fixed-size payloads
     Resize(u16, u16),

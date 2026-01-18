@@ -16,6 +16,7 @@ pub mod home;
 pub mod join;
 pub mod login;
 pub mod settings;
+pub mod static_room_management;
 pub mod ui_utils;
 pub use ui_utils::*;
 

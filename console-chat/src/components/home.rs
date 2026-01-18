@@ -17,11 +17,11 @@ pub struct Home {
     join: Button,
     random: Button,
     join_static: Button,
+    manage_static: Button,
     login: Button,
     settings: Button,
     exit: Button,
     reset_config: Button,
-
     index: usize,
 }
 
@@ -60,8 +60,10 @@ impl Home {
             &mut self.random,
             &mut self.join_static,
             &mut self.login,
+            &mut self.manage_static,
             &mut self.settings,
-            &mut self.reset_config,
+            // INFO: Uncomment next line to allow reseting the config file
+            //&mut self.reset_config,
             &mut self.exit,
         ]
     }
@@ -96,17 +98,23 @@ impl Component for Home {
                 theme.buttons.mid_accept,
                 ButtonEvent::OpenJoin(false),
             );
+            self.random = Button::new(
+                "Join Random",
+                "",
+                theme.buttons.mid_accept,
+                ButtonEvent::JoinRandom,
+            );
             self.join_static = Button::new(
                 "Join Static",
                 "",
                 theme.buttons.mid_accept,
                 ButtonEvent::OpenJoin(true),
             );
-            self.random = Button::new(
-                "Join Random",
+            self.manage_static = Button::new(
+                "Manage Static Rooms",
                 "",
-                theme.buttons.mid_accept,
-                ButtonEvent::JoinRandom,
+                theme.buttons.normal,
+                ButtonEvent::OpenStaticRoomManagement,
             );
             self.settings = Button::new(
                 "Settings",

@@ -4,6 +4,7 @@ use crate::{
     components::{
         Component, chat::Chat, error_display::ErrorDisplay, fps::FpsCounter, home::Home,
         join::Join, login::Login, settings::Settings, sorted_components,
+        static_room_management::StaticRoomManagement,
     },
     config::Config,
     network::NetworkStack,
@@ -53,6 +54,7 @@ pub enum Mode {
     Home,
     Login,
     Join,
+    StaticRoomManagement,
     Chat,
     Settings,
     Insert, //Special, for when one element should consume all key inputs
@@ -69,6 +71,7 @@ impl App {
                 Box::new(Chat::new()),
                 Box::new(Join::new()),
                 Box::new(Settings::new()),
+                Box::new(StaticRoomManagement::new()),
                 Box::new(Login::new()),
                 Box::new(ErrorDisplay::new()),
                 Box::new(FpsCounter::default()),
@@ -149,6 +152,7 @@ impl App {
             Mode::Login => self.action_tx.send(Action::OpenLogin),
             Mode::Chat => self.action_tx.send(Action::OpenChat),
             Mode::Settings => self.action_tx.send(Action::OpenSettings),
+            Mode::StaticRoomManagement => self.action_tx.send(Action::OpenStaticRoomManagement),
             Mode::Insert => {
                 self.restore_prev_mode()?;
                 if self.mode == Mode::Insert {
@@ -283,6 +287,7 @@ impl App {
                 Action::OpenLogin => self.set_mode(Mode::Login)?,
                 Action::OpenHome => self.set_mode(Mode::Home)?,
                 Action::OpenChat => self.set_mode(Mode::Chat)?,
+                Action::OpenStaticRoomManagement => self.set_mode(Mode::StaticRoomManagement)?,
                 Action::Hide => self.hide_all(),
                 Action::Insert => {
                     self.last_mode = Some(self.mode);

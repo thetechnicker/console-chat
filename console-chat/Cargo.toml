@@ -73,3 +73,11 @@ vergen-gix = { version = "1.0.9", features = ["build", "cargo"] }
 
 [dev-dependencies]
 tempfile = "3.24.0"
+
+# Added from newest template
+# Read the optimization guideline for more details: https://ratatui.rs/recipes/apps/release-your-app/#optimizations
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
