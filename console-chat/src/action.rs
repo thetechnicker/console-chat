@@ -1,10 +1,8 @@
-use crate::config::Config;
 pub(crate) use crate::error::{AppError, Result};
 use crate::network::Message;
 use console_chat_proc_macro::Subsetable;
 use openapi::models::UserPrivate;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use strum::Display;
 
 #[derive(Debug, Clone, PartialEq, Display, Subsetable, Serialize, Deserialize)]

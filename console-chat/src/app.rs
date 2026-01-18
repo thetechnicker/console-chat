@@ -13,6 +13,9 @@ use color_eyre::Result;
 use crossterm::event::KeyEvent;
 use ratatui::prelude::Rect;
 use serde::{Deserialize, Serialize};
+use strum::Display;
+use strum::EnumIter;
+use strum::FromRepr;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
 
@@ -30,7 +33,20 @@ pub struct App {
 }
 
 #[derive(
-    Default, Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord,
+    Default,
+    Debug,
+    Display,
+    Copy,
+    Clone,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    PartialOrd,
+    Ord,
+    FromRepr,
+    EnumIter,
 )]
 pub enum Mode {
     #[default]

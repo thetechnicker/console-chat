@@ -1,110 +1,25 @@
+use super::Component;
 use crate::action::Result;
 use crate::action::VimEvent;
 use crate::app::Mode;
 use crate::components::theme::Theme;
 use crate::components::vim::VimWidget;
+use crate::{action::Action, config::Config};
+use chategory::Chategory;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     prelude::*,
-    style::{Color, Stylize, palette::tailwind},
+    style::{Color, Stylize},
     widgets::*,
 };
-use strum::{Display, EnumIter, FromRepr, IntoEnumIterator};
+use strum::IntoEnumIterator;
 use tokio::sync::mpsc::UnboundedSender;
 use tui_textarea::Input;
 
-use super::Component;
-use crate::{action::Action, config::Config};
+mod chategory;
+mod mode;
 
 const STYLE_KEY: crate::app::Mode = crate::app::Mode::Settings;
-
-#[derive(Default, Clone, Copy, Display, FromRepr, EnumIter)]
-enum Chategory {
-    #[default]
-    #[strum(to_string = "Basics")]
-    Basic,
-    #[strum(to_string = "Network")]
-    Network,
-    #[strum(to_string = "Design")]
-    Desing,
-    #[strum(to_string = "Shortcuts")]
-    Shortcuts,
-    #[strum(to_string = "Settings File")]
-    File,
-}
-
-impl Chategory {
-    /// Get the previous tab, if there is no previous tab return the current tab.
-    fn previous(self) -> Self {
-        let current_index: usize = self as usize;
-        let previous_index = current_index.saturating_sub(1);
-        Self::from_repr(previous_index).unwrap_or(self)
-    }
-
-    /// Get the next tab, if there is no next tab return the current tab.
-    fn next(self) -> Self {
-        let current_index = self as usize;
-        let next_index = current_index.saturating_add(1);
-        Self::from_repr(next_index).unwrap_or(self)
-    }
-
-    /// Return tab's name as a styled `Line`
-    fn title(self) -> Line<'static> {
-        format!("  {self}  ")
-            .fg(tailwind::SLATE.c200)
-            .bg(self.palette().c900)
-            .into()
-    }
-
-    fn render_tab0(self, area: Rect, buf: &mut Buffer, _config: &Config) {
-        let block = self.block();
-        let _inner = block.inner(area);
-        block.render(area, buf);
-    }
-    fn render_tab1(self, area: Rect, buf: &mut Buffer, _config: &Config) {
-        let block = self.block();
-        let _inner = block.inner(area);
-        block.render(area, buf);
-    }
-    fn render_tab2(self, area: Rect, buf: &mut Buffer, _config: &Config) {
-        let block = self.block();
-        let _inner = block.inner(area);
-        block.render(area, buf);
-    }
-    fn render_tab3(self, area: Rect, buf: &mut Buffer, _config: &Config) {
-        let block = self.block();
-        let _inner = block.inner(area);
-        block.render(area, buf);
-    }
-
-    /// A block surrounding the tab's content
-    fn block(self) -> Block<'static> {
-        Block::bordered()
-            .border_set(symbols::border::PROPORTIONAL_TALL)
-            .padding(Padding::horizontal(1))
-            .border_style(self.palette().c700)
-    }
-
-    const fn palette(self) -> tailwind::Palette {
-        match self {
-            Self::Basic => tailwind::BLUE,
-            Self::Desing => tailwind::AMBER,
-            Self::Shortcuts => tailwind::ROSE,
-            Self::File => tailwind::SKY,
-            Self::Network => tailwind::PURPLE,
-        }
-    }
-    fn render(self, area: Rect, buf: &mut Buffer, config: &Config, vim: &VimWidget) {
-        // in a real app these might be separate widgets
-        match self {
-            Self::Basic => self.render_tab0(area, buf, config),
-            Self::Desing => self.render_tab1(area, buf, config),
-            Self::Shortcuts => self.render_tab2(area, buf, config),
-            Self::Network => self.render_tab3(area, buf, config),
-            Self::File => vim.render(area, buf),
-        }
-    }
-}
 
 #[derive(Default)]
 pub struct Settings<'a> {
@@ -127,12 +42,13 @@ impl Settings<'_> {
     pub fn previous_tab(&mut self) {
         self.selected_tab = self.selected_tab.previous();
     }
+
     pub fn next_mode(&mut self) {
-        self.selected_tab = self.selected_tab.next();
+        self.mode = self.mode.next();
     }
 
     pub fn previous_mode(&mut self) {
-        self.selected_tab = self.selected_tab.previous();
+        self.mode = self.mode.previous();
     }
 
     fn render(&self, area: Rect, buf: &mut Buffer) {
@@ -144,13 +60,37 @@ impl Settings<'_> {
         let [tabs_area, title_area] = horizontal.areas(header_area);
 
         render_title(title_area, buf);
-        self.render_tabs(tabs_area, buf);
-        self.selected_tab
-            .render(inner_area, buf, &self.config, &self.editor);
+        self.render_outer_tabs(tabs_area, buf);
+
+        let _inner = if self.selected_tab == Chategory::Desing
+            || self.selected_tab == Chategory::Shortcuts
+        {
+            let inner = self.selected_tab.render(inner_area, buf);
+
+            let vertical = Layout::vertical([Length(1), Min(0)]);
+            let [header_area, inner_area] = vertical.areas(inner);
+            self.render_inner_tabs(header_area, buf);
+            self.mode.render(inner_area, buf)
+        } else {
+            self.selected_tab.render(inner_area, buf)
+        };
+
         render_footer(footer_area, buf);
     }
 
-    fn render_tabs(&self, area: Rect, buf: &mut Buffer) {
+    fn render_inner_tabs(&self, area: Rect, buf: &mut Buffer) {
+        let titles = Mode::iter().map(Mode::title);
+        let highlight_style = (Color::default(), self.mode.palette().c700);
+        let selected_tab_index = self.mode as usize;
+        Tabs::new(titles)
+            .highlight_style(highlight_style)
+            .select(selected_tab_index)
+            .padding("", "")
+            .divider(" ")
+            .render(area, buf);
+    }
+
+    fn render_outer_tabs(&self, area: Rect, buf: &mut Buffer) {
         let titles = Chategory::iter().map(Chategory::title);
         let highlight_style = (Color::default(), self.selected_tab.palette().c700);
         let selected_tab_index = self.selected_tab as usize;
@@ -174,7 +114,7 @@ fn render_title(area: Rect, buf: &mut Buffer) {
 }
 
 fn render_footer(area: Rect, buf: &mut Buffer) {
-    Line::raw("◄ h l ► to change tab | Press q to exit")
+    Line::raw("◄ H L ► to change tab | Press q to exit")
         .centered()
         .render(area, buf);
 }
