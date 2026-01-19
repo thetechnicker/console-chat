@@ -23,7 +23,7 @@ impl table::Data<1> for StaticRoomPublic {
     }
 
     fn ref_array(&self) -> [&String; 1] {
-        [self.owner.username.as_ref().unwrap()]
+        [self.owner.username.as_ref().expect("AAAAAAAAAAA")]
     }
 
     fn get_row(&self, index: usize) -> &str {
@@ -165,7 +165,7 @@ fn render_footer(area: Rect, buf: &mut Buffer) {
 
 impl Component for AccountManagement {
     fn init(&mut self, _: Size) -> Result<()> {
-        let theme = match self.config.themes.get(&STYLE_KEY) {
+        let _theme = match self.config.themes.get(&STYLE_KEY) {
             Some(themes) => themes,
             None => match self.config.themes.get(&crate::app::Mode::Global) {
                 Some(themes) => themes,

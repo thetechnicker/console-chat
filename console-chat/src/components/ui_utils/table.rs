@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! # Stolen from the [Ratatui] Table example
 //!
 //! [Ratatui]: https://github.com/ratatui/ratatui
@@ -204,8 +205,8 @@ impl<T: Data<N>, const N: usize> TableWidget<T, N> {
 
 fn constraint_len_calculator<T: Data<N>, const N: usize>(items: &[T]) -> [u16; N] {
     let mut max_lengths = [0u16; N];
-    for i in 0..N {
-        max_lengths[i] = items
+    for (i, item) in max_lengths.iter_mut().enumerate().take(N) {
+        *item = items
             .iter()
             .map(|e| e.get_row(i))
             .map(UnicodeWidthStr::width)
