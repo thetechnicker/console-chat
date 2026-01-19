@@ -203,11 +203,9 @@ impl Component for AccountManagement {
             Action::Me(user) => self.user = user,
             Action::MyRooms(rooms) => self.rooms = rooms,
             Action::Tick => {
-                if self.active {
-                    if self.refresh_instance.elapsed().as_secs_f32() > 10f32 {
-                        self.send(Action::RequestMyRooms);
-                        self.refresh_instance = Instant::now();
-                    }
+                if self.active && self.refresh_instance.elapsed().as_secs_f32() > 10f32 {
+                    self.send(Action::RequestMyRooms);
+                    self.refresh_instance = Instant::now();
                 }
             }
             Action::Render => {
