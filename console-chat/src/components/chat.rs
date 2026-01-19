@@ -2,7 +2,7 @@ use super::Component;
 use crate::action::Result;
 use crate::components::theme::Theme;
 use crate::components::vim::*;
-use crate::network::Message;
+use crate::network::models::Message;
 use crate::{action::Action, config::Config};
 use chrono::Local;
 use crossterm::event::{KeyCode, KeyEvent};

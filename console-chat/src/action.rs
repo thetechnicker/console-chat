@@ -1,9 +1,11 @@
-pub(crate) use crate::error::{AppError, Result};
 use crate::network::Message;
 use console_chat_proc_macro::Subsetable;
-use openapi::models::UserPrivate;
+use openapi::models::*;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use strum::Display;
+
+pub(crate) use crate::error::{AppError, Result};
 
 #[derive(Debug, Clone, PartialEq, Display, Subsetable, Serialize, Deserialize)]
 #[subsetable(
@@ -55,25 +57,31 @@ pub enum Action {
     ResetConfig,
     #[subset("ButtonEvent")]
     OpenStaticRoomManagement,
+    #[subset("NetworkEvent")]
+    RequestMyRooms,
 
     // Small fixed-size payloads
-    Resize(u16, u16),
     #[subset("ButtonEvent")]
     OpenJoin(#[serde(skip)] bool),
+    Resize(u16, u16),
 
     #[subset("VimEvent")]
     StoreConfig(#[serde(skip)] String),
 
     #[subset("NetworkEvent")]
-    PerformLogin(String, String),
+    SendMessage(String),
     #[subset("NetworkEvent")]
     PerformJoin(String, bool),
     #[subset("NetworkEvent")]
-    SendMessage(String),
+    PerformLogin(String, String),
     #[subset("NetworkEvent")]
     Me(UserPrivate),
     #[subset("NetworkEvent")]
     ReceivedMessage(Message),
+
+    #[subset("NetworkEvent")]
+    #[serde(skip)]
+    MyRooms(Arc<[StaticRoomPublic]>),
 
     // Error variant skipped in serde
     #[subset("NetworkEvent")]

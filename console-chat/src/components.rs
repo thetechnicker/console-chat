@@ -9,6 +9,7 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{action::Action, config::Config, tui::Event};
 
+pub mod account_management;
 pub mod chat;
 pub mod error_display;
 pub mod fps;
@@ -16,7 +17,6 @@ pub mod home;
 pub mod join;
 pub mod login;
 pub mod settings;
-pub mod static_room_management;
 pub mod ui_utils;
 pub use ui_utils::*;
 

@@ -83,8 +83,18 @@ impl MiscThreadData {
             NetworkEvent::JoinRandom => self.join_random_room().await?,
             NetworkEvent::RequestMe => self.request_me().await?,
             NetworkEvent::SendMessage(msg) => self.send_msg(&msg).await?,
+            NetworkEvent::RequestMyRooms => self.request_rooms().await?,
             _ => {}
         }
+        Ok(())
+    }
+
+    async fn request_rooms(&self) -> Result<()> {
+        let conf = self.conf.read().await;
+        let rooms = rooms_api::rooms_get_my_rooms(&conf).await?;
+        let _ = self
+            .sender_main
+            .send(Action::MyRooms(Arc::from(rooms.into_boxed_slice())));
         Ok(())
     }
 

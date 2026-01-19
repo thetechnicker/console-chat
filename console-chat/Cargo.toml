@@ -63,6 +63,7 @@ futures-util = "0.3.31"
 native-tls = { version = "0.2.14" }
 reqwest-eventsource = "0.6.0"
 tokio-tungstenite = { version = "0.28.0", optional = true, features=["native-tls"]}
+unicode-width = "0.2.0"
 
 [features]
 websocket = ["dep:tokio-tungstenite"]

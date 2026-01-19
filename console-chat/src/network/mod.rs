@@ -112,9 +112,7 @@ async fn send_message(
 
 pub(crate) mod error;
 pub(crate) mod listen_thread;
-pub(crate) mod message;
 pub(crate) mod misc_thread;
+pub(crate) mod models;
 pub(crate) mod network_stack;
 pub(crate) use network_stack::*;
-
-pub(crate) use message::*;

@@ -43,7 +43,7 @@ impl Mode {
             Mode::Login => tailwind::RED,
             Mode::Settings => tailwind::SKY,
             Mode::Insert => tailwind::STONE,
-            Mode::StaticRoomManagement => tailwind::GREEN,
+            Mode::AccountManagement => tailwind::GREEN,
         }
     }
     pub fn render(self, area: Rect, buf: &mut Buffer) -> Rect {

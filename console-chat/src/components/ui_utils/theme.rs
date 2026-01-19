@@ -1,5 +1,5 @@
 use crate::components::ui_utils::vim::VimMode;
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Color, Modifier, Style, palette::tailwind};
 use serde::{Deserialize, Serialize};
 
 pub const LIGHT_GRAY: Color = Color::Rgb(192, 192, 192);
@@ -19,6 +19,43 @@ impl Default for ButtonPalette {
             background: Color::Black,
             shadow: Color::DarkGray,
             highlight: LIGHT_GRAY,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Copy)]
+pub struct TableColors {
+    buffer_bg: Color,
+    header_bg: Color,
+    header_fg: Color,
+    row_fg: Color,
+    selected_row_style_fg: Color,
+    selected_column_style_fg: Color,
+    selected_cell_style_fg: Color,
+    normal_row_color: Color,
+    alt_row_color: Color,
+    footer_border_color: Color,
+}
+
+impl Default for TableColors {
+    fn default() -> Self {
+        Self::new(&tailwind::SLATE)
+    }
+}
+
+impl TableColors {
+    pub const fn new(color: &tailwind::Palette) -> Self {
+        Self {
+            buffer_bg: tailwind::SLATE.c950,
+            header_bg: color.c900,
+            header_fg: tailwind::SLATE.c200,
+            row_fg: tailwind::SLATE.c200,
+            selected_row_style_fg: color.c400,
+            selected_column_style_fg: color.c400,
+            selected_cell_style_fg: color.c600,
+            normal_row_color: tailwind::SLATE.c950,
+            alt_row_color: tailwind::SLATE.c900,
+            footer_border_color: color.c400,
         }
     }
 }
@@ -110,6 +147,7 @@ pub struct Theme {
     pub buttons: SemanticButtons,
     pub page: PageColors,
     pub vi: ViModePalettes,
+    pub table: TableColors,
 }
 
 //fn parse_hex(s: &str) -> Option<(u8, u8, u8)> {
@@ -242,6 +280,7 @@ impl Default for Theme {
                 visual: Color::LightYellow,
                 operator: Color::LightGreen,
             },
+            table: TableColors::default(),
         }
     }
 }

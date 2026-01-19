@@ -1,36 +1,45 @@
 use super::Component;
 use crate::action::Result;
-use crate::action::VimEvent;
-use crate::app::Mode;
 use crate::components::theme::Theme;
-use crate::components::vim::VimWidget;
+use crate::components::ui_utils::table;
 use crate::{action::Action, config::Config};
 use crossterm::event::{KeyCode, KeyEvent};
+use openapi::models::*;
 use ratatui::{
     prelude::*,
     style::{Color, Stylize, palette::tailwind},
     widgets::*,
 };
+use std::sync::Arc;
+use std::time::Instant;
 use strum::IntoEnumIterator;
 use strum::{Display, EnumIter, FromRepr};
 use tokio::sync::mpsc::UnboundedSender;
 use tui_textarea::Input;
 
-const STYLE_KEY: crate::app::Mode = crate::app::Mode::StaticRoomManagement;
+impl table::Data<1> for StaticRoomPublic {
+    fn get_headers() -> [&'static str; 1] {
+        ["Owner"]
+    }
+
+    fn ref_array(&self) -> [&String; 1] {
+        [self.owner.username.as_ref().unwrap()]
+    }
+
+    fn get_row(&self, index: usize) -> &str {
+        self.ref_array()[index]
+    }
+}
+
+const STYLE_KEY: crate::app::Mode = crate::app::Mode::AccountManagement;
 
 #[derive(Default, Clone, Copy, Display, FromRepr, PartialEq, EnumIter)]
 pub enum Chategory {
     #[default]
-    #[strum(to_string = "Basics")]
-    Basic,
-    #[strum(to_string = "Network")]
-    Network,
-    #[strum(to_string = "Design")]
-    Desing,
-    #[strum(to_string = "Shortcuts")]
-    Shortcuts,
-    #[strum(to_string = "Settings File")]
-    File,
+    #[strum(to_string = "Profile")]
+    Profile,
+    #[strum(to_string = "My Rooms")]
+    MyRooms,
 }
 
 impl Chategory {
@@ -66,11 +75,8 @@ impl Chategory {
 
     pub const fn palette(self) -> tailwind::Palette {
         match self {
-            Self::Basic => tailwind::BLUE,
-            Self::Desing => tailwind::AMBER,
-            Self::Shortcuts => tailwind::ROSE,
-            Self::File => tailwind::SKY,
-            Self::Network => tailwind::PURPLE,
+            Self::MyRooms => tailwind::BLUE,
+            Self::Profile => tailwind::GREEN,
         }
     }
     pub fn render(self, area: Rect, buf: &mut Buffer) -> Rect {
@@ -81,34 +87,35 @@ impl Chategory {
     }
 }
 
-#[derive(Default)]
-pub struct StaticRoomManagement<'a> {
+pub struct AccountManagement {
     active: bool,
     command_tx: Option<UnboundedSender<Action>>,
     config: Config,
-    mode: Mode,
     selected_tab: Chategory,
-    editor: VimWidget<'a>,
+    user: UserPrivate,
+    rooms: Arc<[StaticRoomPublic]>,
+    refresh_instance: Instant,
 }
 
-impl StaticRoomManagement<'_> {
+impl AccountManagement {
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            active: Default::default(),
+            command_tx: Default::default(),
+            config: Default::default(),
+            selected_tab: Default::default(),
+            user: Default::default(),
+            rooms: Default::default(),
+            refresh_instance: Instant::now(),
+        }
     }
+
     pub fn next_tab(&mut self) {
         self.selected_tab = self.selected_tab.next();
     }
 
     pub fn previous_tab(&mut self) {
         self.selected_tab = self.selected_tab.previous();
-    }
-
-    pub fn next_mode(&mut self) {
-        self.mode = self.mode.next();
-    }
-
-    pub fn previous_mode(&mut self) {
-        self.mode = self.mode.previous();
     }
 
     fn render(&self, area: Rect, buf: &mut Buffer) {
@@ -122,32 +129,9 @@ impl StaticRoomManagement<'_> {
         render_title(title_area, buf);
         self.render_outer_tabs(tabs_area, buf);
 
-        let _inner = if self.selected_tab == Chategory::Desing
-            || self.selected_tab == Chategory::Shortcuts
-        {
-            let inner = self.selected_tab.render(inner_area, buf);
-
-            let vertical = Layout::vertical([Length(1), Min(0)]);
-            let [header_area, inner_area] = vertical.areas(inner);
-            self.render_inner_tabs(header_area, buf);
-            self.mode.render(inner_area, buf)
-        } else {
-            self.selected_tab.render(inner_area, buf)
-        };
+        let _inner = self.selected_tab.render(inner_area, buf);
 
         render_footer(footer_area, buf);
-    }
-
-    fn render_inner_tabs(&self, area: Rect, buf: &mut Buffer) {
-        let titles = Mode::iter().map(Mode::title);
-        let highlight_style = (Color::default(), self.mode.palette().c700);
-        let selected_tab_index = self.mode as usize;
-        Tabs::new(titles)
-            .highlight_style(highlight_style)
-            .select(selected_tab_index)
-            .padding("", "")
-            .divider(" ")
-            .render(area, buf);
     }
 
     fn render_outer_tabs(&self, area: Rect, buf: &mut Buffer) {
@@ -179,9 +163,8 @@ fn render_footer(area: Rect, buf: &mut Buffer) {
         .render(area, buf);
 }
 
-impl Component for StaticRoomManagement<'_> {
+impl Component for AccountManagement {
     fn init(&mut self, _: Size) -> Result<()> {
-        let content = serde_json::to_string_pretty(&self.config)?;
         let theme = match self.config.themes.get(&STYLE_KEY) {
             Some(themes) => themes,
             None => match self.config.themes.get(&crate::app::Mode::Global) {
@@ -197,7 +180,6 @@ impl Component for StaticRoomManagement<'_> {
                 }
             },
         };
-        self.editor = VimWidget::new(super::vim::VimType::MultiLine, theme.vi).with_text(content);
         Ok(())
     }
 
@@ -217,9 +199,14 @@ impl Component for StaticRoomManagement<'_> {
 
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
-            Action::OpenSettings => self.active = true,
+            Action::OpenStaticRoomManagement => self.active = true,
+            Action::Me(user) => self.user = user,
+            Action::MyRooms(rooms) => self.rooms = rooms,
             Action::Tick => {
-                // add any logic here that should run on every tick
+                if self.refresh_instance.elapsed().as_secs_f32() > 10f32 {
+                    self.send(Action::RequestMyRooms);
+                    self.refresh_instance = Instant::now();
+                }
             }
             Action::Render => {
                 // add any logic here that should run on every render
@@ -234,25 +221,9 @@ impl Component for StaticRoomManagement<'_> {
             match key.code {
                 KeyCode::Char('H') if input.shift => self.previous_tab(),
                 KeyCode::Char('L') if input.shift => self.next_tab(),
-                KeyCode::Char('J') if input.shift => self.previous_mode(),
-                KeyCode::Char('K') if input.shift => self.next_mode(),
                 _ => match self.selected_tab {
-                    Chategory::Basic => {}
-                    Chategory::Desing => {}
-                    Chategory::Shortcuts => {}
-                    Chategory::Network => {}
-                    Chategory::File => {
-                        if let Some(event) = self.editor.handle_event(key)? {
-                            match event {
-                                VimEvent::Normal => self.send(Action::Normal),
-                                VimEvent::Insert => self.send(Action::Insert),
-                                VimEvent::StoreConfig(content) => {
-                                    self.send(Action::StoreConfig(content))
-                                }
-                                _ => {}
-                            }
-                        }
-                    }
+                    Chategory::Profile => {}
+                    Chategory::MyRooms => {}
                 },
             }
         }
