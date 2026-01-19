@@ -11,15 +11,14 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-#[derive(
-    Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize, Default,
-)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum UserType {
     #[serde(rename = "GUEST")]
-    #[default]
     Guest,
     #[serde(rename = "PERMANENT")]
     Permanent,
+    #[serde(rename = "SYSTEM")]
+    System,
 }
 
 impl std::fmt::Display for UserType {
@@ -27,6 +26,13 @@ impl std::fmt::Display for UserType {
         match self {
             Self::Guest => write!(f, "GUEST"),
             Self::Permanent => write!(f, "PERMANENT"),
+            Self::System => write!(f, "SYSTEM"),
         }
+    }
+}
+
+impl Default for UserType {
+    fn default() -> UserType {
+        Self::Guest
     }
 }

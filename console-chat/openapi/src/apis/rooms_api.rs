@@ -10,9 +10,7 @@
 
 use super::{ContentType, Error, configuration};
 use crate::{apis::ResponseContent, models};
-use futures_util::StreamExt;
 use reqwest;
-use reqwest_eventsource::{Error as EventError, *};
 use serde::{Deserialize, Serialize, de::Error as _};
 
 /// struct for typed errors of method [`rooms_create_room`]
@@ -90,6 +88,7 @@ pub enum RoomsRandomRoomError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum RoomsSendError {
+    Status401(models::ErrorModel),
     Status422(models::HttpValidationError),
     UnknownValue(serde_json::Value),
 }
@@ -98,6 +97,7 @@ pub enum RoomsSendError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum RoomsSendStaticError {
+    Status401(models::ErrorModel),
     Status422(models::HttpValidationError),
     UnknownValue(serde_json::Value),
 }
@@ -152,13 +152,15 @@ pub async fn rooms_create_room(
         let content = resp.text().await?;
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => Err(Error::from(serde_json::Error::custom(
-                "Received `text/plain` content type response that cannot be converted to `serde_json::Value`",
-            ))),
+            ContentType::Text => {
+                return Err(Error::from(serde_json::Error::custom(
+                    "Received `text/plain` content type response that cannot be converted to `serde_json::Value`",
+                )));
+            }
             ContentType::Unsupported(unknown_type) => {
-                Err(Error::from(serde_json::Error::custom(format!(
+                return Err(Error::from(serde_json::Error::custom(format!(
                     "Received `{unknown_type}` content type response that cannot be converted to `serde_json::Value`"
-                ))))
+                ))));
             }
         }
     } else {
@@ -243,13 +245,15 @@ pub async fn rooms_get_my_rooms(
         let content = resp.text().await?;
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => Err(Error::from(serde_json::Error::custom(
-                "Received `text/plain` content type response that cannot be converted to `Vec&lt;models::StaticRoomPublic&gt;`",
-            ))),
+            ContentType::Text => {
+                return Err(Error::from(serde_json::Error::custom(
+                    "Received `text/plain` content type response that cannot be converted to `Vec&lt;models::StaticRoomPublic&gt;`",
+                )));
+            }
             ContentType::Unsupported(unknown_type) => {
-                Err(Error::from(serde_json::Error::custom(format!(
+                return Err(Error::from(serde_json::Error::custom(format!(
                     "Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::StaticRoomPublic&gt;`"
-                ))))
+                ))));
             }
         }
     } else {
@@ -299,13 +303,15 @@ pub async fn rooms_get_room(
         let content = resp.text().await?;
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => Err(Error::from(serde_json::Error::custom(
-                "Received `text/plain` content type response that cannot be converted to `Vec&lt;models::MessagePublic&gt;`",
-            ))),
+            ContentType::Text => {
+                return Err(Error::from(serde_json::Error::custom(
+                    "Received `text/plain` content type response that cannot be converted to `Vec&lt;models::MessagePublic&gt;`",
+                )));
+            }
             ContentType::Unsupported(unknown_type) => {
-                Err(Error::from(serde_json::Error::custom(format!(
+                return Err(Error::from(serde_json::Error::custom(format!(
                     "Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::MessagePublic&gt;`"
-                ))))
+                ))));
             }
         }
     } else {
@@ -348,13 +354,15 @@ pub async fn rooms_list_rooms(
         let content = resp.text().await?;
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => Err(Error::from(serde_json::Error::custom(
-                "Received `text/plain` content type response that cannot be converted to `Vec&lt;models::StaticRoomPublic&gt;`",
-            ))),
+            ContentType::Text => {
+                return Err(Error::from(serde_json::Error::custom(
+                    "Received `text/plain` content type response that cannot be converted to `Vec&lt;models::StaticRoomPublic&gt;`",
+                )));
+            }
             ContentType::Unsupported(unknown_type) => {
-                Err(Error::from(serde_json::Error::custom(format!(
+                return Err(Error::from(serde_json::Error::custom(format!(
                     "Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::StaticRoomPublic&gt;`"
-                ))))
+                ))));
             }
         }
     } else {
@@ -371,7 +379,7 @@ pub async fn rooms_list_rooms(
 pub async fn rooms_listen(
     configuration: &configuration::Configuration,
     room: &str,
-) -> Result<EventSource, Error<()>> {
+) -> Result<(), Error<RoomsListenError>> {
     // add a prefix to parameters to efficiently prevent name collisions
     let p_path_room = room;
 
@@ -388,13 +396,29 @@ pub async fn rooms_listen(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder.eventsource().map_err(Error::EventSourceError)
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<RoomsListenError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
 }
 
 pub async fn rooms_listen_static(
     configuration: &configuration::Configuration,
     room: &str,
-) -> Result<EventSource, Error<()>> {
+) -> Result<(), Error<RoomsListenStaticError>> {
     // add a prefix to parameters to efficiently prevent name collisions
     let p_path_room = room;
 
@@ -412,7 +436,22 @@ pub async fn rooms_listen_static(
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
 
-    req_builder.eventsource().map_err(Error::EventSourceError)
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<RoomsListenStaticError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
 }
 
 pub async fn rooms_random_room(
@@ -443,13 +482,15 @@ pub async fn rooms_random_room(
         let content = resp.text().await?;
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => Err(Error::from(serde_json::Error::custom(
-                "Received `text/plain` content type response that cannot be converted to `String`",
-            ))),
+            ContentType::Text => {
+                return Err(Error::from(serde_json::Error::custom(
+                    "Received `text/plain` content type response that cannot be converted to `String`",
+                )));
+            }
             ContentType::Unsupported(unknown_type) => {
-                Err(Error::from(serde_json::Error::custom(format!(
+                return Err(Error::from(serde_json::Error::custom(format!(
                     "Received `{unknown_type}` content type response that cannot be converted to `String`"
-                ))))
+                ))));
             }
         }
     } else {
@@ -467,7 +508,7 @@ pub async fn rooms_send(
     configuration: &configuration::Configuration,
     room: &str,
     message_send: models::MessageSend,
-) -> Result<serde_json::Value, Error<RoomsSendError>> {
+) -> Result<models::MessagePublic, Error<RoomsSendError>> {
     // add a prefix to parameters to efficiently prevent name collisions
     let p_path_room = room;
     let p_body_message_send = message_send;
@@ -504,13 +545,15 @@ pub async fn rooms_send(
         let content = resp.text().await?;
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => Err(Error::from(serde_json::Error::custom(
-                "Received `text/plain` content type response that cannot be converted to `serde_json::Value`",
-            ))),
+            ContentType::Text => {
+                return Err(Error::from(serde_json::Error::custom(
+                    "Received `text/plain` content type response that cannot be converted to `models::MessagePublic`",
+                )));
+            }
             ContentType::Unsupported(unknown_type) => {
-                Err(Error::from(serde_json::Error::custom(format!(
-                    "Received `{unknown_type}` content type response that cannot be converted to `serde_json::Value`"
-                ))))
+                return Err(Error::from(serde_json::Error::custom(format!(
+                    "Received `{unknown_type}` content type response that cannot be converted to `models::MessagePublic`"
+                ))));
             }
         }
     } else {
@@ -528,7 +571,7 @@ pub async fn rooms_send_static(
     configuration: &configuration::Configuration,
     room: &str,
     message_send: models::MessageSend,
-) -> Result<serde_json::Value, Error<RoomsSendStaticError>> {
+) -> Result<models::MessagePublic, Error<RoomsSendStaticError>> {
     // add a prefix to parameters to efficiently prevent name collisions
     let p_path_room = room;
     let p_body_message_send = message_send;
@@ -565,13 +608,15 @@ pub async fn rooms_send_static(
         let content = resp.text().await?;
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => Err(Error::from(serde_json::Error::custom(
-                "Received `text/plain` content type response that cannot be converted to `serde_json::Value`",
-            ))),
+            ContentType::Text => {
+                return Err(Error::from(serde_json::Error::custom(
+                    "Received `text/plain` content type response that cannot be converted to `models::MessagePublic`",
+                )));
+            }
             ContentType::Unsupported(unknown_type) => {
-                Err(Error::from(serde_json::Error::custom(format!(
-                    "Received `{unknown_type}` content type response that cannot be converted to `serde_json::Value`"
-                ))))
+                return Err(Error::from(serde_json::Error::custom(format!(
+                    "Received `{unknown_type}` content type response that cannot be converted to `models::MessagePublic`"
+                ))));
             }
         }
     } else {

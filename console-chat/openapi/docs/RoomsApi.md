@@ -244,7 +244,7 @@ This endpoint does not need any parameter.
 
 ## rooms_send
 
-> serde_json::Value rooms_send(room, message_send)
+> models::MessagePublic rooms_send(room, message_send)
 Send
 
 ### Parameters
@@ -257,7 +257,7 @@ Name | Type | Description  | Required | Notes
 
 ### Return type
 
-[**serde_json::Value**](serde_json::Value.md)
+[**models::MessagePublic**](MessagePublic.md)
 
 ### Authorization
 
@@ -273,7 +273,7 @@ Name | Type | Description  | Required | Notes
 
 ## rooms_send_static
 
-> serde_json::Value rooms_send_static(room, message_send)
+> models::MessagePublic rooms_send_static(room, message_send)
 Send Static
 
 ### Parameters
@@ -286,7 +286,7 @@ Name | Type | Description  | Required | Notes
 
 ### Return type
 
-[**serde_json::Value**](serde_json::Value.md)
+[**models::MessagePublic**](MessagePublic.md)
 
 ### Authorization
 
