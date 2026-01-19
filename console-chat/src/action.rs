@@ -1,4 +1,4 @@
-use crate::network::Message;
+use crate::network::models::Message;
 use console_chat_proc_macro::Subsetable;
 use openapi::models::*;
 use serde::{Deserialize, Serialize};

@@ -1,7 +1,7 @@
 use super::Keys;
-use super::Message;
 use super::error::NetworkError;
 use super::from_base64;
+use super::models::Message;
 use super::send_message_from_content;
 use super::to_base64;
 use crate::action::Action;

@@ -25,16 +25,16 @@ impl Default for ButtonPalette {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Copy)]
 pub struct TableColors {
-    buffer_bg: Color,
-    header_bg: Color,
-    header_fg: Color,
-    row_fg: Color,
-    selected_row_style_fg: Color,
-    selected_column_style_fg: Color,
-    selected_cell_style_fg: Color,
-    normal_row_color: Color,
-    alt_row_color: Color,
-    footer_border_color: Color,
+    pub buffer_bg: Color,
+    pub header_bg: Color,
+    pub header_fg: Color,
+    pub row_fg: Color,
+    pub selected_row_style_fg: Color,
+    pub selected_column_style_fg: Color,
+    pub selected_cell_style_fg: Color,
+    pub normal_row_color: Color,
+    pub alt_row_color: Color,
+    pub footer_border_color: Color,
 }
 
 impl Default for TableColors {
