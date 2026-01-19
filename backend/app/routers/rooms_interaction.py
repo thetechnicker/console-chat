@@ -4,12 +4,12 @@ import uuid
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Body, HTTPException, Request, status
-from pydantic import ValidationError
+from fastapi import APIRouter, Body, Request
 from sqlmodel import col, select
 from sse_starlette.event import ServerSentEvent
 from sse_starlette.sse import EventSourceResponse
 
+from app.datamodel import SYSTEM_USER
 from app.datamodel.message import *
 from app.datamodel.user import *
 from app.dependencies import DatabaseContext  # LEAVE_DELAY,
@@ -110,7 +110,7 @@ async def listen_static(
             content=SystemMessage(
                 content=f"User {user.username} joined the room", online_users=num_users
             ),
-            sender=None,
+            sender=UserPublic.model_validate(SYSTEM_USER),
         ),
         db=db_context,
         static_room=True,
@@ -151,7 +151,7 @@ async def listen(
             content=SystemMessage(
                 content=f"User {user.username} joined the room", online_users=num_users
             ),
-            sender=None,
+            sender=UserPublic.model_validate(SYSTEM_USER),
         ),
         db=db_context,
     )

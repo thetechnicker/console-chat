@@ -4,7 +4,7 @@ import uuid
 from enum import StrEnum
 from typing import TYPE_CHECKING, List, Optional
 
-from sqlmodel import Field, Integer, Relationship, SQLModel
+from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
     from .message import StaticRoom
@@ -80,11 +80,12 @@ class AppearanceUpdate(AppearanceBase):
 class UserType(StrEnum):
     GUEST = "GUEST"
     PERMANENT = "PERMANENT"
+    SYSTEM = "SYSTEM"
 
 
 class UserBase(SQLModel):
     username: str = Field(default="anonym", unique=True, max_length=100)
-    user_type: UserType = Field(default=UserType.GUEST, sa_column=Integer)
+    user_type: UserType = Field(default=UserType.GUEST)
 
 
 class User(UserBase, table=True):

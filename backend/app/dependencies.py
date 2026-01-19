@@ -262,7 +262,10 @@ def get_from_login(
     username: str, password: str, db: DatabaseDependency
 ) -> Optional[UserPrivate]:
     """Retrieve user data for login validation."""
-    stmt = select(User).where(User.username == username)
+    stmt = (
+        select(User).where(User.username == username)
+        # .where(User.user_type != UserType.SYSTEM)
+    )
     user = db.psql_session.exec(stmt).one_or_none()
     if (
         user

@@ -36,9 +36,9 @@ def setup_logging():
         logging.handlers.QueueHandler | None, logging.getHandlerByName("queue_handler")
     )
     if queue_handler is not None:
-        if queue_handler.listener is not None:
-            queue_handler.listener.start()
-            atexit.register(queue_handler.listener.stop)
+        if queue_handler.listener is not None:  # type:ignore
+            queue_handler.listener.start()  # type:ignore
+            atexit.register(queue_handler.listener.stop)  # type:ignore
     logging.info("Logging is configured")
 
 

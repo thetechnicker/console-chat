@@ -1,10 +1,14 @@
+import logging
 import os
 from typing import Optional
 
+from sqlalchemy import Engine
 from sqlmodel import SQLModel, create_engine
 
 from .message import *
 from .user import *
+
+logger = logging.getLogger(__name__)
 
 
 def set_connection_str(host: Optional[str] = None):
@@ -31,8 +35,35 @@ def init_postgesql_connection():
         pool_timeout=30,
     )
     SQLModel.metadata.create_all(engine)
+    create_or_get_system(engine)
     return engine
+
+
+def create_or_get_system(engine: Engine):
+    global SYSTEM_USER
+    from sqlmodel import Session, select
+
+    with Session(engine) as session:
+        stmt = select(User).where(User.username == "SYSTEM")
+        user = session.exec(stmt).one_or_none()
+        if user is None:
+            user = User(
+                username="SYSTEM",
+                user_type=UserType.SYSTEM,
+                appearance=Appearance(color="#333333"),
+            )
+            session.add(user)
+            session.commit()
+            session.refresh(user)
+        SYSTEM_USER = User.model_validate(user)  # type: ignore
+        logger.debug(f"System user: {user}")
 
 
 User.model_rebuild()
 PermanentUserPrivate.model_rebuild()
+
+SYSTEM_USER: User = User(
+    username="SYSTEM",
+    user_type=UserType.SYSTEM,
+    appearance=Appearance(color="#333333"),
+)
