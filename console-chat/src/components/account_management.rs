@@ -5,6 +5,7 @@ use crate::components::ui_utils::table;
 use crate::components::ui_utils::table::TableWidget;
 use crate::{action::Action, config::Config};
 use crossterm::event::{KeyCode, KeyEvent};
+//use openapi::models::CreateRoom;
 use openapi::models::*;
 use ratatui::{
     prelude::*,
@@ -96,6 +97,28 @@ impl Chategory {
     }
 }
 
+fn render_user(user: &UserPrivate, area: Rect, buf: &mut ratatui::buffer::Buffer) {
+    let block = Block::default()
+        .title("User Information")
+        .borders(Borders::ALL);
+
+    // Create user information spans
+    let user_info = Text::from(vec![
+        Line::from(format!("Username: {}", user.username)).centered(),
+        Line::from(format!("User Type: {:?}", user.user_type)).centered(),
+        Line::from(format!("Appearance: {:?}", user.appearance)).centered(),
+        Line::from(format!("ID: {}", user.id)).centered(),
+    ])
+    .centered();
+
+    // Render user information inside the block
+    let paragraph = Paragraph::new(user_info)
+        .block(block)
+        .wrap(ratatui::widgets::Wrap { trim: true });
+
+    paragraph.render(area, buf);
+}
+
 pub struct AccountManagement {
     active: bool,
     command_tx: Option<UnboundedSender<Action>>,
@@ -103,6 +126,8 @@ pub struct AccountManagement {
     selected_tab: Chategory,
     user: UserPrivate,
     rooms: TableWidget<N, StaticRoomPublic>,
+
+    //new_room_dialog: CreateRoom,
     refresh_instance: Instant,
 }
 
@@ -140,7 +165,7 @@ impl AccountManagement {
 
         let inner = self.selected_tab.render(inner_area, buf);
         match self.selected_tab {
-            Chategory::Profile => {}
+            Chategory::Profile => render_user(&self.user, inner, buf),
             Chategory::MyRooms => self.rooms.render(inner, buf),
         }
 
