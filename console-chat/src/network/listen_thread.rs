@@ -1,11 +1,11 @@
-use super::Keys;
-use super::error::NetworkError;
-use super::from_base64;
-use super::models::Message;
-use super::send_message_from_content;
-use super::to_base64;
 use crate::action::Action;
+use crate::network::Keys;
 use crate::network::Result;
+use crate::network::error::NetworkError;
+use crate::network::from_base64;
+use crate::network::models::Message;
+use crate::network::send_message_from_content;
+use crate::network::to_base64;
 use alkali::asymmetric::cipher::{self, PUBLIC_KEY_LENGTH, PublicKey};
 use alkali::mem::ProtectReadOnly;
 use alkali::symmetric::cipher::{self as symetric_cipher, Key, NONCE_LENGTH};

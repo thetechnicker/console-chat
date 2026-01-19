@@ -5,7 +5,7 @@
 //! [examples]: https://github.com/ratatui/ratatui/blob/main/examples
 //! [examples readme]: https://github.com/ratatui/ratatui/blob/main/examples/README.md
 
-use super::theme::TableColors;
+use crate::components::ui_utils::theme::TableColors;
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Layout, Margin, Rect},
@@ -25,21 +25,19 @@ const PALETTES: [tailwind::Palette; 4] = [
     tailwind::INDIGO,
     tailwind::RED,
 ];
-const INFO_TEXT: [&str; 2] = [
-    "(Esc) quit | (↑) move up | (↓) move down | (←) move left | (→) move right",
-    "(Shift + →) next color | (Shift + ←) previous color",
-];
+const INFO_TEXT: [&str; 1] =
+    ["(Esc) quit | (↑) move up | (↓) move down | (←) move left | (→) move right"];
 
 const ITEM_HEIGHT: usize = 4;
 
 pub trait Data<const N: usize> {
     fn get_headers() -> [&'static str; N];
 
-    fn ref_array(&self) -> [&String; N];
+    fn ref_array(&self) -> [&str; N];
     fn get_row(&self, i: usize) -> &str;
 }
 
-pub struct TableWidget<T: Data<N>, const N: usize> {
+pub struct TableWidget<const N: usize, T: Data<N>> {
     state: TableState,
     items: Vec<T>,
     longest_item_lens: [u16; N], // order is (name, address, email)
@@ -48,13 +46,23 @@ pub struct TableWidget<T: Data<N>, const N: usize> {
     color_index: usize,
 }
 
-impl<T: Data<N>, const N: usize> TableWidget<T, N> {
-    pub fn new(data: Vec<T>) -> Self {
+impl<const N: usize, T: Data<N>> Default for TableWidget<N, T> {
+    fn default() -> Self {
+        Self::new(Vec::new(), TableColors::new(&PALETTES[0]))
+    }
+}
+
+impl<const N: usize, T: Data<N>> TableWidget<N, T> {
+    pub fn new(data: Vec<T>, theme: TableColors) -> Self {
         Self {
             state: TableState::default().with_selected(0),
             longest_item_lens: constraint_len_calculator(&data),
-            scroll_state: ScrollbarState::new((data.len() - 1) * ITEM_HEIGHT),
-            colors: TableColors::new(&PALETTES[0]),
+            scroll_state: ScrollbarState::new(if data.len() > 0 {
+                (data.len() - 1) * ITEM_HEIGHT
+            } else {
+                0
+            }),
+            colors: theme,
             color_index: 0,
             items: data,
         }
@@ -152,9 +160,8 @@ impl<T: Data<N>, const N: usize> TableWidget<T, N> {
                 .height(4)
         });
         let bar = " █ ";
-        let mut row_contraints: [Constraint; N] =
+        let row_contraints: [Constraint; N] =
             std::array::from_fn(|i| Constraint::Min(self.longest_item_lens[i] + 1));
-        row_contraints[0] = Constraint::Length(self.longest_item_lens[1] + 1);
         let t = Table::new(rows, row_contraints)
             .header(header)
             .row_highlight_style(selected_row_style)
@@ -200,6 +207,10 @@ impl<T: Data<N>, const N: usize> TableWidget<T, N> {
                     .border_style(Style::new().fg(self.colors.footer_border_color)),
             );
         Widget::render(info_footer, area, buf);
+    }
+
+    pub fn get_theme(&self) -> TableColors {
+        self.colors
     }
 }
 

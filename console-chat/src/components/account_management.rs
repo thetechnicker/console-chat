@@ -2,6 +2,7 @@ use super::Component;
 use crate::action::Result;
 use crate::components::theme::Theme;
 use crate::components::ui_utils::table;
+use crate::components::ui_utils::table::TableWidget;
 use crate::{action::Action, config::Config};
 use crossterm::event::{KeyCode, KeyEvent};
 use openapi::models::*;
@@ -10,20 +11,28 @@ use ratatui::{
     style::{Color, Stylize, palette::tailwind},
     widgets::*,
 };
-use std::sync::Arc;
 use std::time::Instant;
 use strum::IntoEnumIterator;
 use strum::{Display, EnumIter, FromRepr};
 use tokio::sync::mpsc::UnboundedSender;
 use tui_textarea::Input;
 
-impl table::Data<1> for StaticRoomPublic {
-    fn get_headers() -> [&'static str; 1] {
-        ["Owner"]
+fn into_static(s: String) -> &'static str {
+    Box::leak(s.into_boxed_str())
+}
+
+const N: usize = 3;
+impl table::Data<N> for StaticRoomPublic {
+    fn get_headers() -> [&'static str; N] {
+        ["Name", "Owner", "Security Level"]
     }
 
-    fn ref_array(&self) -> [&String; 1] {
-        [&self.owner.username]
+    fn ref_array(&self) -> [&str; N] {
+        [
+            &self.name,
+            &self.owner.username,
+            into_static(format!("{}", self.level)),
+        ]
     }
 
     fn get_row(&self, index: usize) -> &str {
@@ -93,7 +102,7 @@ pub struct AccountManagement {
     config: Config,
     selected_tab: Chategory,
     user: UserPrivate,
-    rooms: Arc<[StaticRoomPublic]>,
+    rooms: TableWidget<N, StaticRoomPublic>,
     refresh_instance: Instant,
 }
 
@@ -118,7 +127,7 @@ impl AccountManagement {
         self.selected_tab = self.selected_tab.previous();
     }
 
-    fn render(&self, area: Rect, buf: &mut Buffer) {
+    fn render(&mut self, area: Rect, buf: &mut Buffer) {
         use Constraint::{Length, Min};
         let vertical = Layout::vertical([Length(1), Min(0), Length(1)]);
         let [header_area, inner_area, footer_area] = vertical.areas(area);
@@ -129,7 +138,11 @@ impl AccountManagement {
         render_title(title_area, buf);
         self.render_outer_tabs(tabs_area, buf);
 
-        let _inner = self.selected_tab.render(inner_area, buf);
+        let inner = self.selected_tab.render(inner_area, buf);
+        match self.selected_tab {
+            Chategory::Profile => {}
+            Chategory::MyRooms => self.rooms.render(inner, buf),
+        }
 
         render_footer(footer_area, buf);
     }
@@ -165,7 +178,7 @@ fn render_footer(area: Rect, buf: &mut Buffer) {
 
 impl Component for AccountManagement {
     fn init(&mut self, _: Size) -> Result<()> {
-        let _theme = match self.config.themes.get(&STYLE_KEY) {
+        let theme = match self.config.themes.get(&STYLE_KEY) {
             Some(themes) => themes,
             None => match self.config.themes.get(&crate::app::Mode::Global) {
                 Some(themes) => themes,
@@ -180,6 +193,7 @@ impl Component for AccountManagement {
                 }
             },
         };
+        self.rooms = TableWidget::new(Vec::new(), theme.table);
         Ok(())
     }
 
@@ -201,7 +215,9 @@ impl Component for AccountManagement {
         match action {
             Action::OpenStaticRoomManagement => self.active = true,
             Action::Me(user) => self.user = user,
-            Action::MyRooms(rooms) => self.rooms = rooms,
+            Action::MyRooms(rooms) => {
+                self.rooms = TableWidget::new(rooms.to_vec(), self.rooms.get_theme())
+            }
             Action::Tick => {
                 if self.active && self.refresh_instance.elapsed().as_secs_f32() > 10f32 {
                     self.send(Action::RequestMyRooms);

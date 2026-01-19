@@ -6,6 +6,7 @@ use crate::network::send_message;
 use openapi::apis::configuration::Configuration;
 use openapi::apis::rooms_api;
 use openapi::apis::users_api;
+use openapi::models::LoginData;
 use openapi::models::Token;
 use std::sync::Arc;
 use std::time::Duration;
@@ -101,12 +102,33 @@ impl MiscThreadData {
         Ok(())
     }
 
+    async fn login(&self, username: String, password: String) -> Result<()> {
+        info!("Login in...");
+        let mut conf = self.conf.write().await;
+        let login_data = LoginData::new(username, password);
+        match users_api::users_login(&conf, login_data).await {
+            Ok(token) => {
+                debug!("New id: {:?}", token.user);
+                conf.bearer_access_token = Some(token.token.token.clone());
+                info!("Token refreshed successfully (TTL: {}s)", token.token.ttl);
+                let _ = self.sender_inner.send(NetworkEvent::RequestMe);
+                let _ = self.sender_main.send(Action::OpenHome);
+                Ok(())
+            }
+            Err(err) => {
+                error!("Failed to get user info: {}", err);
+                Err(err.into())
+            }
+        }
+    }
+
     #[allow(unused_variables)]
     pub async fn handle_network_event(&self, event: NetworkEvent) -> Result<()> {
         debug!("Handling network event: {:?}", event);
         let result = match event.clone() {
             NetworkEvent::PerformLogin(username, password) => {
-                warn!("Login event handling not yet implemented for {}", username);
+                //warn!("Login event handling not yet implemented for {}", username);
+                self.login(username, password).await?;
                 Ok(())
             }
             NetworkEvent::JoinRandom => self.join_random_room().await,
