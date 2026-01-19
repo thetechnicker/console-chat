@@ -101,9 +101,9 @@ async fn read_input_and_send(
     let now: chrono::DateTime<chrono::Utc> = chrono::DateTime::from(std::time::SystemTime::now());
     let msg = MessageSend {
         r#type: Some(MessageType::Plaintext),
-        content: Some(Content::Plaintext(Plaintext::new(input.trim().to_owned()))),
-        send_at: Some(now.to_rfc2822()),
-        data: Some(None),
+        content: Content::Plaintext(Plaintext::new(input.trim().to_owned())),
+        send_at: now.to_rfc2822(),
+        data: None,
     };
 
     let body = serde_json::json!(msg);

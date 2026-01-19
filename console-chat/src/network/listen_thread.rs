@@ -93,27 +93,19 @@ impl ListenThreadData {
                         let mut received_message = Message {
                             user: message.sender,
                             is_me,
-                            send_at: message
-                                .send_at
-                                .and_then(|send_at| DateTime::<Utc>::from_str(&send_at).ok()),
+                            send_at: DateTime::<Utc>::from_str(&message.send_at).ok(),
                             content: Default::default(),
                         };
-                        match message.content {
-                            Some(content) => match self.handle_content(content).await {
-                                Err(err) => {
-                                    error!("Failed to handle content: {}", err);
-                                    let _ = self.sender.send(Action::Error(err.into()));
-                                }
-                                Ok(Some(content)) => {
-                                    received_message.content = content;
-                                    let _ =
-                                        self.sender.send(Action::ReceivedMessage(received_message));
-                                }
-                                Ok(_) => {}
-                            },
-                            None => {
-                                error!("Received message with no content",);
+                        match self.handle_content(message.content).await {
+                            Err(err) => {
+                                error!("Failed to handle content: {}", err);
+                                let _ = self.sender.send(Action::Error(err.into()));
                             }
+                            Ok(Some(content)) => {
+                                received_message.content = content;
+                                let _ = self.sender.send(Action::ReceivedMessage(received_message));
+                            }
+                            Ok(_) => {}
                         }
                     }
                     Err(e) => {

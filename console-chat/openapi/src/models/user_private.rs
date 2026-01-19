@@ -13,10 +13,10 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UserPrivate {
-    #[serde(rename = "username", skip_serializing_if = "Option::is_none")]
-    pub username: Option<String>,
-    #[serde(rename = "user_type", skip_serializing_if = "Option::is_none")]
-    pub user_type: Option<models::UserType>,
+    #[serde(rename = "username")]
+    pub username: String,
+    #[serde(rename = "user_type")]
+    pub user_type: models::UserType,
     #[serde(rename = "appearance")]
     pub appearance: models::AppearancePublic,
     #[serde(rename = "id")]
@@ -24,10 +24,15 @@ pub struct UserPrivate {
 }
 
 impl UserPrivate {
-    pub fn new(appearance: models::AppearancePublic, id: uuid::Uuid) -> UserPrivate {
+    pub fn new(
+        username: String,
+        user_type: models::UserType,
+        appearance: models::AppearancePublic,
+        id: uuid::Uuid,
+    ) -> UserPrivate {
         UserPrivate {
-            username: None,
-            user_type: None,
+            username,
+            user_type,
             appearance,
             id,
         }

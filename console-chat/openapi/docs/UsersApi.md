@@ -80,7 +80,7 @@ Get online user status or create a temporary user.  - **credentials**: An option
 
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
-**username** | Option<**String**> |  |  |
+**username** | Option<**String**> |  | [required] |
 
 ### Return type
 

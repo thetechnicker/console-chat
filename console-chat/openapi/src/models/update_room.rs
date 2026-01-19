@@ -13,35 +13,24 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UpdateRoom {
-    #[serde(
-        rename = "private_level",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub private_level: Option<Option<models::RoomLevel>>,
-    #[serde(
-        rename = "invite",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub invite: Option<Option<Vec<models::CreateRoomInviteInner>>>,
-    #[serde(
-        rename = "key",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub key: Option<Option<String>>,
+    #[serde(rename = "private_level", deserialize_with = "Option::deserialize")]
+    pub private_level: Option<models::RoomLevel>,
+    #[serde(rename = "invite", deserialize_with = "Option::deserialize")]
+    pub invite: Option<Vec<models::CreateRoomInviteInner>>,
+    #[serde(rename = "key", deserialize_with = "Option::deserialize")]
+    pub key: Option<String>,
 }
 
 impl UpdateRoom {
-    pub fn new() -> UpdateRoom {
+    pub fn new(
+        private_level: Option<models::RoomLevel>,
+        invite: Option<Vec<models::CreateRoomInviteInner>>,
+        key: Option<String>,
+    ) -> UpdateRoom {
         UpdateRoom {
-            private_level: None,
-            invite: None,
-            key: None,
+            private_level,
+            invite,
+            key,
         }
     }
 }

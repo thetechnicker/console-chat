@@ -15,28 +15,28 @@ use serde::{Deserialize, Serialize};
 pub struct MessagePublic {
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub r#type: Option<models::MessageType>,
-    #[serde(rename = "content", skip_serializing_if = "Option::is_none")]
-    pub content: Option<models::Content>,
-    #[serde(rename = "send_at", skip_serializing_if = "Option::is_none")]
-    pub send_at: Option<String>,
-    #[serde(
-        rename = "data",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub data: Option<Option<serde_json::Value>>,
+    #[serde(rename = "content")]
+    pub content: models::Content,
+    #[serde(rename = "send_at")]
+    pub send_at: String,
+    #[serde(rename = "data", deserialize_with = "Option::deserialize")]
+    pub data: Option<serde_json::Value>,
     #[serde(rename = "sender", deserialize_with = "Option::deserialize")]
     pub sender: Option<models::UserPublic>,
 }
 
 impl MessagePublic {
-    pub fn new(sender: Option<models::UserPublic>) -> MessagePublic {
+    pub fn new(
+        content: models::Content,
+        send_at: String,
+        data: Option<serde_json::Value>,
+        sender: Option<models::UserPublic>,
+    ) -> MessagePublic {
         MessagePublic {
             r#type: None,
-            content: None,
-            send_at: None,
-            data: None,
+            content,
+            send_at,
+            data,
             sender,
         }
     }

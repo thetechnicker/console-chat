@@ -74,9 +74,9 @@ async fn send_message_from_content(
     let now: chrono::DateTime<chrono::Utc> = chrono::DateTime::from(std::time::SystemTime::now());
     let msg = MessageSend {
         r#type: Some(r#type),
-        content: Some(message_content),
-        send_at: Some(now.to_rfc3339()),
-        data: Some(None),
+        content: message_content,
+        send_at: now.to_rfc3339(),
+        data: None,
     };
     if is_static {
         rooms_api::rooms_send_static(conf, room, msg).await?;

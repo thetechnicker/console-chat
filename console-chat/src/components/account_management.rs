@@ -23,7 +23,7 @@ impl table::Data<1> for StaticRoomPublic {
     }
 
     fn ref_array(&self) -> [&String; 1] {
-        [self.owner.username.as_ref().expect("AAAAAAAAAAA")]
+        [&self.owner.username]
     }
 
     fn get_row(&self, index: usize) -> &str {
@@ -203,9 +203,11 @@ impl Component for AccountManagement {
             Action::Me(user) => self.user = user,
             Action::MyRooms(rooms) => self.rooms = rooms,
             Action::Tick => {
-                if self.refresh_instance.elapsed().as_secs_f32() > 10f32 {
-                    self.send(Action::RequestMyRooms);
-                    self.refresh_instance = Instant::now();
+                if self.active {
+                    if self.refresh_instance.elapsed().as_secs_f32() > 10f32 {
+                        self.send(Action::RequestMyRooms);
+                        self.refresh_instance = Instant::now();
+                    }
                 }
             }
             Action::Render => {

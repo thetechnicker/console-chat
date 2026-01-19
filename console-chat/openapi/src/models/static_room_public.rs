@@ -15,13 +15,8 @@ use serde::{Deserialize, Serialize};
 pub struct StaticRoomPublic {
     #[serde(rename = "name")]
     pub name: String,
-    #[serde(
-        rename = "key",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub key: Option<Option<String>>,
+    #[serde(rename = "key", deserialize_with = "Option::deserialize")]
+    pub key: Option<String>,
     #[serde(rename = "id")]
     pub id: i32,
     #[serde(rename = "owner")]
@@ -35,6 +30,7 @@ pub struct StaticRoomPublic {
 impl StaticRoomPublic {
     pub fn new(
         name: String,
+        key: Option<String>,
         id: i32,
         owner: models::UserPublic,
         users: Vec<models::UserPublic>,
@@ -42,7 +38,7 @@ impl StaticRoomPublic {
     ) -> StaticRoomPublic {
         StaticRoomPublic {
             name,
-            key: None,
+            key,
             id,
             owner,
             users,

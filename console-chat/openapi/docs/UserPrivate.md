@@ -4,8 +4,8 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**username** | Option<**String**> |  | [optional][default to anonym]
-**user_type** | Option<[**models::UserType**](UserType.md)> |  | [optional][default to Guest]
+**username** | **String** |  | [default to anonym]
+**user_type** | [**models::UserType**](UserType.md) |  | [default to Guest]
 **appearance** | [**models::AppearancePublic**](AppearancePublic.md) |  | 
 **id** | [**uuid::Uuid**](uuid::Uuid.md) |  | 
 

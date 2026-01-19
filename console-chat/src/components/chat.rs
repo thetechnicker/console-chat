@@ -42,12 +42,12 @@ impl MessageComponent {
 
 impl Widget for &MessageComponent {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let user = self
-            .content
-            .user
-            .clone()
-            .unwrap_or(UserPublic::new(AppearancePublic::new("".to_owned())));
-        let name = user.username.clone().unwrap_or("System".to_owned());
+        let user = self.content.user.clone().unwrap_or(UserPublic::new(
+            "System".to_owned(),
+            openapi::models::UserType::System,
+            AppearancePublic::new("".to_owned()),
+        ));
+        let name = user.username.clone();
         let color = user.appearance.color.parse().unwrap_or(Color::Gray);
         let message = self.content.content.clone();
 

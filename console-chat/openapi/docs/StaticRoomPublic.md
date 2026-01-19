@@ -5,7 +5,7 @@
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **name** | **String** |  | 
-**key** | Option<**String**> |  | [optional]
+**key** | Option<**String**> |  | 
 **id** | **i32** |  | 
 **owner** | [**models::UserPublic**](UserPublic.md) |  | 
 **users** | [**Vec<models::UserPublic>**](UserPublic.md) |  | 

@@ -13,6 +13,7 @@ use tokio::sync::RwLock;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::watch::Receiver;
 use tokio_util::sync::CancellationToken;
+use tracing::{debug, error, info, warn};
 
 #[derive(Debug)]
 pub struct MiscThreadData {
@@ -51,84 +52,149 @@ impl MiscThreadData {
     }
 
     pub async fn token_refresh(&mut self) -> Result<Token> {
+        info!("Refreshing access token...");
         let mut conf = self.conf.write().await;
-        let response = users_api::users_online(&conf, None).await?;
-        let token = response.token.clone();
-        self.id = Some(response.user);
-        conf.bearer_access_token = Some(token.token);
-        let _ = self.sender_inner.send(NetworkEvent::RequestMe);
-        Ok(response.token)
+        match users_api::users_online(&conf, None).await {
+            Ok(response) => {
+                debug!("Got token response: {:?}", response.token);
+                let token = response.token.clone();
+                self.id = Some(response.user);
+                conf.bearer_access_token = Some(token.token.clone());
+                let _ = self.sender_inner.send(NetworkEvent::RequestMe);
+                info!("Token refreshed successfully (TTL: {}s)", token.ttl);
+                Ok(response.token)
+            }
+            Err(err) => {
+                error!("Failed to refresh token: {}", err);
+                Err(err.into())
+            }
+        }
     }
 
     pub async fn request_me(&self) -> Result<()> {
+        info!("Requesting current user info...");
         let conf = self.conf.read().await;
-        let user = users_api::users_get_me(&conf).await?;
-        let _ = self.sender_main.send(Action::Me(user));
-        Ok(())
+        match users_api::users_get_me(&conf).await {
+            Ok(user) => {
+                debug!("Fetched user info: {:?}", user);
+                let _ = self.sender_main.send(Action::Me(user));
+                Ok(())
+            }
+            Err(err) => {
+                error!("Failed to get user info: {}", err);
+                Err(err.into())
+            }
+        }
     }
+
     pub async fn send_msg(&self, msg: &str) -> Result<()> {
         if let Some((room, is_static)) = self.room.as_ref() {
+            debug!("Sending message to room '{}' (static: {})", room, is_static);
             let conf = self.conf.read().await;
             let key_map = self.keys.symetric_keys.read().await;
             let symetric_key = key_map.get(room);
             send_message(&conf, room, *is_static, msg, symetric_key).await?;
+            info!("Message sent to {}", room);
+        } else {
+            warn!("Tried to send message but no room is currently joined");
         }
         Ok(())
     }
 
     #[allow(unused_variables)]
     pub async fn handle_network_event(&self, event: NetworkEvent) -> Result<()> {
-        match event {
-            NetworkEvent::PerformLogin(username, password) => todo!(),
-            NetworkEvent::JoinRandom => self.join_random_room().await?,
-            NetworkEvent::RequestMe => self.request_me().await?,
-            NetworkEvent::SendMessage(msg) => self.send_msg(&msg).await?,
-            NetworkEvent::RequestMyRooms => self.request_rooms().await?,
-            _ => {}
+        debug!("Handling network event: {:?}", event);
+        let result = match event.clone() {
+            NetworkEvent::PerformLogin(username, password) => {
+                warn!("Login event handling not yet implemented for {}", username);
+                Ok(())
+            }
+            NetworkEvent::JoinRandom => self.join_random_room().await,
+            NetworkEvent::RequestMe => self.request_me().await,
+            NetworkEvent::SendMessage(msg) => self.send_msg(&msg).await,
+            NetworkEvent::RequestMyRooms => self.request_rooms().await,
+            _ => {
+                debug!("Unhandled network event: {:?}", event);
+                Ok(())
+            }
+        };
+
+        if let Err(err) = &result {
+            error!("Error during network event {:?}: {}", event, err);
         }
-        Ok(())
+        result
     }
 
     async fn request_rooms(&self) -> Result<()> {
+        info!("Fetching list of rooms for current user...");
         let conf = self.conf.read().await;
-        let rooms = rooms_api::rooms_get_my_rooms(&conf).await?;
-        let _ = self
-            .sender_main
-            .send(Action::MyRooms(Arc::from(rooms.into_boxed_slice())));
-        Ok(())
+        match rooms_api::rooms_get_my_rooms(&conf).await {
+            Ok(rooms) => {
+                debug!("Fetched {} rooms", rooms.len());
+                let _ = self
+                    .sender_main
+                    .send(Action::MyRooms(Arc::from(rooms.into_boxed_slice())));
+                Ok(())
+            }
+            Err(err) => {
+                error!("Failed to fetch rooms: {}", err);
+                Err(err.into())
+            }
+        }
     }
 
     pub async fn join_random_room(&self) -> Result<()> {
+        info!("Attempting to join a random room...");
         let conf = self.conf.read().await;
-        let room = rooms_api::rooms_random_room(&conf).await?;
-        let _ = self.sender_main.send(Action::PerformJoin(room, false));
-        Ok(())
+        match rooms_api::rooms_random_room(&conf).await {
+            Ok(room) => {
+                info!("Joined random room: {:?}", room);
+                let _ = self.sender_main.send(Action::PerformJoin(room, false));
+                Ok(())
+            }
+            Err(err) => {
+                error!("Failed to join random room: {}", err);
+                Err(err.into())
+            }
+        }
     }
 
     pub async fn misc_loop(mut self, cancel_token: CancellationToken) -> Result<()> {
-        let token = self.token_refresh().await?;
-        let mut token_refresh_interval =
-            tokio::time::interval(Duration::from_secs(token.ttl as u64));
+        info!("Starting misc loop...");
+        let mut token_refresh_interval = match self.token_refresh().await {
+            Ok(token) => tokio::time::interval(Duration::from_secs(token.ttl as u64)),
+            Err(_) => tokio::time::interval(Duration::from_secs(10)),
+        };
+
         loop {
             tokio::select! {
                 _ = cancel_token.cancelled() => {
+                    info!("Cancellation requested; stopping misc loop.");
                     break
                 }
                 _ = token_refresh_interval.tick() => {
-                    let token = self.token_refresh().await?;
-                    if token_refresh_interval.period().as_secs() != token.ttl as u64 {
-                        token_refresh_interval = tokio::time::interval(Duration::from_secs(token.ttl as u64));
+                    debug!("Token refresh interval tick");
+                    if let Err(e) = self.token_refresh().await {
+                        error!("Failed to refresh token during misc loop: {}", e);
+                    } else {
+                        debug!("Token refreshed successfully in loop");
                     }
                 }
-                Some(event) = self.receiver.recv()=>{
-                    self.handle_network_event(event ).await?;
+                Some(event) = self.receiver.recv() => {
+                    if let Err(e) = self.handle_network_event(event).await {
+                        error!("Error while handling network event in misc loop: {}", e);
+                    }
                 }
-                Ok(_)=self.room_rx.changed()=>{
-                    self.room=Some(self.room_rx.borrow_and_update().to_owned());
+                Ok(_) = self.room_rx.changed() => {
+                    let (room, is_static) = self.room_rx.borrow_and_update().to_owned();
+                    info!("Room changed to '{}' (static: {})", room, is_static);
+                    self.room = Some((room, is_static));
                     self.room_rx.mark_unchanged();
                 }
             }
         }
+
+        info!("Misc loop exited cleanly");
         Ok(())
     }
 }
