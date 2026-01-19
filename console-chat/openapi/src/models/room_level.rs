@@ -13,8 +13,10 @@ use serde::{Deserialize, Serialize};
 
 ///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum RoomLevel {
     #[serde(rename = "FREE")]
+    #[default]
     Free,
     #[serde(rename = "KEY")]
     Key,
@@ -35,8 +37,3 @@ impl std::fmt::Display for RoomLevel {
     }
 }
 
-impl Default for RoomLevel {
-    fn default() -> RoomLevel {
-        Self::Free
-    }
-}

@@ -13,8 +13,10 @@ use serde::{Deserialize, Serialize};
 
 ///
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum MessageType {
     #[serde(rename = "ENCRYPTED")]
+    #[default]
     Encrypted,
     #[serde(rename = "PLAINTEXT")]
     Plaintext,
@@ -44,8 +46,3 @@ impl std::fmt::Display for MessageType {
     }
 }
 
-impl Default for MessageType {
-    fn default() -> MessageType {
-        Self::Encrypted
-    }
-}
