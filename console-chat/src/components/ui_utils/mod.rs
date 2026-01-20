@@ -9,11 +9,14 @@ use crossterm::event::KeyEvent;
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::Style;
+use ratatui::widgets::{Clear, Widget};
 use theme::PageColors;
 
 const CONTRAINT: [Constraint; 3] = [Constraint::Max(1), Constraint::Fill(1), Constraint::Max(1)];
 
 pub fn render_nice_bg(area: Rect, theme: PageColors, buf: &mut Buffer) -> Rect {
+    Clear::default().render(area, buf);
+
     let text = theme.foreground;
     let background = theme.background;
     let highlight = theme.muted;

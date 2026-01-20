@@ -529,12 +529,19 @@ impl<'a> VimWidget<'a> {
         self
     }
 
+    pub fn deselect(&mut self) {
+        self.textinput.set_block(self.vim.mode.block());
+    }
+    pub fn select(&mut self) {
+        self.textinput.set_block(self.vim.mode.highlight_block());
+    }
+
     pub fn handle_event(&mut self, key: KeyEvent) -> Result<Option<VimEvent>> {
         let mut to_return = None;
         let new_vim = self.vim.copy();
         self.vim = match self.vim.transition(key.into(), &mut self.textinput) {
             Transition::Mode(mode) if self.vim.mode != mode => {
-                self.textinput.set_block(mode.block());
+                self.textinput.set_block(mode.highlight_block());
                 self.textinput
                     .set_cursor_style(mode.cursor_style(self.vim.style));
 
@@ -566,8 +573,12 @@ impl<'a> VimWidget<'a> {
                 new_vim
             }
         };
-        self.textinput
-            .set_block(self.vim.mode.block().title_bottom(self.vim.input_seq()));
+        self.textinput.set_block(
+            self.vim
+                .mode
+                .highlight_block()
+                .title_bottom(self.vim.input_seq()),
+        );
         self.textinput
             .set_cursor_style(self.vim.mode.cursor_style(self.vim.style));
         Ok(to_return)

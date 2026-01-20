@@ -1,6 +1,9 @@
 use super::Component;
+use crate::action::DialogEvent;
 use crate::action::Result;
+use crate::app::Mode;
 use crate::components::theme::Theme;
+use crate::components::ui_utils::dialog::Dialog;
 use crate::components::ui_utils::table;
 use crate::components::ui_utils::table::TableWidget;
 use crate::{action::Action, config::Config};
@@ -119,7 +122,7 @@ fn render_user(user: &UserPrivate, area: Rect, buf: &mut ratatui::buffer::Buffer
     paragraph.render(area, buf);
 }
 
-pub struct AccountManagement {
+pub struct AccountManagement<'a> {
     active: bool,
     command_tx: Option<UnboundedSender<Action>>,
     config: Config,
@@ -127,11 +130,11 @@ pub struct AccountManagement {
     user: UserPrivate,
     rooms: TableWidget<N, StaticRoomPublic>,
 
-    //new_room_dialog: CreateRoom,
+    new_room_dialog: Option<Dialog<'a>>,
     refresh_instance: Instant,
 }
 
-impl AccountManagement {
+impl<'a> AccountManagement<'a> {
     pub fn new() -> Self {
         Self {
             active: Default::default(),
@@ -141,6 +144,7 @@ impl AccountManagement {
             user: Default::default(),
             rooms: Default::default(),
             refresh_instance: Instant::now(),
+            new_room_dialog: Default::default(),
         }
     }
 
@@ -201,7 +205,7 @@ fn render_footer(area: Rect, buf: &mut Buffer) {
         .render(area, buf);
 }
 
-impl Component for AccountManagement {
+impl Component for AccountManagement<'_> {
     fn init(&mut self, _: Size) -> Result<()> {
         let theme = match self.config.themes.get(&STYLE_KEY) {
             Some(themes) => themes,
@@ -258,14 +262,43 @@ impl Component for AccountManagement {
     }
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
         if self.active {
-            let input: Input = key.into();
-            match key.code {
-                KeyCode::Char('H') if input.shift => self.previous_tab(),
-                KeyCode::Char('L') if input.shift => self.next_tab(),
-                _ => match self.selected_tab {
-                    Chategory::Profile => {}
-                    Chategory::MyRooms => {}
-                },
+            match self.new_room_dialog.as_mut() {
+                None => {
+                    let input: Input = key.into();
+                    match key.code {
+                        KeyCode::Char('H') if input.shift => self.previous_tab(),
+                        KeyCode::Char('L') if input.shift => self.next_tab(),
+                        KeyCode::Char('x') => {
+                            self.new_room_dialog = Some(Dialog::new(
+                                "TEST",
+                                self.config
+                                    .themes
+                                    .get(&STYLE_KEY)
+                                    .or(self.config.themes.get(&Mode::Global))
+                                    .expect("expected global theme  but found none")
+                                    .clone(),
+                            ))
+                        }
+                        _ => match self.selected_tab {
+                            Chategory::Profile => {}
+                            Chategory::MyRooms => {}
+                        },
+                    }
+                }
+                Some(dialog) => {
+                    if let Some(event) = dialog.handle_event(key)?.take() {
+                        match event {
+                            DialogEvent::Ok(_) => {
+                                self.new_room_dialog = None;
+                            }
+                            DialogEvent::Cancel => {
+                                self.new_room_dialog = None;
+                            }
+                            DialogEvent::Insert => return Ok(Some(Action::Insert)),
+                            DialogEvent::Normal => return Ok(Some(Action::Normal)),
+                        }
+                    }
+                }
             }
         }
         Ok(None)
@@ -277,6 +310,23 @@ impl Component for AccountManagement {
                 Layout::vertical([Constraint::Max(1), Constraint::Fill(1)]).areas(area);
             let buf = frame.buffer_mut();
             self.render(center, buf);
+
+            if let Some(dialog) = self.new_room_dialog.as_ref() {
+                let center = Layout::horizontal([
+                    Constraint::Fill(1),
+                    Constraint::Percentage(60),
+                    Constraint::Fill(1),
+                ])
+                .split(
+                    Layout::vertical([
+                        Constraint::Fill(1),
+                        Constraint::Percentage(60),
+                        Constraint::Fill(1),
+                    ])
+                    .split(area)[1],
+                )[1];
+                dialog.render(center, buf);
+            }
         }
 
         Ok(())

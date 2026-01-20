@@ -17,9 +17,16 @@ pub(crate) use crate::error::{AppError, Result};
         ],
         "NetworkEvent"=[
             "RequestMe"
+        ],
+        "DialogEvent"=[
+            "Ok(Vec<String>)",
+            "Cancel"
         ]
     },
-    serialization={"NetworkEvent"=false}
+    serialization={
+        "NetworkEvent" = false,
+        "DialogEvent" = false
+    }
 )]
 pub enum Action {
     // Unit variants (compact)
@@ -29,11 +36,15 @@ pub enum Action {
     Resume,
     #[subset("ButtonEvent")]
     Quit,
+    #[subset("ButtonEvent")]
+    Ok,
+    #[subset("ButtonEvent")]
+    Cancel,
     ClearScreen,
     Help,
-    #[subset("VimEvent")]
+    #[subset("VimEvent", "DialogEvent")]
     Insert,
-    #[subset("VimEvent")]
+    #[subset("VimEvent", "DialogEvent")]
     Normal,
     #[subset("ButtonEvent")]
     OpenLogin,
