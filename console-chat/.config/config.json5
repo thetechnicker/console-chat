@@ -24,6 +24,9 @@
     "Settings": {
       "<q>": "OpenHome",
     },
+    "AccountManagement": {
+      "<q>": "OpenHome",
+    },
     "Insert":{
       "<Ctrl-c>": "Quit",
       "<Ctrl-z>": "Suspend"

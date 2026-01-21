@@ -4,23 +4,26 @@ use crate::action::VimEvent;
 use crate::components::ui_utils::button::Button;
 use crate::components::ui_utils::button::ButtonState;
 use crate::components::ui_utils::render_nice_bg;
+use crate::components::ui_utils::select::SelectWidget;
 use crate::components::ui_utils::theme::Theme;
+use crate::components::ui_utils::vim::VimType;
 use crate::components::ui_utils::vim::VimWidget;
 use crate::error::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Direction, Layout};
-use ratatui::style::{Color, Modifier, Style};
-use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Widget};
+use ratatui::widgets::{Paragraph, Widget};
 
 #[derive(Debug)]
 pub struct Dialog<'a> {
     title: String,
     inputs: Vec<VimWidget<'a>>,
     theme: Theme,
+    select: SelectWidget<'a>,
     row: usize,
     button: bool,
     ok: Button,
     cancel: Button,
+    size: usize,
 }
 
 impl Dialog<'_> {
@@ -29,13 +32,29 @@ impl Dialog<'_> {
             title: title.into(),
             inputs: Vec::new(),
             theme,
+            select: SelectWidget::new("Random", ["test", "abc", "why not"], theme.vi),
             ok: Button::new("Ok", "", theme.buttons.accepting, ButtonEvent::Ok),
             cancel: Button::new("Cancel", "", theme.buttons.denying, ButtonEvent::Cancel),
             button: false,
             row: 0,
+            // title + buttons + border
+            size: 1 + 3 + 2,
         };
         this.select_current_selection();
         this
+    }
+
+    pub fn add_input(mut self, label: &str) -> Self {
+        self.inputs
+            .push(VimWidget::new(label, VimType::SingleLine, self.theme.vi));
+        self.size += 3;
+        self
+    }
+    pub fn add_password(mut self, label: &str) -> Self {
+        self.inputs
+            .push(VimWidget::new(label, VimType::SingleLine, self.theme.vi).password());
+        self.size += 3;
+        self
     }
 
     fn deselect_current_selection(&mut self) {
@@ -63,14 +82,14 @@ impl Dialog<'_> {
 
     fn up(&mut self) {
         self.deselect_current_selection();
-        if self.row < self.inputs.len() {
-            self.row = self.row.saturating_add(1);
-        }
+        self.row = self.row.saturating_sub(1);
         self.select_current_selection();
     }
     fn down(&mut self) {
         self.deselect_current_selection();
-        self.row = self.row.saturating_sub(1);
+        if self.row < self.inputs.len() {
+            self.row = self.row.saturating_add(1);
+        }
         self.select_current_selection();
     }
 
@@ -84,9 +103,9 @@ impl Dialog<'_> {
         if self.row < self.inputs.len() {
             if let Some(vim_event) = self.inputs[self.row].handle_event(key)? {
                 match vim_event {
-                    VimEvent::Up => self.down(),
-                    VimEvent::Down => self.up(),
-                    VimEvent::Enter(_) => self.up(),
+                    VimEvent::Down => self.down(),
+                    VimEvent::Up => self.up(),
+                    VimEvent::Enter(_) => self.down(),
                     VimEvent::Insert => return Ok(Some(DialogEvent::Insert)),
                     VimEvent::Normal => return Ok(Some(DialogEvent::Normal)),
                     _ => {}
@@ -94,6 +113,7 @@ impl Dialog<'_> {
             }
         } else {
             match key.code {
+                KeyCode::Esc => return Ok(Some(DialogEvent::Cancel)),
                 KeyCode::Char('j') => self.down(),
                 KeyCode::Char('k') => self.up(),
                 KeyCode::Char('h') | KeyCode::Char('l') => self.lr(),
@@ -129,25 +149,46 @@ impl Dialog<'_> {
 
 impl<'a> Widget for &Dialog<'a> {
     fn render(self, area: ratatui::layout::Rect, buf: &mut ratatui::buffer::Buffer) {
-        let inner_area = render_nice_bg(area, self.theme.page, buf);
+        let inner_horizontal = Layout::horizontal([
+            Constraint::Fill(1),
+            Constraint::Percentage(40),
+            Constraint::Fill(1),
+        ])
+        .split(area)[1];
+
+        let inner_vertical = Layout::vertical([
+            Constraint::Fill(1),
+            Constraint::Length(self.size as u16),
+            Constraint::Fill(1),
+        ])
+        .split(inner_horizontal)[1];
+
+        let inner_area = render_nice_bg(inner_vertical, self.theme.page, buf);
 
         // Layout for inputs and buttons
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .margin(1)
+            //.margin(1)
             .constraints(
-                // One for each input followed by one for the buttons
-                self.inputs
-                    .iter()
-                    .map(|_| Constraint::Min(1))
-                    .chain(Some(Constraint::Min(3)))
-                    .collect::<Vec<_>>(),
+                vec![
+                    vec![Constraint::Length(1)],
+                    self.inputs
+                        .iter()
+                        .map(|_| Constraint::Length(3))
+                        .chain(Some(Constraint::Length(3)))
+                        .collect::<Vec<_>>(),
+                ]
+                .concat(), //),
             )
             .split(inner_area);
 
+        Paragraph::new(self.title.as_str())
+            .centered()
+            .render(chunks[0], buf);
+
         // Render each input widget
         for (i, input) in self.inputs.iter().enumerate() {
-            input.render(chunks[i], buf);
+            input.render(chunks[i + 1], buf);
         }
 
         // Create a block for the buttons

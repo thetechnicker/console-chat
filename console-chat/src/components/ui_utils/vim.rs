@@ -24,7 +24,7 @@ impl VimMode {
         let title = format!("{} MODE ({})", self, help);
         Block::default()
             .borders(Borders::ALL)
-            .title(title)
+            .title_top(Line::from(title).right_aligned())
             .title_bottom(self.input_seq())
     }
 
@@ -496,6 +496,7 @@ use crossterm::event::KeyEvent;
 use std::ops::{Deref, DerefMut};
 #[derive(Debug, Default)]
 pub struct VimWidget<'a> {
+    title: String,
     vim: Vim,
     textinput: TextArea<'a>,
 }
@@ -513,12 +514,26 @@ impl<'a> DerefMut for VimWidget<'a> {
 }
 
 impl<'a> VimWidget<'a> {
-    pub fn new(vim_type: VimType, style: ViModePalettes) -> Self {
+    pub fn new(title: impl Into<String>, vim_type: VimType, style: ViModePalettes) -> Self {
         let vim = Vim::new(VimMode::Normal, vim_type, style);
         let mut textinput = TextArea::default();
-        textinput.set_block(vim.mode.block());
+        let title = title.into();
+        textinput.set_block(
+            vim.mode
+                .block()
+                .title_top(Line::from(title.clone()).left_aligned()),
+        );
         textinput.set_cursor_style(vim.mode.cursor_style(vim.style));
-        Self { vim, textinput }
+        Self {
+            title,
+            vim,
+            textinput,
+        }
+    }
+
+    pub fn password(mut self) -> Self {
+        self.textinput.set_mask_char('∘');
+        self
     }
 
     pub fn with_text(mut self, text: impl Into<String>) -> Self {
@@ -530,10 +545,20 @@ impl<'a> VimWidget<'a> {
     }
 
     pub fn deselect(&mut self) {
-        self.textinput.set_block(self.vim.mode.block());
+        self.textinput.set_block(
+            self.vim
+                .mode
+                .block()
+                .title_top(Line::from(self.title.clone()).left_aligned()),
+        );
     }
     pub fn select(&mut self) {
-        self.textinput.set_block(self.vim.mode.highlight_block());
+        self.textinput.set_block(
+            self.vim
+                .mode
+                .highlight_block()
+                .title_top(Line::from(self.title.clone()).left_aligned()),
+        );
     }
 
     pub fn handle_event(&mut self, key: KeyEvent) -> Result<Option<VimEvent>> {
@@ -541,9 +566,9 @@ impl<'a> VimWidget<'a> {
         let new_vim = self.vim.copy();
         self.vim = match self.vim.transition(key.into(), &mut self.textinput) {
             Transition::Mode(mode) if self.vim.mode != mode => {
-                self.textinput.set_block(mode.highlight_block());
-                self.textinput
-                    .set_cursor_style(mode.cursor_style(self.vim.style));
+                //self.textinput.set_block(mode.highlight_block());
+                //self.textinput
+                //    .set_cursor_style(mode.cursor_style(self.vim.style));
 
                 match mode {
                     VimMode::Insert => to_return = Some(VimEvent::Insert),
@@ -577,6 +602,7 @@ impl<'a> VimWidget<'a> {
             self.vim
                 .mode
                 .highlight_block()
+                .title_top(Line::from(self.title.clone()).left_aligned())
                 .title_bottom(self.vim.input_seq()),
         );
         self.textinput

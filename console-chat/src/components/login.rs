@@ -57,13 +57,11 @@ impl Login<'_> {
     fn update_elements(&mut self) {
         self.login.set_state(ButtonState::Normal);
         self.exit.set_state(ButtonState::Normal);
-        self.username
-            .set_block(Block::default().borders(Borders::ALL).title("Username"));
-        self.password
-            .set_block(Block::default().borders(Borders::ALL).title("Password"));
+        self.username.deselect();
+        self.password.deselect();
         match self.index {
-            0 => self.username.set_block(VimMode::Normal.highlight_block()),
-            1 => self.password.set_block(VimMode::Normal.highlight_block()),
+            0 => self.username.select(),
+            1 => self.password.select(),
             2 => {
                 self.login.set_state(ButtonState::Selected);
                 self.exit.set_state(ButtonState::Normal);
@@ -116,8 +114,8 @@ impl<'a> Component for Login<'a> {
                 },
             };
             self.theme = theme.page;
-            self.username = VimWidget::new(VimType::SingleLine, theme.vi);
-            self.password = VimWidget::new(VimType::SingleLine, theme.vi);
+            self.username = VimWidget::new("Username", VimType::SingleLine, theme.vi);
+            self.password = VimWidget::new("Password", VimType::SingleLine, theme.vi).password();
 
             self.password.set_block(VimMode::Normal.highlight_block());
 

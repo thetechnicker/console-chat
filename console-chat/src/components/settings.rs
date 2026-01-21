@@ -137,7 +137,8 @@ impl Component for Settings<'_> {
                 }
             },
         };
-        self.editor = VimWidget::new(super::vim::VimType::MultiLine, theme.vi).with_text(content);
+        self.editor =
+            VimWidget::new("Config", super::vim::VimType::MultiLine, theme.vi).with_text(content);
         Ok(())
     }
 

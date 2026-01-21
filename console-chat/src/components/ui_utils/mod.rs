@@ -1,5 +1,6 @@
 pub mod button;
 pub mod dialog;
+pub mod select;
 pub mod table;
 pub mod theme;
 pub mod vim;

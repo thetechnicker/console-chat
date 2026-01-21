@@ -34,7 +34,7 @@ impl Join<'_> {
     pub fn reset(&mut self) -> Result<()> {
         let size = self.size;
         self.index = 0;
-        self.room = VimWidget::new(VimType::SingleLine, self.theme.vi);
+        self.room = VimWidget::new("Room", VimType::SingleLine, self.theme.vi);
         self.init(size)
     }
 
@@ -55,10 +55,9 @@ impl Join<'_> {
     fn update_elements(&mut self) {
         self.join.set_state(ButtonState::Normal);
         self.cancel.set_state(ButtonState::Normal);
-        self.room
-            .set_block(Block::default().borders(Borders::ALL).title("Room"));
+        self.room.deselect();
         match self.index {
-            0 => self.room.set_block(VimMode::Normal.highlight_block()),
+            0 => self.room.select(),
             1 => {
                 self.join.set_state(ButtonState::Selected);
             }
@@ -105,7 +104,7 @@ impl Component for Join<'_> {
             };
 
             self.theme = *theme;
-            self.room = VimWidget::new(VimType::SingleLine, self.theme.vi);
+            self.room = VimWidget::new("Room", VimType::SingleLine, self.theme.vi);
             self.join = Button::new(
                 "Join",
                 "",

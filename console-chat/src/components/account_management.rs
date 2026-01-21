@@ -269,15 +269,19 @@ impl Component for AccountManagement<'_> {
                         KeyCode::Char('H') if input.shift => self.previous_tab(),
                         KeyCode::Char('L') if input.shift => self.next_tab(),
                         KeyCode::Char('x') => {
-                            self.new_room_dialog = Some(Dialog::new(
-                                "TEST",
-                                self.config
-                                    .themes
-                                    .get(&STYLE_KEY)
-                                    .or(self.config.themes.get(&Mode::Global))
-                                    .expect("expected global theme  but found none")
-                                    .clone(),
-                            ))
+                            self.new_room_dialog = Some(
+                                Dialog::new(
+                                    "TEST",
+                                    self.config
+                                        .themes
+                                        .get(&STYLE_KEY)
+                                        .or(self.config.themes.get(&Mode::Global))
+                                        .expect("expected global theme  but found none")
+                                        .clone(),
+                                )
+                                .add_input("username")
+                                .add_password("password"),
+                            )
                         }
                         _ => match self.selected_tab {
                             Chategory::Profile => {}
@@ -312,20 +316,7 @@ impl Component for AccountManagement<'_> {
             self.render(center, buf);
 
             if let Some(dialog) = self.new_room_dialog.as_ref() {
-                let center = Layout::horizontal([
-                    Constraint::Fill(1),
-                    Constraint::Percentage(60),
-                    Constraint::Fill(1),
-                ])
-                .split(
-                    Layout::vertical([
-                        Constraint::Fill(1),
-                        Constraint::Percentage(60),
-                        Constraint::Fill(1),
-                    ])
-                    .split(area)[1],
-                )[1];
-                dialog.render(center, buf);
+                dialog.render(area, buf);
             }
         }
 
