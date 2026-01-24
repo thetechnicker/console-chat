@@ -2,12 +2,12 @@ use crate::action::ActionSubsetWrapper;
 use crate::action::Result;
 use crate::action::SelectionEvent;
 use crate::components::EventWidget;
-use crate::components::theme::ViModePalettes;
+use crate::components::theme::SelectPalettes;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::prelude::*;
-use ratatui::widgets::{Block, BorderType, Paragraph};
+use ratatui::widgets::{Block, Paragraph};
 use strum::FromRepr;
-use tracing::{debug, instrument, trace, warn};
+use tracing::warn;
 
 #[derive(Debug, Default, Clone, Copy, FromRepr, PartialEq)]
 pub enum SelectState {
@@ -22,11 +22,12 @@ pub struct SelectWidget {
     title: String,
     options: Box<[String]>,
     state: SelectState,
-    _theme: ViModePalettes,
+    active: bool,
+    _theme: SelectPalettes,
 }
 
 impl SelectWidget {
-    pub fn new<T, I>(title: impl Into<String>, options: I, theme: ViModePalettes) -> Self
+    pub fn new<T, I>(title: impl Into<String>, options: I, theme: SelectPalettes) -> Self
     where
         I: IntoIterator<Item = T>,
         T: Into<String>,
@@ -43,6 +44,7 @@ impl SelectWidget {
             title: title.into(),
             options,
             state: SelectState::Normal,
+            active: false,
             _theme: theme,
         }
     }
@@ -115,8 +117,14 @@ impl SelectWidget {
     fn render_normal(&self, area: Rect, buf: &mut Buffer) {
         let center = Layout::vertical([Constraint::Length(3), Constraint::Fill(1)]).split(area)[0];
         let title = Line::from(self.title.clone()).left_aligned().bold();
+        let style = if self.active {
+            Style::new().gray().reversed()
+        } else {
+            Style::default()
+        };
         Paragraph::new(title)
             .block(Block::bordered())
+            .style(style)
             .render(center, buf);
     }
 
@@ -135,46 +143,18 @@ impl SelectWidget {
             .render(center, buf);
     }
 
-    #[instrument(
-        skip(self, buf),
-        fields(
-            area_width = area.width,
-            area_height = area.height,
-            selected = selected,
-            total_options = self.options.len(),
-            title = %self.title
-        )
-    )]
     fn render_selecting(&self, area: Rect, buf: &mut Buffer, selected: usize) {
         // Clamp selected index at the start to ensure it's valid
         let selected = self.clamp_index(selected);
-
-        let [top, overflow] =
-            Layout::vertical([Constraint::Length(3), Constraint::Fill(1)]).areas(area);
-
-        trace!(
-            top_area = ?top,
-            overflow_area = ?overflow,
-            "Split areas calculated"
-        );
+        let top = Layout::vertical([Constraint::Length(3), Constraint::Fill(1)]).split(area)[0];
 
         let title = Line::from(self.title.clone()).left_aligned().bold();
 
-        let len = overflow.height as usize;
-        let actual_len = len + 1; // the place of the top
+        let actual_len = 4; // the place of the top
         let start = selected
             .saturating_sub(actual_len / 2)
             .min(self.options.len().saturating_sub(actual_len));
         let end = self.options.len().min(start + actual_len);
-
-        debug!(
-            visible_height = len,
-            start_index = start,
-            end_index = end,
-            selected_index = selected,
-            visible_range = format!("{}..{}", start, end),
-            "Calculated visible range"
-        );
 
         // This should never happen now due to clamping, but keep the warning
         if selected >= self.options.len() {
@@ -186,6 +166,8 @@ impl SelectWidget {
             return;
         }
 
+        let style = Style::new().gray().reversed();
+
         let values: Vec<_> = (&self.options[start..end])
             .iter()
             .enumerate()
@@ -193,55 +175,56 @@ impl SelectWidget {
                 let actual_index = start + i; // Convert relative index to absolute
                 let is_selected = actual_index == selected;
 
-                trace!(
-                    relative_index = i,
-                    actual_index = actual_index,
-                    is_selected = is_selected,
-                    text = %str,
-                    "Processing option"
-                );
-
                 if is_selected {
-                    Line::from(str.to_owned()).yellow().reversed()
+                    Line::from(str.to_string()).yellow().reversed()
                 } else {
-                    Line::from(str.to_owned())
+                    Line::from(str.to_string()).style(style)
                 }
             })
             .collect();
 
-        debug!(values_count = values.len(), "Created styled lines");
-
-        trace!("Values content: {:#?}", values);
+        let max_width = values
+            .iter()
+            .map(|line| line.width() as u16)
+            .max()
+            .unwrap_or(top.width);
 
         if values.is_empty() {
             warn!("No values to render!");
             return;
         }
 
-        let (first, other) = values.split_at(1);
-
-        trace!(
-            first_line = ?first[0],
-            remaining_count = other.len(),
-            "Split first line from rest"
-        );
-
-        Paragraph::new(first[0].clone())
-            .block(
-                Block::bordered()
-                    .border_type(BorderType::Thick)
-                    .title_top(title),
-            )
+        Block::bordered()
+            .title_top(title)
+            .style(style)
             .render(top, buf);
 
-        debug!("Rendered first item in top area");
-
-        let text = Text::from(other.to_vec());
-        Paragraph::new(text)
-            .block(Block::bordered().border_type(BorderType::Plain))
-            .render(overflow, buf);
-
-        debug!(rendered_items = other.len() + 1, "Completed rendering");
+        let mut area = Rect::new(top.x, top.y + 1, max_width + 2, 1);
+        for (i, text) in values.iter().enumerate() {
+            area = Rect::new(top.x, i as u16 + top.y + 1, max_width + 2, 1);
+            buf.set_style(area, Style::reset());
+            buf.set_string(
+                area.x,
+                area.y,
+                format!(
+                    "│{}{}",
+                    " ".repeat(max_width as usize),
+                    match i {
+                        0 => " ",
+                        1 => "┌",
+                        _ => "│",
+                    }
+                ),
+                text.style,
+            );
+            buf.set_line(area.x + 1, area.y, text, max_width);
+        }
+        buf.set_string(
+            area.x,
+            area.y + 1,
+            format!("└{}┘", "─".repeat(max_width as usize)),
+            style,
+        );
     }
 }
 
@@ -250,10 +233,7 @@ impl Widget for &SelectWidget {
         match self.state {
             SelectState::Normal => self.render_normal(area, buf),
             SelectState::Selected(i) => self.render_selected(area, buf, i),
-            SelectState::Selecting(i) => {
-                let area = Rect::new(area.x, area.y, area.width, area.height.min(6));
-                self.render_selecting(area, buf, i)
-            }
+            SelectState::Selecting(i) => self.render_selecting(area, buf, i),
         }
     }
 }
@@ -267,8 +247,12 @@ impl EventWidget for SelectWidget {
         self.render(area, buf)
     }
 
-    fn select(&mut self) {}
-    fn deselect(&mut self) {}
+    fn select(&mut self) {
+        self.active = true;
+    }
+    fn deselect(&mut self) {
+        self.active = false;
+    }
 }
 
 #[cfg(test)]
@@ -278,19 +262,19 @@ mod test {
     #[test]
     fn test_creation() {
         let _select_widget =
-            SelectWidget::new("test_select", ["test", "option"], ViModePalettes::default());
+            SelectWidget::new("test_select", ["test", "option"], SelectPalettes::default());
     }
 
     #[test]
     #[should_panic(expected = "SelectWidget requires at least one option")]
     fn test_empty_options_panics() {
         let empty: Vec<String> = vec![];
-        let _select_widget = SelectWidget::new("test_select", empty, ViModePalettes::default());
+        let _select_widget = SelectWidget::new("test_select", empty, SelectPalettes::default());
     }
 
     #[test]
     fn test_index_wrapping() {
-        let widget = SelectWidget::new("test", ["a", "b", "c"], ViModePalettes::default());
+        let widget = SelectWidget::new("test", ["a", "b", "c"], SelectPalettes::default());
 
         // Test next wrapping
         assert_eq!(widget.next_index(0), 1);
@@ -305,7 +289,7 @@ mod test {
 
     #[test]
     fn test_clamp_index() {
-        let widget = SelectWidget::new("test", ["a", "b", "c"], ViModePalettes::default());
+        let widget = SelectWidget::new("test", ["a", "b", "c"], SelectPalettes::default());
 
         assert_eq!(widget.clamp_index(0), 0);
         assert_eq!(widget.clamp_index(2), 2);

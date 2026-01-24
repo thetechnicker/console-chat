@@ -15,11 +15,12 @@ use crate::error::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::widgets::{Paragraph, Widget};
+use std::collections::VecDeque;
 
 #[derive(Debug)]
 pub struct Dialog {
     title: String,
-    inputs: Vec<Box<dyn EventWidget>>,
+    inputs: VecDeque<Box<dyn EventWidget>>,
     theme: Theme,
     row: usize,
     button: bool,
@@ -32,7 +33,7 @@ impl Dialog {
     pub fn new(title: impl Into<String>, theme: Theme) -> Self {
         let mut this = Self {
             title: title.into(),
-            inputs: Vec::new(),
+            inputs: VecDeque::new(),
             theme,
             //select: SelectWidget::new("Random", ["test", "abc", "why not"], theme.vi),
             ok: Button::new("Ok", "", theme.buttons.accepting, ButtonEvent::Ok),
@@ -47,7 +48,7 @@ impl Dialog {
     }
 
     pub fn add_input(mut self, label: &str) -> Self {
-        self.inputs.push(Box::new(VimWidget::new(
+        self.inputs.push_front(Box::new(VimWidget::new(
             label,
             VimType::SingleLine,
             self.theme.vi,
@@ -56,7 +57,7 @@ impl Dialog {
         self
     }
     pub fn add_password(mut self, label: &str) -> Self {
-        self.inputs.push(Box::new(
+        self.inputs.push_front(Box::new(
             VimWidget::new(label, VimType::SingleLine, self.theme.vi).password(),
         ));
         self.size += 3;
@@ -68,8 +69,11 @@ impl Dialog {
         I: IntoIterator<Item = T>,
         T: Into<String>,
     {
-        self.inputs
-            .push(Box::new(SelectWidget::new(label, options, self.theme.vi)));
+        self.inputs.push_back(Box::new(SelectWidget::new(
+            label,
+            options,
+            self.theme.select,
+        )));
         self.size += 3;
         self
     }
@@ -209,15 +213,6 @@ impl Widget for &Dialog {
             )
             .split(inner_area);
 
-        Paragraph::new(self.title.as_str())
-            .centered()
-            .render(chunks[0], buf);
-
-        // Render each input widget
-        for (i, input) in self.inputs.iter().enumerate() {
-            input.draw(chunks[i + 1], buf);
-        }
-
         // Create a block for the buttons
         let button_area = chunks[chunks.len() - 1];
 
@@ -227,7 +222,16 @@ impl Widget for &Dialog {
             .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)]) // Two buttons side by side
             .split(button_area);
 
+        Paragraph::new(self.title.as_str())
+            .centered()
+            .render(chunks[0], buf);
+
         self.ok.draw_button(button_layout[0], buf);
         self.cancel.draw_button(button_layout[1], buf);
+
+        // Render each input widget
+        for (i, input) in self.inputs.iter().enumerate() {
+            input.draw(chunks[i + 1], buf);
+        }
     }
 }

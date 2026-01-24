@@ -1,3 +1,4 @@
+use crate::components::ui_utils::select::SelectState;
 use crate::components::ui_utils::vim::VimMode;
 use ratatui::style::{Color, Modifier, Style, palette::tailwind};
 use serde::{Deserialize, Serialize};
@@ -141,12 +142,33 @@ impl Default for ViModePalettes {
         }
     }
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Copy)]
+pub struct SelectPalettes {
+    pub normal: Color,
+    pub active: Color,
+    pub selecting: Color,
+    pub selected: Color,
+}
+
+impl Default for SelectPalettes {
+    fn default() -> Self {
+        Self {
+            normal: Color::Reset,
+            active: Color::LightBlue,
+            selecting: Color::LightYellow,
+            selected: Color::LightGreen,
+        }
+    }
+}
+
 /// Top-level theme containing everything.
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Copy)]
 pub struct Theme {
     pub buttons: SemanticButtons,
     pub page: PageColors,
     pub vi: ViModePalettes,
+    pub select: SelectPalettes,
     pub table: TableColors,
 }
 
@@ -169,6 +191,17 @@ impl ViModePalettes {
             VimMode::Insert => self.insert,
             VimMode::Visual => self.visual,
             VimMode::Operator(_) => self.operator,
+        };
+        Style::default().fg(color).add_modifier(Modifier::REVERSED)
+    }
+}
+
+impl SelectPalettes {
+    pub fn get_style(&self, mode: &SelectState) -> Style {
+        let color = match mode {
+            SelectState::Normal => self.normal,
+            SelectState::Selecting(_) => self.selecting,
+            SelectState::Selected(_) => self.selected,
         };
         Style::default().fg(color).add_modifier(Modifier::REVERSED)
     }
@@ -280,6 +313,7 @@ impl Default for Theme {
                 visual: Color::LightYellow,
                 operator: Color::LightGreen,
             },
+            select: SelectPalettes::default(),
             table: TableColors::default(),
         }
     }
