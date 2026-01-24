@@ -16,6 +16,10 @@ pub(crate) use crate::error::{AppError, Result};
             "Down",
             "Nop"
         ],
+        "SelectionEvent"=[
+            "Up",
+            "Down",
+        ],
         "NetworkEvent"=[
             "RequestMe"
         ],
@@ -24,7 +28,7 @@ pub(crate) use crate::error::{AppError, Result};
             "Cancel"
         ]
     },
-    serialization={
+    skip_serialization={
         "NetworkEvent" = false,
         "DialogEvent" = false
     }

@@ -11,6 +11,9 @@ use serde_with::serde_as;
 use serde_repr::{Serialize_repr,Deserialize_repr};
 {{/isInteger}}
 {{/isEnum}}
+{{#isEnum}}
+use strum::{EnumIter,Display};
+{{/isEnum}}
 {{#description}}
 /// {{{classname}}} : {{{description}}}
 {{/description}}
@@ -21,7 +24,7 @@ use serde_repr::{Serialize_repr,Deserialize_repr};
 /// {{{.}}}
 {{/description}}
 #[repr(i64)]
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize_repr, Deserialize_repr, EnumIter, Display)]
 pub enum {{{classname}}} {
 {{#allowableValues}}
 {{#enumVars}}
@@ -48,11 +51,12 @@ impl std::fmt::Display for {{{classname}}} {
 {{#description}}
 /// {{{.}}}
 {{/description}}
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize, EnumIter, Display)]
 pub enum {{{classname}}} {
 {{#allowableValues}}
 {{#enumVars}}
     #[serde(rename = "{{{value}}}")]
+    #[strum(to_string = "{{{value}}}")]
     {{{name}}},
 {{/enumVars}}{{/allowableValues}}
 }

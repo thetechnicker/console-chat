@@ -1,11 +1,13 @@
 use crate::action::ActionSubsetWrapper;
 use crate::action::Result;
+use crate::action::SelectionEvent;
 use crate::components::EventWidget;
 use crate::components::theme::ViModePalettes;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, BorderType, Paragraph};
 use strum::FromRepr;
+use tracing::{debug, instrument, trace, warn};
 
 #[derive(Debug, Default, Clone, Copy, FromRepr, PartialEq)]
 pub enum SelectState {
@@ -18,85 +20,211 @@ pub enum SelectState {
 #[derive(Debug)]
 pub struct SelectWidget {
     title: String,
-    options: Box<[&'static str]>,
+    options: Box<[String]>,
     state: SelectState,
     _theme: ViModePalettes,
 }
 
 impl SelectWidget {
-    pub fn new(
-        title: impl Into<String>,
-        options: impl Into<Box<[&'static str]>>,
-        theme: ViModePalettes,
-    ) -> Self {
+    pub fn new<T, I>(title: impl Into<String>, options: I, theme: ViModePalettes) -> Self
+    where
+        I: IntoIterator<Item = T>,
+        T: Into<String>,
+    {
+        let options: Box<[String]> = options.into_iter().map(|s| s.into()).collect();
+
+        // Ensure we have at least one option to prevent index issues
+        assert!(
+            !options.is_empty(),
+            "SelectWidget requires at least one option"
+        );
+
         Self {
             title: title.into(),
-            options: options.into(),
+            options,
             state: SelectState::Normal,
             _theme: theme,
         }
     }
 
-    pub fn handle_key(&mut self, key: KeyEvent) -> bool {
+    /// Get the next index with wrapping
+    fn next_index(&self, current: usize) -> usize {
+        if self.options.is_empty() {
+            0
+        } else {
+            (current + 1) % self.options.len()
+        }
+    }
+
+    /// Get the previous index with wrapping (handles underflow)
+    fn prev_index(&self, current: usize) -> usize {
+        if self.options.is_empty() {
+            0
+        } else {
+            (current + self.options.len() - 1) % self.options.len()
+        }
+    }
+
+    /// Ensure index is within bounds
+    fn clamp_index(&self, index: usize) -> usize {
+        if self.options.is_empty() {
+            0
+        } else {
+            index % self.options.len()
+        }
+    }
+
+    pub fn handle_key(&mut self, key: KeyEvent) -> Option<SelectionEvent> {
         match key.code {
             KeyCode::Enter => match self.state {
-                SelectState::Normal => self.state = SelectState::Selecting(0),
-                SelectState::Selected(i) => self.state = SelectState::Selecting(i),
-                SelectState::Selecting(i) => self.state = SelectState::Selected(i),
+                SelectState::Normal => {
+                    self.state = SelectState::Selecting(0);
+                }
+                SelectState::Selected(i) => {
+                    let safe_index = self.clamp_index(i);
+                    self.state = SelectState::Selecting(safe_index);
+                }
+                SelectState::Selecting(i) => {
+                    let safe_index = self.clamp_index(i);
+                    self.state = SelectState::Selected(safe_index);
+                }
             },
             KeyCode::Char('j') => match self.state {
-                SelectState::Selected(_) | SelectState::Normal => return false,
-                SelectState::Selecting(i) => self.state = SelectState::Selecting(i + 1),
+                SelectState::Selected(_) | SelectState::Normal => {
+                    return Some(SelectionEvent::Down);
+                }
+                SelectState::Selecting(i) => {
+                    let next = self.next_index(i);
+                    self.state = SelectState::Selecting(next);
+                }
             },
             KeyCode::Char('k') => match self.state {
-                SelectState::Selected(_) | SelectState::Normal => return false,
-                SelectState::Selecting(i) => self.state = SelectState::Selecting(i - 1),
+                SelectState::Selected(_) | SelectState::Normal => {
+                    return Some(SelectionEvent::Up);
+                }
+                SelectState::Selecting(i) => {
+                    let prev = self.prev_index(i);
+                    self.state = SelectState::Selecting(prev);
+                }
             },
-            _ => return false,
+            _ => {}
         }
-        true
+        None
     }
 
     fn render_normal(&self, area: Rect, buf: &mut Buffer) {
-        let center = Layout::vertical([
-            Constraint::Fill(1),
-            Constraint::Length(3),
-            Constraint::Fill(1),
-        ])
-        .split(area)[1];
+        let center = Layout::vertical([Constraint::Length(3), Constraint::Fill(1)]).split(area)[0];
         let title = Line::from(self.title.clone()).left_aligned().bold();
         Paragraph::new(title)
             .block(Block::bordered())
             .render(center, buf);
     }
+
     fn render_selected(&self, area: Rect, buf: &mut Buffer, i: usize) {
-        let center = Layout::vertical([Constraint::Length(3), Constraint::Fill(1)]).split(area)[1];
+        let center = Layout::vertical([Constraint::Length(3), Constraint::Fill(1)]).split(area)[0];
         let title = Line::from(self.title.clone()).left_aligned().bold();
-        let value = Line::from(self.options[i]).left_aligned().bold();
+
+        // Clamp index to prevent out of bounds access
+        let safe_index = self.clamp_index(i);
+        let value = Line::from(self.options[safe_index].clone())
+            .left_aligned()
+            .bold();
+
         Paragraph::new(value)
             .block(Block::bordered().title_top(title))
             .render(center, buf);
     }
+
+    #[instrument(
+        skip(self, buf),
+        fields(
+            area_width = area.width,
+            area_height = area.height,
+            selected = selected,
+            total_options = self.options.len(),
+            title = %self.title
+        )
+    )]
     fn render_selecting(&self, area: Rect, buf: &mut Buffer, selected: usize) {
+        // Clamp selected index at the start to ensure it's valid
+        let selected = self.clamp_index(selected);
+
         let [top, overflow] =
             Layout::vertical([Constraint::Length(3), Constraint::Fill(1)]).areas(area);
+
+        trace!(
+            top_area = ?top,
+            overflow_area = ?overflow,
+            "Split areas calculated"
+        );
+
         let title = Line::from(self.title.clone()).left_aligned().bold();
-        let len = (overflow.height - overflow.y) as usize;
-        let start = 0.max(selected - (len / 2));
-        let end = self.options.len().min(start + len as usize);
+
+        let len = overflow.height as usize;
+        let actual_len = len + 1; // the place of the top
+        let start = selected
+            .saturating_sub(actual_len / 2)
+            .min(self.options.len().saturating_sub(actual_len));
+        let end = self.options.len().min(start + actual_len);
+
+        debug!(
+            visible_height = len,
+            start_index = start,
+            end_index = end,
+            selected_index = selected,
+            visible_range = format!("{}..{}", start, end),
+            "Calculated visible range"
+        );
+
+        // This should never happen now due to clamping, but keep the warning
+        if selected >= self.options.len() {
+            warn!(
+                selected = selected,
+                total_options = self.options.len(),
+                "Selected index out of bounds after clamping!"
+            );
+            return;
+        }
 
         let values: Vec<_> = (&self.options[start..end])
             .iter()
             .enumerate()
             .map(|(i, str)| {
-                if i == selected {
+                let actual_index = start + i; // Convert relative index to absolute
+                let is_selected = actual_index == selected;
+
+                trace!(
+                    relative_index = i,
+                    actual_index = actual_index,
+                    is_selected = is_selected,
+                    text = %str,
+                    "Processing option"
+                );
+
+                if is_selected {
                     Line::from(str.to_owned()).yellow().reversed()
                 } else {
                     Line::from(str.to_owned())
                 }
             })
             .collect();
+
+        debug!(values_count = values.len(), "Created styled lines");
+
+        trace!("Values content: {:#?}", values);
+
+        if values.is_empty() {
+            warn!("No values to render!");
+            return;
+        }
+
         let (first, other) = values.split_at(1);
+
+        trace!(
+            first_line = ?first[0],
+            remaining_count = other.len(),
+            "Split first line from rest"
+        );
 
         Paragraph::new(first[0].clone())
             .block(
@@ -106,28 +234,35 @@ impl SelectWidget {
             )
             .render(top, buf);
 
+        debug!("Rendered first item in top area");
+
         let text = Text::from(other.to_vec());
         Paragraph::new(text)
             .block(Block::bordered().border_type(BorderType::Plain))
             .render(overflow, buf);
+
+        debug!(rendered_items = other.len() + 1, "Completed rendering");
     }
 }
 
 impl Widget for &SelectWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        //let area = Rect::new(area.x, area.y, area.width, area.height.min(6));
         match self.state {
             SelectState::Normal => self.render_normal(area, buf),
             SelectState::Selected(i) => self.render_selected(area, buf, i),
-            SelectState::Selecting(i) => self.render_selecting(area, buf, i),
+            SelectState::Selecting(i) => {
+                let area = Rect::new(area.x, area.y, area.width, area.height.min(6));
+                self.render_selecting(area, buf, i)
+            }
         }
     }
 }
+
 impl EventWidget for SelectWidget {
     fn handle_event(&mut self, key: KeyEvent) -> Result<Option<ActionSubsetWrapper>> {
-        let _ = self.handle_key(key);
-        Ok(None)
+        Ok(self.handle_key(key).map(|e| e.into()))
     }
+
     fn draw(&self, area: Rect, buf: &mut Buffer) {
         self.render(area, buf)
     }
@@ -139,9 +274,42 @@ impl EventWidget for SelectWidget {
 #[cfg(test)]
 mod test {
     use super::*;
+
     #[test]
     fn test_creation() {
         let _select_widget =
             SelectWidget::new("test_select", ["test", "option"], ViModePalettes::default());
+    }
+
+    #[test]
+    #[should_panic(expected = "SelectWidget requires at least one option")]
+    fn test_empty_options_panics() {
+        let empty: Vec<String> = vec![];
+        let _select_widget = SelectWidget::new("test_select", empty, ViModePalettes::default());
+    }
+
+    #[test]
+    fn test_index_wrapping() {
+        let widget = SelectWidget::new("test", ["a", "b", "c"], ViModePalettes::default());
+
+        // Test next wrapping
+        assert_eq!(widget.next_index(0), 1);
+        assert_eq!(widget.next_index(1), 2);
+        assert_eq!(widget.next_index(2), 0); // wraps to beginning
+
+        // Test prev wrapping
+        assert_eq!(widget.prev_index(0), 2); // wraps to end
+        assert_eq!(widget.prev_index(1), 0);
+        assert_eq!(widget.prev_index(2), 1);
+    }
+
+    #[test]
+    fn test_clamp_index() {
+        let widget = SelectWidget::new("test", ["a", "b", "c"], ViModePalettes::default());
+
+        assert_eq!(widget.clamp_index(0), 0);
+        assert_eq!(widget.clamp_index(2), 2);
+        assert_eq!(widget.clamp_index(3), 0); // 3 % 3 = 0
+        assert_eq!(widget.clamp_index(5), 2); // 5 % 3 = 2
     }
 }

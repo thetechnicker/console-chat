@@ -96,12 +96,12 @@ pub fn clear_logs() {
     let timestamp = START.format("%Y-%m-%dT%H-%M-%S").to_string();
 
     let new_log_path = directory.join(format!(
-        "{}_{}",
+        "{}_{}.log",
         LOG_FILE.trim_end_matches(".log"),
         timestamp
     ));
     let new_ansi_path = directory.join(format!(
-        "{}_{}",
+        "{}_{}.log",
         ANSI_LOG_FILE.trim_end_matches(".log"),
         timestamp
     ));

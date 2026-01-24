@@ -1,6 +1,7 @@
 use crate::action::ActionSubsetWrapper;
 use crate::action::ButtonEvent;
 use crate::action::DialogEvent;
+use crate::action::SelectionEvent;
 use crate::action::VimEvent;
 use crate::components::ui_utils::EventWidget;
 use crate::components::ui_utils::button::Button;
@@ -62,7 +63,11 @@ impl Dialog {
         self
     }
 
-    pub fn add_select(mut self, label: &str, options: impl Into<Box<[&'static str]>>) -> Dialog {
+    pub fn add_select<I, T>(mut self, label: &str, options: I) -> Dialog
+    where
+        I: IntoIterator<Item = T>,
+        T: Into<String>,
+    {
         self.inputs
             .push(Box::new(SelectWidget::new(label, options, self.theme.vi)));
         self.size += 3;
@@ -125,6 +130,10 @@ impl Dialog {
                         VimEvent::Insert => return Ok(Some(DialogEvent::Insert)),
                         VimEvent::Normal => return Ok(Some(DialogEvent::Normal)),
                         _ => {}
+                    },
+                    ActionSubsetWrapper::SelectionEvent(select_event) => match select_event {
+                        SelectionEvent::Down => self.down(),
+                        SelectionEvent::Up => self.up(),
                     },
                     _ => {}
                 }

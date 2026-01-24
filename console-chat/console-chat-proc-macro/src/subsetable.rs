@@ -13,7 +13,9 @@ struct TargetEnums(#[deluxe(flatten)] Vec<String>);
 #[deluxe(attributes(subsetable))]
 struct SubsetDefaults {
     extra_fields: HashMap<String, Vec<String>>,
-    serialization: HashMap<String, bool>,
+    skip_serialization: HashMap<String, bool>,
+    #[deluxe(default)]
+    default_skip_serialization: bool,
 }
 
 pub(crate) fn subsetable_derive_macro2(
@@ -72,7 +74,12 @@ pub(crate) fn subsetable_derive_macro2(
     let mut generated = TokenStream::new();
 
     for (target_name, (variants, has_custom_variants)) in targets.iter() {
-        let derive_attrs = if defaults.serialization.get(target_name).is_some_and(|x| !*x) {
+        let derive_attrs = if defaults.default_skip_serialization
+            || defaults
+                .skip_serialization
+                .get(target_name)
+                .is_some_and(|x| !*x)
+        {
             quote! {
                 #[derive(Debug, Clone, PartialEq, Display)]
             }
@@ -164,30 +171,56 @@ pub(crate) fn subsetable_derive_macro2(
 
         // attach generics to impls if present (simple clone)
         let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+        let from_gen = {
+            let from_target = if from_arms.len() > 0 {
+                if has_custom_variants {
+                    quote! {
+                    impl #impl_generics TryFrom<#target_ident> for #src_ident #ty_generics #where_clause {
+                        type Error = #target_ident ;
+                        fn try_from(s: #target_ident) -> Result<#src_ident, #target_ident> {
+                            match s {
+                                #(#from_arms),*,
+                                other => Err(other),
+                            }
+                        }
+                    }
+                    }
+                } else {
+                    quote! {
+                    impl #impl_generics From<#target_ident> for #src_ident #ty_generics #where_clause {
+                        fn from(s: #target_ident) -> #src_ident {
+                            match s {
+                                #(#from_arms),*
+                            }
+                        }
+                    }
+                    }
+                }
+            } else {
+                quote! {}
+            };
+            let from_source = if try_from_arms.len() > 0 {
+                quote! {
+                    impl #impl_generics std::convert::TryFrom<#src_ident #ty_generics> for #target_ident #where_clause {
+                        type Error = #src_ident #ty_generics;
+                        fn try_from(s: #src_ident #ty_generics) -> Result<#target_ident, #src_ident #ty_generics> {
+                            match s {
+                                #(#try_from_arms),*,
+                                other => Err(other),
+                            }
+                        }
+                    }
+                }
+            } else {
+                quote! {}
+            };
+            quote! {
+                #from_target
 
-        let from_gen = if has_custom_variants {
-            quote! {
-            impl #impl_generics TryFrom<#target_ident> for #src_ident #ty_generics #where_clause {
-                type Error = #target_ident ;
-                fn try_from(s: #target_ident) -> Result<#src_ident, #target_ident> {
-                    match s {
-                        #(#from_arms),*,
-                        other => Err(other),
-                    }
-                }
-            }
-            }
-        } else {
-            quote! {
-            impl #impl_generics From<#target_ident> for #src_ident #ty_generics #where_clause {
-                fn from(s: #target_ident) -> #src_ident {
-                    match s {
-                        #(#from_arms),*
-                    }
-                }
-            }
+                #from_source
             }
         };
+
         let quote_gen = quote! {
             #derive_attrs
             #enum_vis enum #target_ident {
@@ -196,15 +229,6 @@ pub(crate) fn subsetable_derive_macro2(
 
             #from_gen
 
-            impl #impl_generics std::convert::TryFrom<#src_ident #ty_generics> for #target_ident #where_clause {
-                type Error = #src_ident #ty_generics;
-                fn try_from(s: #src_ident #ty_generics) -> Result<#target_ident, #src_ident #ty_generics> {
-                    match s {
-                        #(#try_from_arms),*,
-                        other => Err(other),
-                    }
-                }
-            }
         };
 
         generated.extend(quote_gen);

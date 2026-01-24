@@ -8,6 +8,7 @@ use crate::components::ui_utils::table;
 use crate::components::ui_utils::table::TableWidget;
 use crate::{action::Action, config::Config};
 use crossterm::event::{KeyCode, KeyEvent};
+use openapi::models::RoomLevel;
 //use openapi::models::CreateRoom;
 use openapi::models::*;
 use ratatui::{
@@ -269,6 +270,8 @@ impl Component for AccountManagement {
                         KeyCode::Char('H') if input.shift => self.previous_tab(),
                         KeyCode::Char('L') if input.shift => self.next_tab(),
                         KeyCode::Char('x') => {
+                            let room_level: Vec<_> =
+                                RoomLevel::iter().map(|level| format!("{level}")).collect();
                             self.new_room_dialog = Some(
                                 Dialog::new(
                                     "TEST",
@@ -279,8 +282,9 @@ impl Component for AccountManagement {
                                         .expect("expected global theme  but found none")
                                         .clone(),
                                 )
-                                .add_input("username")
-                                .add_password("password"),
+                                .add_input("Name")
+                                .add_password("Key")
+                                .add_select("Secrecy", room_level),
                             )
                         }
                         _ => match self.selected_tab {
