@@ -18,7 +18,7 @@ pub struct Dialog<'a> {
     title: String,
     inputs: Vec<VimWidget<'a>>,
     theme: Theme,
-    select: SelectWidget<'a>,
+    _select: SelectWidget<'a>,
     row: usize,
     button: bool,
     ok: Button,
@@ -32,7 +32,7 @@ impl Dialog<'_> {
             title: title.into(),
             inputs: Vec::new(),
             theme,
-            select: SelectWidget::new("Random", ["test", "abc", "why not"], theme.vi),
+            _select: SelectWidget::new("Random", ["test", "abc", "why not"], theme.vi),
             ok: Button::new("Ok", "", theme.buttons.accepting, ButtonEvent::Ok),
             cancel: Button::new("Cancel", "", theme.buttons.denying, ButtonEvent::Cancel),
             button: false,
@@ -105,7 +105,10 @@ impl Dialog<'_> {
                 match vim_event {
                     VimEvent::Down => self.down(),
                     VimEvent::Up => self.up(),
-                    VimEvent::Enter(_) => self.down(),
+                    VimEvent::Enter(_) => {
+                        self.down();
+                        return Ok(Some(DialogEvent::Normal));
+                    }
                     VimEvent::Insert => return Ok(Some(DialogEvent::Insert)),
                     VimEvent::Normal => return Ok(Some(DialogEvent::Normal)),
                     _ => {}

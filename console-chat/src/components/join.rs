@@ -73,12 +73,6 @@ impl Join<'_> {
     const fn get_buttons(&mut self) -> [&mut Button; 2] {
         [&mut self.join, &mut self.cancel]
     }
-
-    fn send(&mut self, action: Action) {
-        if let Some(action_tx) = self.command_tx.as_ref() {
-            let _ = action_tx.send(action);
-        }
-    }
 }
 
 impl Component for Join<'_> {
@@ -122,12 +116,15 @@ impl Component for Join<'_> {
             if self.index == 0 {
                 if let Some(event) = self.room.handle_event(key)? {
                     match event {
-                        VimEvent::Normal => self.send(Action::Normal),
-                        VimEvent::Insert => self.send(Action::Insert),
-                        VimEvent::Enter(_) => self.down(),
+                        VimEvent::Normal => return Ok(Some(Action::Normal)),
+                        VimEvent::Insert => return Ok(Some(Action::Insert)),
+                        VimEvent::Enter(_) => {
+                            self.down();
+                            return Ok(Some(Action::Normal));
+                        }
                         VimEvent::Up => self.up(),
                         VimEvent::Down => self.down(),
-                        VimEvent::StoreConfig(_) => {}
+                        VimEvent::Nop | VimEvent::StoreConfig(_) => {}
                     }
                 }
             } else {

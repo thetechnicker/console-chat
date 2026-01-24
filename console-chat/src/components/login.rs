@@ -4,6 +4,7 @@ use crate::components::{EventWidget, button::*, render_nice_bg, theme::*, vim::*
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{prelude::*, widgets::*};
 use tokio::sync::mpsc::UnboundedSender;
+use tracing::debug;
 
 use super::Component;
 use crate::{
@@ -84,12 +85,6 @@ impl Login<'_> {
             &mut self.exit,
         ]
     }
-
-    fn send(&mut self, action: Action) {
-        if let Some(action_tx) = self.command_tx.as_ref() {
-            let _ = action_tx.send(action);
-        }
-    }
 }
 
 impl<'a> Component for Login<'a> {
@@ -138,43 +133,43 @@ impl<'a> Component for Login<'a> {
             let index = self.index;
             let inputs = self.get_inputs();
             let input_event = inputs[index].handle_event(key).clone()?;
-            match key.code {
-                KeyCode::Enter => {
-                    if let Some(event) = input_event {
-                        match event {
-                            ActionSubsetWrapper::VimEvent(vim_event) => match vim_event {
-                                VimEvent::Normal => self.send(Action::Normal),
-                                VimEvent::Insert => self.send(Action::Insert),
-                                VimEvent::Enter(_) => self.down(),
-                                VimEvent::Up => self.up(),
-                                VimEvent::Down => self.down(),
-                                VimEvent::StoreConfig(_) => {}
-                            },
-                            ActionSubsetWrapper::ButtonEvent(ButtonEvent::TriggerLogin) => {
-                                let login_action = match (username.is_empty(), password.is_empty())
-                                {
-                                    (true, true) => {
-                                        Action::Error(AppError::MissingPasswordAndUsername)
-                                    }
-                                    (false, true) => Action::Error(AppError::MissingPassword),
-                                    (true, false) => Action::Error(AppError::MissingUsername),
-                                    (false, false) => {
-                                        self.reset()?;
-                                        Action::PerformLogin(username, password)
-                                    }
-                                };
-                                return Ok(Some(login_action));
-                            }
-                            ActionSubsetWrapper::ButtonEvent(event) => {
-                                return Ok(Some(event.into()));
-                            }
-                            _ => {}
+            if let Some(event) = input_event {
+                debug!("Handling event: {:?}", event);
+                match event {
+                    ActionSubsetWrapper::VimEvent(vim_event) => match vim_event {
+                        VimEvent::Normal => return Ok(Some(Action::Normal)),
+                        VimEvent::Insert => return Ok(Some(Action::Insert)),
+                        VimEvent::Enter(_) => {
+                            self.down();
+                            return Ok(Some(Action::Normal));
                         }
+                        VimEvent::Up => self.up(),
+                        VimEvent::Down => self.down(),
+                        VimEvent::Nop | VimEvent::StoreConfig(_) => {}
+                    },
+                    ActionSubsetWrapper::ButtonEvent(ButtonEvent::TriggerLogin) => {
+                        let login_action = match (username.is_empty(), password.is_empty()) {
+                            (true, true) => Action::Error(AppError::MissingPasswordAndUsername),
+                            (false, true) => Action::Error(AppError::MissingPassword),
+                            (true, false) => Action::Error(AppError::MissingUsername),
+                            (false, false) => {
+                                self.reset()?;
+                                Action::PerformLogin(username, password)
+                            }
+                        };
+                        return Ok(Some(login_action));
                     }
+                    ActionSubsetWrapper::ButtonEvent(event) => {
+                        return Ok(Some(event.into()));
+                    }
+                    _ => {}
                 }
-                KeyCode::Char('k') => self.up(),
-                KeyCode::Char('j') => self.down(),
-                _ => {}
+            } else {
+                match key.code {
+                    KeyCode::Char('k') => self.up(),
+                    KeyCode::Char('j') => self.down(),
+                    _ => {}
+                }
             }
         }
         Ok(None)

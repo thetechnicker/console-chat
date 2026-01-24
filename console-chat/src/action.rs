@@ -13,7 +13,8 @@ pub(crate) use crate::error::{AppError, Result};
         "VimEvent"=[
             "Enter(String)",
             "Up",
-            "Down"
+            "Down",
+            "Nop"
         ],
         "NetworkEvent"=[
             "RequestMe"

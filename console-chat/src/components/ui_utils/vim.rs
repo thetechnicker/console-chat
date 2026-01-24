@@ -1,8 +1,8 @@
 use crate::action::VimEvent;
 use crate::components::theme::ViModePalettes;
-
 use ratatui::style::{Color, Style};
 use ratatui::widgets::{Block, Borders};
+use tracing::debug;
 use tui_textarea::{CursorMove, Input, Key, Scrolling, TextArea};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -589,7 +589,7 @@ impl<'a> VimWidget<'a> {
             }
             Transition::Enter(content) => {
                 to_return = Some(VimEvent::Enter(content));
-                new_vim
+                new_vim.update_mode(VimMode::Normal)
             }
             Transition::Store => {
                 to_return = Some(VimEvent::StoreConfig(
@@ -607,6 +607,9 @@ impl<'a> VimWidget<'a> {
         );
         self.textinput
             .set_cursor_style(self.vim.mode.cursor_style(self.vim.style));
+        if to_return.is_none() && self.vim.mode == VimMode::Insert {
+            to_return = Some(VimEvent::Nop);
+        }
         Ok(to_return)
     }
 }
@@ -624,6 +627,10 @@ use crate::action::ActionSubsetWrapper;
 
 impl<'a> EventWidget for VimWidget<'a> {
     fn handle_event(&mut self, key: KeyEvent) -> Result<Option<ActionSubsetWrapper>> {
-        VimWidget::handle_event(self, key).map(|o| o.map(|a| a.into()))
+        let event = self.handle_event(key)?;
+        debug!("Eventwidget vim event: {:?}", event);
+        let wrapped_event = Ok(event.map(|e| ActionSubsetWrapper::VimEvent(e)));
+        debug!("returning: {:?}", wrapped_event);
+        wrapped_event
     }
 }
