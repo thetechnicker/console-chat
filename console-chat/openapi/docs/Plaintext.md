@@ -4,8 +4,8 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**r#type** | Option<**String**> |  | [optional][default to Plaintext]
-**content** | **String** |  | 
+**r#type** | Option<****> |  (enum: PLAINTEXT) | [optional][default to Plaintext]
+**content** | **** |  | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

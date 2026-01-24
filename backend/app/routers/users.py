@@ -7,7 +7,6 @@ from sqlmodel import select
 
 from app.datamodel import (
     Appearance,
-    AppearancePublic,
     User,
     UserPrivate,
     UserType,
@@ -69,10 +68,12 @@ async def online(
     id = uuid.uuid4()
     if username is None:
         username = generate_temp_username(id)
-    user = UserPrivate(
-        id=id,
-        username=username,
-        appearance=AppearancePublic(color=deterministic_color_from_string(str(id))),
+    user = UserPrivate.model_validate(
+        User(
+            id=id,
+            username=username,
+            appearance=Appearance(color=deterministic_color_from_string(str(id))),
+        )
     )
 
     await db_context.valkey.set(str(user.id), user.model_dump_json(), ex=TOKEN_TTL)

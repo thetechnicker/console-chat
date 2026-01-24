@@ -4,12 +4,12 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**name** | **String** |  | 
-**key** | Option<**String**> |  | 
-**id** | **i32** |  | 
-**owner** | [**models::UserPublic**](UserPublic.md) |  | 
-**users** | [**Vec<models::UserPublic>**](UserPublic.md) |  | 
-**level** | [**models::RoomLevel**](RoomLevel.md) |  | 
+**name** | **** |  | 
+**key** | Option<****> |  | 
+**id** | **** |  | 
+**owner** | **** |  | 
+**users** | **** |  | 
+**level** | **** |  | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

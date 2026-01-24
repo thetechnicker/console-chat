@@ -96,16 +96,19 @@ impl ListenThreadData {
                             send_at: DateTime::<Utc>::from_str(&message.send_at).ok(),
                             content: Default::default(),
                         };
-                        match self.handle_content(message.content).await {
-                            Err(err) => {
-                                error!("Failed to handle content: {}", err);
-                                let _ = self.sender.send(Action::Error(err.into()));
+                        if let Some(content) = message.content {
+                            match self.handle_content(content).await {
+                                Err(err) => {
+                                    error!("Failed to handle content: {}", err);
+                                    let _ = self.sender.send(Action::Error(err.into()));
+                                }
+                                Ok(Some(content)) => {
+                                    received_message.content = content;
+                                    let _ =
+                                        self.sender.send(Action::ReceivedMessage(received_message));
+                                }
+                                Ok(_) => {}
                             }
-                            Ok(Some(content)) => {
-                                received_message.content = content;
-                                let _ = self.sender.send(Action::ReceivedMessage(received_message));
-                            }
-                            Ok(_) => {}
                         }
                     }
                     Err(e) => {

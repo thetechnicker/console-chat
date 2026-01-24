@@ -6,7 +6,8 @@ formatters:
     datefmt: '%Y-%m-%dT%H:%M:%S%z'
   ansi:
     (): app.logger.ColorFormatter
-    format: '{GREY}%(asctime)s{RESET} [{LEVEL}%(levelname)s{RESET}|{GREY}%(name)s{RESET}|%(correlation_id)s]: {LEVEL}%(message)s{RESET}'
+    #format: '{GREY}%(asctime)s{RESET} [{LEVEL}%(levelname)s{RESET}|{GREY}%(name)s|{RESET}|%(correlation_id)s]: {LEVEL}%(message)s{RESET}'
+    format: '{GREY}%(asctime)s{RESET} [{LEVEL}%(levelname)s{RESET}|{GREY}%(name)s{RESET}|{GREY}%(funcName)s{RESET}|%(correlation_id)s]: {LEVEL}%(message)s{RESET}'
     datefmt: '%Y-%m-%dT%H:%M:%S%z'
   json:
     (): app.logger.MyJSONFormatter

@@ -43,7 +43,7 @@ impl MessageComponent {
 impl Widget for &MessageComponent {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let user = self.content.user.clone().unwrap_or(UserPublic::new(
-            "System".to_owned(),
+            "SYSTEM".to_string(),
             openapi::models::UserType::System,
             AppearancePublic::new("".to_owned()),
         ));

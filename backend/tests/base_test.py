@@ -44,6 +44,23 @@ async def test_example(setup_test_db: DatabaseContext):
         transport=ASGITransport(app=app),
         base_url="http://test",
         headers={"X-Api-Key": f"{debug_key}"},
-    ) as _ac:
-        pass
-    assert True
+    ) as ac:
+        online = await ac.get("api/v1/docs")
+    assert online.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_online(setup_test_db: DatabaseContext):
+    """just to show how a test looks"""
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+        headers={"X-Api-Key": f"{debug_key}"},
+    ) as ac:
+        online = await ac.get("users/online")
+    assert online.status_code == 200
+    content = online.json()
+    assert "user" in content
+    assert "token" in content
+    assert "token" in content["token"]
+    assert "ttl" in content["token"]

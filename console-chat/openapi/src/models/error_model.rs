@@ -15,12 +15,17 @@ use serde::{Deserialize, Serialize};
 pub struct ErrorModel {
     #[serde(rename = "detail")]
     pub detail: String,
-    #[serde(rename = "id", deserialize_with = "Option::deserialize")]
-    pub id: Option<String>,
+    #[serde(
+        rename = "id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub id: Option<Option<String>>,
 }
 
 impl ErrorModel {
-    pub fn new(detail: String, id: Option<String>) -> ErrorModel {
-        ErrorModel { detail, id }
+    pub fn new(detail: String) -> ErrorModel {
+        ErrorModel { detail, id: None }
     }
 }

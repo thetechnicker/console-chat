@@ -96,13 +96,13 @@ MessageContent = Union[Encrypted, Plaintext, KeyRequest, KeyResponse, SystemMess
 
 
 class MessageBase(SQLModel):
-    type: MessageType = Field(default=MessageType.PLAINTEXT, sa_column=Integer)
+    type: MessageType
     content: MessageContent = Field(
         default=Plaintext(content="Hello World"),
         sa_column=Column(JSON),
         discriminator="type",
     )
-    send_at: datetime = Field(default_factory=datetime.now, index=True)
+    send_at: datetime
     data: Json = Field(default=None, sa_column=Column(JSON))
 
     # @model_validator(mode="after")
@@ -123,6 +123,9 @@ class MessagePublic(MessageBase):
 
 
 class Message(MessageBase, table=True):
+    type: MessageType = Field(default=MessageType.PLAINTEXT, sa_column=Integer)
+    send_at: datetime = Field(default_factory=datetime.now, index=True)
+
     id: int | None = Field(default=None, primary_key=True)
     sender_id: uuid.UUID = Field(foreign_key="user.id")
     sender: User = Relationship()  # link_model="message.sender_id")
@@ -149,11 +152,14 @@ class StaticRoomUser(SQLModel, table=True):
 
 
 class RoomBase(SQLModel):
-    name: str = Field(index=True)
-    key: str | None = Field(default=None)
+    name: str
+    key: str | None
 
 
 class StaticRoom(RoomBase, table=True):
+    name: str = Field(index=True)
+    key: str | None = Field(default=None)
+
     id: int | None = Field(default=None, primary_key=True)
     owner_id: uuid.UUID | None = Field(default=None, foreign_key="user.id")
     owner: User = Relationship(back_populates="static_rooms")

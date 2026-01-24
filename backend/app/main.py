@@ -69,6 +69,7 @@ LOG.info("API is starting up")
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next: Any):
+    LOG.info(f"Handling: {request.method} {request.url.path}")
     start_time = time.perf_counter()
     response = await call_next(request)
     response_time = time.perf_counter() - start_time

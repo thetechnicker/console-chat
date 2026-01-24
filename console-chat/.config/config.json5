@@ -1,35 +1,35 @@
 {
-  "keybindings": {
-    "Global":{
+  keybindings: {
+    Global: {
       "<Ctrl-c>": "Quit",
       "<Ctrl-d>": "Quit",
-      "<Ctrl-z>": "Suspend"
+      "<Ctrl-z>": "Suspend",
     },
-    "Home": {
+    Home: {
       "<q>": "Quit",
       "<esc>": "Quit",
       "<Ctrl-l>": "OpenLogin",
       "<Ctrl-j>": "OpenJoin",
       "<Ctrl-,>": "OpenSettings",
     },
-    "Login": {
+    Login: {
       "<q>": "OpenHome",
     },
-    "Join": {
+    Join: {
       "<q>": "OpenHome",
     },
-    "Chat": {
+    Chat: {
       "<q>": "OpenHome",
     },
-    "Settings": {
+    Settings: {
       "<q>": "OpenHome",
     },
-    "AccountManagement": {
+    AccountManagement: {
       "<q>": "OpenHome",
     },
-    "Insert":{
+    Insert: {
       "<Ctrl-c>": "Quit",
-      "<Ctrl-z>": "Suspend"
-    }
-  }
+      "<Ctrl-z>": "Suspend",
+    },
+  },
 }

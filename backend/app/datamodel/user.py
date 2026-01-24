@@ -62,11 +62,12 @@ def generate_temp_username(id: Optional[str | uuid.UUID] = None):
 
 
 class AppearanceBase(SQLModel):
-    color: str = Field(max_length=7, min_length=7)
+    color: str
 
 
 class Appearance(AppearanceBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
+    color: str = Field(max_length=7, min_length=7)
 
 
 class AppearancePublic(AppearanceBase):
@@ -84,12 +85,14 @@ class UserType(StrEnum):
 
 
 class UserBase(SQLModel):
-    username: str = Field(default="anonym", unique=True, max_length=100)
-    user_type: UserType = Field(default=UserType.GUEST)
+    username: str
+    user_type: UserType
 
 
 class User(UserBase, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
+    username: str = Field(default="anonym", unique=True, max_length=100)
+    user_type: UserType = Field(default=UserType.GUEST)
     password: Optional[str] = Field(default=None)  # use a hash in real applications
     appearance: Appearance = Relationship()
     appearance_id: int | None = Field(foreign_key="appearance.id", default=None)

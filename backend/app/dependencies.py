@@ -188,6 +188,8 @@ async def get_user_from_token(
             return PermanentUserPrivate.model_validate(user)
         else:
             res = await db.valkey.get(user_id)
+            # if isinstance(res, bytes):
+            #    res = res.decode()
             logger.debug(f"Temporary user data retrieved: {res}")
             return UserPrivate.model_validate_json(res)
     except jwt.ExpiredSignatureError:

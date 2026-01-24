@@ -73,8 +73,8 @@ async fn send_message_from_content(
     };
     let now: chrono::DateTime<chrono::Utc> = chrono::DateTime::from(std::time::SystemTime::now());
     let msg = MessageSend {
-        r#type: Some(r#type),
-        content: message_content,
+        r#type: r#type,
+        content: Some(message_content),
         send_at: now.to_rfc3339(),
         data: None,
     };

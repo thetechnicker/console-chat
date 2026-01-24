@@ -110,6 +110,7 @@ async def listen_static(
             content=SystemMessage(
                 content=f"User {user.username} joined the room", online_users=num_users
             ),
+            send_at=datetime.now(),
             sender=UserPublic.model_validate(SYSTEM_USER),
         ),
         db=db_context,
@@ -151,6 +152,7 @@ async def listen(
             content=SystemMessage(
                 content=f"User {user.username} joined the room", online_users=num_users
             ),
+            send_at=datetime.now(),
             sender=UserPublic.model_validate(SYSTEM_USER),
         ),
         db=db_context,
