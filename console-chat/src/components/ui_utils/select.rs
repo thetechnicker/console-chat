@@ -1,3 +1,6 @@
+use crate::action::ActionSubsetWrapper;
+use crate::action::Result;
+use crate::components::EventWidget;
 use crate::components::theme::ViModePalettes;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::prelude::*;
@@ -13,14 +16,14 @@ pub enum SelectState {
 }
 
 #[derive(Debug)]
-pub struct SelectWidget<'a> {
+pub struct SelectWidget {
     title: String,
-    options: Box<[&'a str]>,
+    options: Box<[&'static str]>,
     state: SelectState,
     _theme: ViModePalettes,
 }
 
-impl<'a> SelectWidget<'a> {
+impl SelectWidget {
     pub fn new(
         title: impl Into<String>,
         options: impl Into<Box<[&'static str]>>,
@@ -55,7 +58,12 @@ impl<'a> SelectWidget<'a> {
     }
 
     fn render_normal(&self, area: Rect, buf: &mut Buffer) {
-        let center = Layout::vertical([Constraint::Length(3), Constraint::Fill(1)]).split(area)[1];
+        let center = Layout::vertical([
+            Constraint::Fill(1),
+            Constraint::Length(3),
+            Constraint::Fill(1),
+        ])
+        .split(area)[1];
         let title = Line::from(self.title.clone()).left_aligned().bold();
         Paragraph::new(title)
             .block(Block::bordered())
@@ -105,15 +113,27 @@ impl<'a> SelectWidget<'a> {
     }
 }
 
-impl<'a> Widget for &SelectWidget<'a> {
+impl Widget for &SelectWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let area = Rect::new(area.x, area.y, area.width, area.height.min(6));
+        //let area = Rect::new(area.x, area.y, area.width, area.height.min(6));
         match self.state {
             SelectState::Normal => self.render_normal(area, buf),
             SelectState::Selected(i) => self.render_selected(area, buf, i),
             SelectState::Selecting(i) => self.render_selecting(area, buf, i),
         }
     }
+}
+impl EventWidget for SelectWidget {
+    fn handle_event(&mut self, key: KeyEvent) -> Result<Option<ActionSubsetWrapper>> {
+        let _ = self.handle_key(key);
+        Ok(None)
+    }
+    fn draw(&self, area: Rect, buf: &mut Buffer) {
+        self.render(area, buf)
+    }
+
+    fn select(&mut self) {}
+    fn deselect(&mut self) {}
 }
 
 #[cfg(test)]

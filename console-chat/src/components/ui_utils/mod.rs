@@ -10,7 +10,7 @@ use crossterm::event::KeyEvent;
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::Style;
-use ratatui::widgets::{Clear, Widget};
+use ratatui::widgets::{Block, Clear, Paragraph, Widget};
 use theme::PageColors;
 
 const CONTRAINT: [Constraint; 3] = [Constraint::Max(1), Constraint::Fill(1), Constraint::Max(1)];
@@ -54,6 +54,19 @@ pub fn render_nice_bg(area: Rect, theme: PageColors, buf: &mut Buffer) -> Rect {
     Layout::vertical(CONTRAINT).split(area)[1]
 }
 
-pub trait EventWidget {
+pub trait EventWidget: std::fmt::Debug {
     fn handle_event(&mut self, event: KeyEvent) -> Result<Option<ActionSubsetWrapper>>;
+
+    fn draw(&self, area: Rect, buf: &mut Buffer) {
+        Paragraph::new("Placeholder")
+            .block(Block::bordered())
+            .render(area, buf)
+    }
+
+    fn select(&mut self);
+    fn deselect(&mut self);
+
+    fn get_content(&self) -> Option<String> {
+        None
+    }
 }

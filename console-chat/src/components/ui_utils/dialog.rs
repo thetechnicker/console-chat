@@ -1,6 +1,8 @@
+use crate::action::ActionSubsetWrapper;
 use crate::action::ButtonEvent;
 use crate::action::DialogEvent;
 use crate::action::VimEvent;
+use crate::components::ui_utils::EventWidget;
 use crate::components::ui_utils::button::Button;
 use crate::components::ui_utils::button::ButtonState;
 use crate::components::ui_utils::render_nice_bg;
@@ -14,11 +16,10 @@ use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::widgets::{Paragraph, Widget};
 
 #[derive(Debug)]
-pub struct Dialog<'a> {
+pub struct Dialog {
     title: String,
-    inputs: Vec<VimWidget<'a>>,
+    inputs: Vec<Box<dyn EventWidget>>,
     theme: Theme,
-    _select: SelectWidget<'a>,
     row: usize,
     button: bool,
     ok: Button,
@@ -26,13 +27,13 @@ pub struct Dialog<'a> {
     size: usize,
 }
 
-impl Dialog<'_> {
+impl Dialog {
     pub fn new(title: impl Into<String>, theme: Theme) -> Self {
         let mut this = Self {
             title: title.into(),
             inputs: Vec::new(),
             theme,
-            _select: SelectWidget::new("Random", ["test", "abc", "why not"], theme.vi),
+            //select: SelectWidget::new("Random", ["test", "abc", "why not"], theme.vi),
             ok: Button::new("Ok", "", theme.buttons.accepting, ButtonEvent::Ok),
             cancel: Button::new("Cancel", "", theme.buttons.denying, ButtonEvent::Cancel),
             button: false,
@@ -45,14 +46,25 @@ impl Dialog<'_> {
     }
 
     pub fn add_input(mut self, label: &str) -> Self {
-        self.inputs
-            .push(VimWidget::new(label, VimType::SingleLine, self.theme.vi));
+        self.inputs.push(Box::new(VimWidget::new(
+            label,
+            VimType::SingleLine,
+            self.theme.vi,
+        )));
         self.size += 3;
         self
     }
     pub fn add_password(mut self, label: &str) -> Self {
+        self.inputs.push(Box::new(
+            VimWidget::new(label, VimType::SingleLine, self.theme.vi).password(),
+        ));
+        self.size += 3;
+        self
+    }
+
+    pub fn add_select(mut self, label: &str, options: impl Into<Box<[&'static str]>>) -> Dialog {
         self.inputs
-            .push(VimWidget::new(label, VimType::SingleLine, self.theme.vi).password());
+            .push(Box::new(SelectWidget::new(label, options, self.theme.vi)));
         self.size += 3;
         self
     }
@@ -101,16 +113,19 @@ impl Dialog<'_> {
 
     pub fn handle_event(&mut self, key: KeyEvent) -> Result<Option<DialogEvent>> {
         if self.row < self.inputs.len() {
-            if let Some(vim_event) = self.inputs[self.row].handle_event(key)? {
-                match vim_event {
-                    VimEvent::Down => self.down(),
-                    VimEvent::Up => self.up(),
-                    VimEvent::Enter(_) => {
-                        self.down();
-                        return Ok(Some(DialogEvent::Normal));
-                    }
-                    VimEvent::Insert => return Ok(Some(DialogEvent::Insert)),
-                    VimEvent::Normal => return Ok(Some(DialogEvent::Normal)),
+            if let Some(event) = self.inputs[self.row].handle_event(key)? {
+                match event {
+                    ActionSubsetWrapper::VimEvent(vim_event) => match vim_event {
+                        VimEvent::Down => self.down(),
+                        VimEvent::Up => self.up(),
+                        VimEvent::Enter(_) => {
+                            self.down();
+                            return Ok(Some(DialogEvent::Normal));
+                        }
+                        VimEvent::Insert => return Ok(Some(DialogEvent::Insert)),
+                        VimEvent::Normal => return Ok(Some(DialogEvent::Normal)),
+                        _ => {}
+                    },
                     _ => {}
                 }
             }
@@ -145,12 +160,12 @@ impl Dialog<'_> {
     pub fn get_data(&self) -> Vec<String> {
         self.inputs
             .iter()
-            .map(|input| input.lines()[0].clone())
+            .filter_map(|input| input.get_content())
             .collect()
     }
 }
 
-impl<'a> Widget for &Dialog<'a> {
+impl Widget for &Dialog {
     fn render(self, area: ratatui::layout::Rect, buf: &mut ratatui::buffer::Buffer) {
         let inner_horizontal = Layout::horizontal([
             Constraint::Fill(1),
@@ -191,17 +206,17 @@ impl<'a> Widget for &Dialog<'a> {
 
         // Render each input widget
         for (i, input) in self.inputs.iter().enumerate() {
-            input.render(chunks[i + 1], buf);
+            input.draw(chunks[i + 1], buf);
         }
 
         // Create a block for the buttons
-        let button_area = chunks.last().unwrap();
+        let button_area = chunks[chunks.len() - 1];
 
         // Render buttons
         let button_layout = Layout::default()
             .direction(Direction::Horizontal)
             .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)]) // Two buttons side by side
-            .split(*button_area);
+            .split(button_area);
 
         self.ok.draw_button(button_layout[0], buf);
         self.cancel.draw_button(button_layout[1], buf);

@@ -122,7 +122,7 @@ fn render_user(user: &UserPrivate, area: Rect, buf: &mut ratatui::buffer::Buffer
     paragraph.render(area, buf);
 }
 
-pub struct AccountManagement<'a> {
+pub struct AccountManagement {
     active: bool,
     command_tx: Option<UnboundedSender<Action>>,
     config: Config,
@@ -130,11 +130,11 @@ pub struct AccountManagement<'a> {
     user: UserPrivate,
     rooms: TableWidget<N, StaticRoomPublic>,
 
-    new_room_dialog: Option<Dialog<'a>>,
+    new_room_dialog: Option<Dialog>,
     refresh_instance: Instant,
 }
 
-impl<'a> AccountManagement<'a> {
+impl AccountManagement {
     pub fn new() -> Self {
         Self {
             active: Default::default(),
@@ -205,7 +205,7 @@ fn render_footer(area: Rect, buf: &mut Buffer) {
         .render(area, buf);
 }
 
-impl Component for AccountManagement<'_> {
+impl Component for AccountManagement {
     fn init(&mut self, _: Size) -> Result<()> {
         let theme = match self.config.themes.get(&STYLE_KEY) {
             Some(themes) => themes,

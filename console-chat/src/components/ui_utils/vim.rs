@@ -633,4 +633,15 @@ impl<'a> EventWidget for VimWidget<'a> {
         debug!("returning: {:?}", wrapped_event);
         wrapped_event
     }
+
+    fn draw(&self, area: Rect, buf: &mut Buffer) {
+        self.render(area, buf)
+    }
+
+    fn select(&mut self) {
+        self.select()
+    }
+    fn deselect(&mut self) {
+        self.deselect()
+    }
 }
