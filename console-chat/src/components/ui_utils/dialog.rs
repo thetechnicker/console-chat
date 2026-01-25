@@ -16,12 +16,13 @@ use crate::error::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::widgets::{Paragraph, Widget};
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 
 #[derive(Debug)]
 pub struct Dialog {
     title: String,
     inputs: VecDeque<Box<dyn EventWidget>>,
+    labels: VecDeque<String>,
     theme: Theme,
     row: usize,
     button: bool,
@@ -35,6 +36,7 @@ impl Dialog {
         Self {
             title: title.into(),
             inputs: VecDeque::new(),
+            labels: VecDeque::new(),
             theme,
             ok: Button::new("Ok", "", theme.buttons.accepting, ButtonEvent::Ok),
             cancel: Button::new("Cancel", "", theme.buttons.denying, ButtonEvent::Cancel),
@@ -45,27 +47,34 @@ impl Dialog {
         }
     }
 
-    fn add_input_inner(&mut self, widget: Box<dyn EventWidget>, front: bool) {
-        self.deselect_current_selection();
+    fn add_input_inner(&mut self, widget: Box<dyn EventWidget>, label: String, front: bool) {
+        let is_first = self.inputs.is_empty();
         if front {
             self.inputs.push_front(widget);
+            self.labels.push_front(label);
         } else {
             self.inputs.push_back(widget);
+            self.labels.push_back(label);
         }
-        self.select_current_selection();
+        if is_first {
+            self.select_current_selection();
+        }
         self.size += 3;
     }
 
     pub fn add_input(mut self, label: &str) -> Self {
         self.add_input_inner(
             Box::new(VimWidget::new(label, VimType::SingleLine, self.theme.vi)),
+            label.to_string(),
             true,
         );
         self
     }
+
     pub fn add_password(mut self, label: &str) -> Self {
         self.add_input_inner(
             Box::new(VimWidget::new(label, VimType::SingleLine, self.theme.vi).password()),
+            label.to_string(),
             true,
         );
         self
@@ -77,7 +86,7 @@ impl Dialog {
         T: std::fmt::Debug + std::fmt::Display + Clone + 'static,
     {
         let select = SelectWidget::new(label, options, self.theme.select);
-        self.add_input_inner(Box::new(select), false);
+        self.add_input_inner(Box::new(select), label.to_string(), false);
         self
     }
 
@@ -96,6 +105,7 @@ impl Dialog {
             self.get_button().set_state(ButtonState::Normal);
         }
     }
+
     fn select_current_selection(&mut self) {
         if self.row < self.inputs.len() {
             self.inputs[self.row].select();
@@ -109,6 +119,7 @@ impl Dialog {
         self.row = self.row.saturating_sub(1);
         self.select_current_selection();
     }
+
     fn down(&mut self) {
         self.deselect_current_selection();
         if self.row < self.inputs.len() {
@@ -168,10 +179,11 @@ impl Dialog {
         Ok(None)
     }
 
-    pub fn get_data(&self) -> Vec<ContentType> {
-        self.inputs
+    pub fn get_data(&self) -> HashMap<String, ContentType> {
+        self.labels
             .iter()
-            .map(|input| input.get_content())
+            .zip(self.inputs.iter())
+            .map(|(label, input)| (label.clone(), input.get_content()))
             .collect()
     }
 }
@@ -197,7 +209,6 @@ impl Widget for &Dialog {
         // Layout for inputs and buttons
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            //.margin(1)
             .constraints(
                 vec![
                     vec![Constraint::Length(1)],
@@ -207,7 +218,7 @@ impl Widget for &Dialog {
                         .chain(Some(Constraint::Length(3)))
                         .collect::<Vec<_>>(),
                 ]
-                .concat(), //),
+                .concat(),
             )
             .split(inner_area);
 
@@ -217,7 +228,7 @@ impl Widget for &Dialog {
         // Render buttons
         let button_layout = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)]) // Two buttons side by side
+            .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])
             .split(button_area);
 
         Paragraph::new(self.title.as_str())
