@@ -1,3 +1,4 @@
+use crate::components::ui_utils::ContentType;
 use crate::network::models::Message;
 use console_chat_proc_macro::Subsetable;
 use openapi::models::*;
@@ -24,7 +25,7 @@ pub(crate) use crate::error::{AppError, Result};
             "RequestMe"
         ],
         "DialogEvent"=[
-            "Ok(Vec<String>)",
+            "Ok(Vec<ContentType>)",
             "Cancel"
         ]
     },
@@ -98,6 +99,9 @@ pub enum Action {
     #[subset("NetworkEvent")]
     #[serde(skip)]
     MyRooms(Arc<[StaticRoomPublic]>),
+    #[subset("NetworkEvent")]
+    #[serde(skip)]
+    CreateRoom(String, Option<String>, RoomLevel),
 
     // Error variant skipped in serde
     #[subset("NetworkEvent")]

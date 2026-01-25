@@ -105,6 +105,11 @@ impl NetworkStack {
             match network_event {
                 NetworkEvent::PerformJoin(room, is_static) => self.join(room, is_static)?,
                 NetworkEvent::Me(me) => self.me = Some(me),
+                NetworkEvent::CreateRoom(name, key, level) => {
+                    let _ = self
+                        .sender_inner
+                        .send(NetworkEvent::CreateRoom(name, key, level));
+                }
                 _ => {
                     let _ = self.sender_inner.send(network_event);
                 }

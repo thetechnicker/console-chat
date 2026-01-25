@@ -6,7 +6,9 @@ use crate::network::send_message;
 use openapi::apis::configuration::Configuration;
 use openapi::apis::rooms_api;
 use openapi::apis::users_api;
+use openapi::models::CreateRoom;
 use openapi::models::LoginData;
+use openapi::models::RoomLevel;
 use openapi::models::Token;
 use std::sync::Arc;
 use std::time::Duration;
@@ -135,6 +137,7 @@ impl MiscThreadData {
             NetworkEvent::RequestMe => self.request_me().await,
             NetworkEvent::SendMessage(msg) => self.send_msg(&msg).await,
             NetworkEvent::RequestMyRooms => self.request_rooms().await,
+            NetworkEvent::CreateRoom(name, key, level) => self.create_room(name, key, level).await,
             _ => {
                 debug!("Unhandled network event: {:?}", event);
                 Ok(())
@@ -218,6 +221,44 @@ impl MiscThreadData {
 
         info!("Misc loop exited cleanly");
         Ok(())
+    }
+
+    async fn create_room(&self, name: String, key: Option<String>, level: RoomLevel) -> Result<()> {
+        info!("Creating new room: '{}' with level {:?}", name, level);
+
+        let conf = self.conf.read().await;
+
+        // Build CreateRoom model
+        let mut create_room_data = CreateRoom::new(level);
+
+        // Set key based on room level
+        match level {
+            RoomLevel::Key | RoomLevel::InviteAndKey => {
+                if let Some(k) = key {
+                    create_room_data.key = Some(Some(k));
+                }
+            }
+            _ => {
+                // FREE or INVITE-ONLY don't need a key
+                create_room_data.key = None;
+            }
+        }
+
+        // Invites not implemented yet
+        create_room_data.invite = None;
+
+        match rooms_api::rooms_create_room(&conf, &name, create_room_data).await {
+            Ok(_) => {
+                info!("Successfully created room: {}", name);
+                // Refresh the room list
+                let _ = self.sender_inner.send(NetworkEvent::RequestMyRooms);
+                Ok(())
+            }
+            Err(err) => {
+                error!("Failed to create room '{}': {}", name, err);
+                Err(err.into())
+            }
+        }
     }
 }
 

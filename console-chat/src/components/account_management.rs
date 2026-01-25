@@ -9,7 +9,6 @@ use crate::components::ui_utils::table::TableWidget;
 use crate::{action::Action, config::Config};
 use crossterm::event::{KeyCode, KeyEvent};
 use openapi::models::RoomLevel;
-//use openapi::models::CreateRoom;
 use openapi::models::*;
 use ratatui::{
     prelude::*,
@@ -20,6 +19,7 @@ use std::time::Instant;
 use strum::IntoEnumIterator;
 use strum::{Display, EnumIter, FromRepr};
 use tokio::sync::mpsc::UnboundedSender;
+use tracing::debug;
 use tui_textarea::Input;
 
 fn into_static(s: String) -> &'static str {
@@ -269,21 +269,20 @@ impl Component for AccountManagement {
                     match key.code {
                         KeyCode::Char('H') if input.shift => self.previous_tab(),
                         KeyCode::Char('L') if input.shift => self.next_tab(),
-                        KeyCode::Char('x') => {
-                            let room_level: Vec<_> =
-                                RoomLevel::iter().map(|level| format!("{level}")).collect();
+                        KeyCode::Char('x') if self.selected_tab == Chategory::MyRooms => {
+                            let room_level: Vec<_> = RoomLevel::iter().collect();
                             self.new_room_dialog = Some(
                                 Dialog::new(
-                                    "TEST",
+                                    "Create New Room", // Changed from "TEST"
                                     self.config
                                         .themes
                                         .get(&STYLE_KEY)
                                         .or(self.config.themes.get(&Mode::Global))
-                                        .expect("expected global theme  but found none")
+                                        .expect("expected global theme but found none")
                                         .clone(),
                                 )
-                                .add_input("Name")
                                 .add_password("Key")
+                                .add_input("Name")
                                 .add_select("Secrecy", room_level),
                             )
                         }
@@ -293,10 +292,14 @@ impl Component for AccountManagement {
                         },
                     }
                 }
+
                 Some(dialog) => {
                     if let Some(event) = dialog.handle_event(key)?.take() {
+                        debug!("handling dialog event: {:#?}", event);
                         match event {
-                            DialogEvent::Ok(_) => {
+                            DialogEvent::Ok(data) => {
+                                // Parse dialog data: [name, key, level_string]
+                                if data.len() >= 3 {}
                                 self.new_room_dialog = None;
                             }
                             DialogEvent::Cancel => {

@@ -1,5 +1,6 @@
 use crate::action::VimEvent;
 use crate::components::theme::ViModePalettes;
+use crate::components::ui_utils::ContentType;
 use ratatui::style::{Color, Style};
 use ratatui::widgets::{Block, Borders};
 use tracing::debug;
@@ -643,5 +644,14 @@ impl<'a> EventWidget for VimWidget<'a> {
     }
     fn deselect(&mut self) {
         self.deselect()
+    }
+
+    fn get_content(&self) -> ContentType {
+        let content = self.textinput.lines().join("\n").to_string();
+        if content.is_empty() {
+            ContentType::None
+        } else {
+            ContentType::String(content)
+        }
     }
 }

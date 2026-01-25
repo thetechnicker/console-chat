@@ -3,6 +3,7 @@ use crate::action::ButtonEvent;
 use crate::action::DialogEvent;
 use crate::action::SelectionEvent;
 use crate::action::VimEvent;
+use crate::components::ui_utils::ContentType;
 use crate::components::ui_utils::EventWidget;
 use crate::components::ui_utils::button::Button;
 use crate::components::ui_utils::button::ButtonState;
@@ -31,73 +32,75 @@ pub struct Dialog {
 
 impl Dialog {
     pub fn new(title: impl Into<String>, theme: Theme) -> Self {
-        let mut this = Self {
+        Self {
             title: title.into(),
             inputs: VecDeque::new(),
             theme,
-            //select: SelectWidget::new("Random", ["test", "abc", "why not"], theme.vi),
             ok: Button::new("Ok", "", theme.buttons.accepting, ButtonEvent::Ok),
             cancel: Button::new("Cancel", "", theme.buttons.denying, ButtonEvent::Cancel),
             button: false,
             row: 0,
             // title + buttons + border
             size: 1 + 3 + 2,
-        };
-        this.select_current_selection();
-        this
+        }
+    }
+
+    fn add_input_inner(&mut self, widget: Box<dyn EventWidget>, front: bool) {
+        self.deselect_current_selection();
+        if front {
+            self.inputs.push_front(widget);
+        } else {
+            self.inputs.push_back(widget);
+        }
+        self.select_current_selection();
+        self.size += 3;
     }
 
     pub fn add_input(mut self, label: &str) -> Self {
-        self.inputs.push_front(Box::new(VimWidget::new(
-            label,
-            VimType::SingleLine,
-            self.theme.vi,
-        )));
-        self.size += 3;
+        self.add_input_inner(
+            Box::new(VimWidget::new(label, VimType::SingleLine, self.theme.vi)),
+            true,
+        );
         self
     }
     pub fn add_password(mut self, label: &str) -> Self {
-        self.inputs.push_front(Box::new(
-            VimWidget::new(label, VimType::SingleLine, self.theme.vi).password(),
-        ));
-        self.size += 3;
+        self.add_input_inner(
+            Box::new(VimWidget::new(label, VimType::SingleLine, self.theme.vi).password()),
+            true,
+        );
         self
     }
 
-    pub fn add_select<I, T>(mut self, label: &str, options: I) -> Dialog
+    pub fn add_select<'a, I, T>(mut self, label: &str, options: I) -> Dialog
     where
         I: IntoIterator<Item = T>,
-        T: Into<String>,
+        T: std::fmt::Debug + std::fmt::Display + Clone + 'static,
     {
-        self.inputs.push_back(Box::new(SelectWidget::new(
-            label,
-            options,
-            self.theme.select,
-        )));
-        self.size += 3;
+        let select = SelectWidget::new(label, options, self.theme.select);
+        self.add_input_inner(Box::new(select), false);
         self
+    }
+
+    fn get_button(&mut self) -> &mut Button {
+        if self.button {
+            &mut self.cancel
+        } else {
+            &mut self.ok
+        }
     }
 
     fn deselect_current_selection(&mut self) {
         if self.row < self.inputs.len() {
             self.inputs[self.row].deselect();
         } else {
-            if self.button {
-                self.cancel.set_state(ButtonState::Normal);
-            } else {
-                self.ok.set_state(ButtonState::Normal);
-            }
+            self.get_button().set_state(ButtonState::Normal);
         }
     }
     fn select_current_selection(&mut self) {
         if self.row < self.inputs.len() {
             self.inputs[self.row].select();
         } else {
-            if self.button {
-                self.cancel.set_state(ButtonState::Selected);
-            } else {
-                self.ok.set_state(ButtonState::Selected);
-            }
+            self.get_button().set_state(ButtonState::Selected);
         }
     }
 
@@ -149,12 +152,7 @@ impl Dialog {
                 KeyCode::Char('k') => self.up(),
                 KeyCode::Char('h') | KeyCode::Char('l') => self.lr(),
                 KeyCode::Enter => {
-                    //self.active = false;
-                    let button = if self.button {
-                        &mut self.cancel
-                    } else {
-                        &mut self.ok
-                    };
+                    let button = self.get_button();
                     button.set_state(ButtonState::Active);
                     if let Some(button_event) = button.trigger() {
                         match button_event {
@@ -170,10 +168,10 @@ impl Dialog {
         Ok(None)
     }
 
-    pub fn get_data(&self) -> Vec<String> {
+    pub fn get_data(&self) -> Vec<ContentType> {
         self.inputs
             .iter()
-            .filter_map(|input| input.get_content())
+            .map(|input| input.get_content())
             .collect()
     }
 }

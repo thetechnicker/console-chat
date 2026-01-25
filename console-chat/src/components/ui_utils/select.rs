@@ -3,6 +3,7 @@ use crate::action::Result;
 use crate::action::SelectionEvent;
 use crate::components::EventWidget;
 use crate::components::theme::SelectPalettes;
+use crate::components::ui_utils::ContentType;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Paragraph};
@@ -18,21 +19,26 @@ pub enum SelectState {
 }
 
 #[derive(Debug)]
-pub struct SelectWidget {
+pub struct SelectWidget<T>
+where
+    T: std::fmt::Display + std::fmt::Debug + Clone,
+{
     title: String,
-    options: Box<[String]>,
+    options: Box<[T]>,
     state: SelectState,
     active: bool,
     _theme: SelectPalettes,
 }
 
-impl SelectWidget {
-    pub fn new<T, I>(title: impl Into<String>, options: I, theme: SelectPalettes) -> Self
+impl<T> SelectWidget<T>
+where
+    T: std::fmt::Display + std::fmt::Debug + Clone,
+{
+    pub fn new<I>(title: impl Into<String>, options: I, theme: SelectPalettes) -> Self
     where
         I: IntoIterator<Item = T>,
-        T: Into<String>,
     {
-        let options: Box<[String]> = options.into_iter().map(|s| s.into()).collect();
+        let options: Box<[T]> = options.into_iter().map(|s| s.into()).collect();
 
         // Ensure we have at least one option to prevent index issues
         assert!(
@@ -134,7 +140,7 @@ impl SelectWidget {
 
         // Clamp index to prevent out of bounds access
         let safe_index = self.clamp_index(i);
-        let value = Line::from(self.options[safe_index].clone())
+        let value = Line::from(self.options[safe_index].to_string())
             .left_aligned()
             .bold();
 
@@ -228,7 +234,10 @@ impl SelectWidget {
     }
 }
 
-impl Widget for &SelectWidget {
+impl<T> Widget for &SelectWidget<T>
+where
+    T: std::fmt::Display + std::fmt::Debug + Clone,
+{
     fn render(self, area: Rect, buf: &mut Buffer) {
         match self.state {
             SelectState::Normal => self.render_normal(area, buf),
@@ -238,7 +247,10 @@ impl Widget for &SelectWidget {
     }
 }
 
-impl EventWidget for SelectWidget {
+impl<T> EventWidget for SelectWidget<T>
+where
+    T: std::fmt::Display + std::fmt::Debug + Clone,
+{
     fn handle_event(&mut self, key: KeyEvent) -> Result<Option<ActionSubsetWrapper>> {
         Ok(self.handle_key(key).map(|e| e.into()))
     }
@@ -252,6 +264,13 @@ impl EventWidget for SelectWidget {
     }
     fn deselect(&mut self) {
         self.active = false;
+    }
+
+    fn get_content(&self) -> ContentType {
+        match self.state {
+            SelectState::Selected(i) | SelectState::Selecting(i) => ContentType::Index(i),
+            SelectState::Normal => ContentType::None,
+        }
     }
 }
 
