@@ -10,7 +10,7 @@
 
 use crate::models;
 use serde::{Deserialize, Serialize};
-use strum::EnumIter;
+use strum::{EnumIter, FromRepr};
 
 #[derive(
     Clone,
@@ -25,6 +25,7 @@ use strum::EnumIter;
     Deserialize,
     Default,
     EnumIter,
+    FromRepr,
 )]
 pub enum RoomLevel {
     #[serde(rename = "FREE")]

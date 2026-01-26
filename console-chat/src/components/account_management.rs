@@ -3,6 +3,7 @@ use crate::action::DialogEvent;
 use crate::action::Result;
 use crate::app::Mode;
 use crate::components::theme::Theme;
+use crate::components::ui_utils::ContentType;
 use crate::components::ui_utils::dialog::Dialog;
 use crate::components::ui_utils::table;
 use crate::components::ui_utils::table::TableWidget;
@@ -19,7 +20,7 @@ use std::time::Instant;
 use strum::IntoEnumIterator;
 use strum::{Display, EnumIter, FromRepr};
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::debug;
+use tracing::{debug, trace};
 use tui_textarea::Input;
 
 fn into_static(s: String) -> &'static str {
@@ -298,9 +299,40 @@ impl Component for AccountManagement {
                         debug!("handling dialog event: {:#?}", event);
                         match event {
                             DialogEvent::Ok(data) => {
-                                // Parse dialog data: [name, key, level_string]
-                                if data.len() >= 3 {}
+                                trace!("Why arent you send out");
+                                // Extract data using labels as keys
+                                let name = match data.get("Name") {
+                                    Some(ContentType::String(s)) => s.clone(),
+                                    _ => {
+                                        // Handle missing or wrong type
+                                        self.new_room_dialog = None;
+                                        return Ok(None);
+                                    }
+                                };
+
+                                trace!("Why arent you send out");
+
+                                let key = match data.get("Key") {
+                                    Some(ContentType::String(s)) if !s.is_empty() => {
+                                        Some(s.clone())
+                                    }
+                                    Some(ContentType::None) | None => None,
+                                    _ => None,
+                                };
+
+                                trace!("Why arent you send out");
+                                let level = match data.get("Secrecy") {
+                                    Some(ContentType::Index(idx)) => {
+                                        RoomLevel::from_repr(*idx).unwrap_or(RoomLevel::Free)
+                                    }
+                                    _ => RoomLevel::Free, // default fallback
+                                };
+                                trace!("Why arent you send out");
+
+                                // Now trigger the room creation action
                                 self.new_room_dialog = None;
+                                trace!("Why arent you send out");
+                                return Ok(Some(Action::CreateRoom(name, key, level)));
                             }
                             DialogEvent::Cancel => {
                                 self.new_room_dialog = None;

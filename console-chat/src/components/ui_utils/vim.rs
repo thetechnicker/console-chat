@@ -629,9 +629,7 @@ use crate::action::ActionSubsetWrapper;
 impl<'a> EventWidget for VimWidget<'a> {
     fn handle_event(&mut self, key: KeyEvent) -> Result<Option<ActionSubsetWrapper>> {
         let event = self.handle_event(key)?;
-        debug!("Eventwidget vim event: {:?}", event);
         let wrapped_event = Ok(event.map(|e| ActionSubsetWrapper::VimEvent(e)));
-        debug!("returning: {:?}", wrapped_event);
         wrapped_event
     }
 
