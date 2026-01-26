@@ -3,7 +3,6 @@ use crate::components::theme::ViModePalettes;
 use crate::components::ui_utils::ContentType;
 use ratatui::style::{Color, Style};
 use ratatui::widgets::{Block, Borders};
-use tracing::debug;
 use tui_textarea::{CursorMove, Input, Key, Scrolling, TextArea};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

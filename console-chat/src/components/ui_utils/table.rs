@@ -25,8 +25,10 @@ const PALETTES: [tailwind::Palette; 4] = [
     tailwind::INDIGO,
     tailwind::RED,
 ];
-const INFO_TEXT: [&str; 1] =
-    ["(Esc) quit | (↑) move up | (↓) move down | (←) move left | (→) move right"];
+const INFO_TEXT: [&str; 2] = [
+    "(Esc) quit | (k) move up | (j) move down | (h) move right | (l) move left",
+    "(n) create new room | (e) edit room | (d) delete room",
+];
 
 const ITEM_HEIGHT: usize = 4;
 

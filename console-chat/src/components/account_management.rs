@@ -270,7 +270,19 @@ impl Component for AccountManagement {
                     match key.code {
                         KeyCode::Char('H') if input.shift => self.previous_tab(),
                         KeyCode::Char('L') if input.shift => self.next_tab(),
-                        KeyCode::Char('x') if self.selected_tab == Chategory::MyRooms => {
+                        KeyCode::Char('j') if self.selected_tab == Chategory::MyRooms => {
+                            self.rooms.next_row();
+                        }
+                        KeyCode::Char('k') if self.selected_tab == Chategory::MyRooms => {
+                            self.rooms.previous_row();
+                        }
+                        KeyCode::Char('h') if self.selected_tab == Chategory::MyRooms => {
+                            self.rooms.previous_column();
+                        }
+                        KeyCode::Char('l') if self.selected_tab == Chategory::MyRooms => {
+                            self.rooms.next_column();
+                        }
+                        KeyCode::Char('n') if self.selected_tab == Chategory::MyRooms => {
                             let room_level: Vec<_> = RoomLevel::iter().collect();
                             self.new_room_dialog = Some(
                                 Dialog::new(
@@ -286,6 +298,34 @@ impl Component for AccountManagement {
                                 .add_input("Name")
                                 .add_select("Secrecy", room_level),
                             )
+                        }
+                        KeyCode::Char('e') if self.selected_tab == Chategory::MyRooms => {
+                            let room_level: Vec<_> = RoomLevel::iter().collect();
+                            self.new_room_dialog = Some(
+                                Dialog::new(
+                                    "Edit Room", // Changed from "TEST"
+                                    self.config
+                                        .themes
+                                        .get(&STYLE_KEY)
+                                        .or(self.config.themes.get(&Mode::Global))
+                                        .expect("expected global theme but found none")
+                                        .clone(),
+                                )
+                                .add_password("Key")
+                                .add_input("Name")
+                                .add_select("Secrecy", room_level),
+                            )
+                        }
+                        KeyCode::Char('d') if self.selected_tab == Chategory::MyRooms => {
+                            self.new_room_dialog = Some(Dialog::new(
+                                "DELETE Room", // Changed from "TEST"
+                                self.config
+                                    .themes
+                                    .get(&STYLE_KEY)
+                                    .or(self.config.themes.get(&Mode::Global))
+                                    .expect("expected global theme but found none")
+                                    .clone(),
+                            ))
                         }
                         _ => match self.selected_tab {
                             Chategory::Profile => {}
