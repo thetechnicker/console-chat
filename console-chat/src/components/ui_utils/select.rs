@@ -143,8 +143,15 @@ where
             .left_aligned()
             .bold();
 
+        let style = if self.active {
+            Style::new().gray().reversed()
+        } else {
+            Style::default()
+        };
+
         Paragraph::new(value)
             .block(Block::bordered().title_top(title))
+            .style(style)
             .render(center, buf);
     }
 

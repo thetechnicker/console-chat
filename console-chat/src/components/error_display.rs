@@ -80,13 +80,16 @@ impl Component for ErrorDisplay {
             )[1];
 
             frame.render_widget(Clear, center);
+            let block = Block::bordered()
+                .border_type(BorderType::QuadrantInside)
+                .style(Style::default());
+            let inner = block.inner(center);
+            frame.render_widget(block, center);
 
             let display = Paragraph::new(format!("{error:#?}"))
-                //.centered()
                 .wrap(Wrap { trim: false })
-                .block(Block::bordered().border_type(BorderType::QuadrantInside))
                 .on_red();
-            frame.render_widget(display, center);
+            frame.render_widget(display, inner);
         }
         Ok(())
     }

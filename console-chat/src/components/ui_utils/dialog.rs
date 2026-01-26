@@ -15,12 +15,14 @@ use crate::error::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::widgets::{Paragraph, Widget};
+use std::collections::HashMap;
 use std::collections::VecDeque;
 
 #[derive(Debug)]
 pub struct Dialog {
     title: String,
     inputs: VecDeque<Box<dyn EventWidget>>,
+    static_values: HashMap<String, serde_json::Value>,
     labels: VecDeque<String>,
     theme: Theme,
     row: usize,
@@ -32,9 +34,10 @@ pub struct Dialog {
 
 impl Dialog {
     pub fn new(title: impl Into<String>, theme: Theme) -> Self {
-        Self {
+        let mut this = Self {
             title: title.into(),
             inputs: VecDeque::new(),
+            static_values: HashMap::new(),
             labels: VecDeque::new(),
             theme,
             ok: Button::new("Ok", "", theme.buttons.accepting, ButtonEvent::Ok),
@@ -43,11 +46,13 @@ impl Dialog {
             row: 0,
             // title + buttons + border
             size: 1 + 3 + 2,
-        }
+        };
+        this.select_current_selection();
+        this
     }
 
     fn add_input_inner(&mut self, widget: Box<dyn EventWidget>, label: String, front: bool) {
-        let is_first = self.inputs.is_empty();
+        self.deselect_current_selection();
         if front {
             self.inputs.push_front(widget);
             self.labels.push_front(label);
@@ -55,9 +60,7 @@ impl Dialog {
             self.inputs.push_back(widget);
             self.labels.push_back(label);
         }
-        if is_first {
-            self.select_current_selection();
-        }
+        self.select_current_selection();
         self.size += 3;
     }
 
@@ -86,6 +89,17 @@ impl Dialog {
     {
         let select = SelectWidget::new(label, options, self.theme.select);
         self.add_input_inner(Box::new(select), label.to_string(), false);
+        self
+    }
+
+    pub fn add_static_value<T>(mut self, label: &str, value: T) -> Self
+    where
+        T: std::fmt::Debug + Clone + 'static + serde::Serialize,
+    {
+        self.static_values.insert(
+            label.to_owned(),
+            serde_json::to_value(value).expect("Cannot convert Value"),
+        );
         self
     }
 
@@ -184,6 +198,11 @@ impl Dialog {
                 .iter()
                 .zip(self.inputs.iter())
                 .map(|(label, input)| (label.to_lowercase(), input.get_content()))
+                .chain(
+                    self.static_values
+                        .iter()
+                        .map(|(label, value)| (label.to_lowercase(), value.clone())),
+                )
                 .collect(),
         ))
     }

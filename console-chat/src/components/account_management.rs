@@ -20,10 +20,10 @@ use std::time::Instant;
 use strum::IntoEnumIterator;
 use strum::{Display, EnumIter, FromRepr};
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::debug;
+use tracing::{debug, error};
 use tui_textarea::Input;
 
-#[derive(Debug)]
+#[derive(Debug, strum::Display, Clone, Copy)]
 enum DialogType {
     CreateRoom,
     EditRoom,
@@ -31,20 +31,31 @@ enum DialogType {
 }
 
 #[derive(Debug, Deserialize)]
-struct CreateDialog {
-    name: String,
-    key: Option<String>,
-    secrecy: RoomLevel,
+struct CreateRoomDialog {
+    pub name: String,
+    pub key: Option<String>,
+    pub secrecy: RoomLevel,
+}
+#[derive(Debug, Deserialize)]
+struct UpdateRoomDialog {
+    pub name: String,
+    pub old_name: String,
+    pub key: Option<String>,
+    pub secrecy: RoomLevel,
+}
+#[derive(Debug, Deserialize)]
+struct DeleteRoomDialog {
+    pub name: String,
 }
 
 fn into_static(s: String) -> &'static str {
     Box::leak(s.into_boxed_str())
 }
 
-const N: usize = 3;
+const N: usize = 4;
 impl table::Data<N> for StaticRoomPublic {
     fn get_headers() -> [&'static str; N] {
-        ["Name", "Owner", "Security Level"]
+        ["Name", "Owner", "Security Level", "Users"]
     }
 
     fn ref_array(&self) -> [&str; N] {
@@ -52,6 +63,13 @@ impl table::Data<N> for StaticRoomPublic {
             &self.name,
             &self.owner.username,
             into_static(format!("{}", self.level)),
+            into_static(
+                self.users
+                    .iter()
+                    .map(|u| u.username.clone())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            ),
         ]
     }
 
@@ -210,37 +228,34 @@ impl AccountManagement {
         }
     }
 
-    fn handle_create_room_dialog(&mut self, data: CreateDialog) -> Result<Option<Action>> {
-        //// Extract data using labels as keys
-        //let name = match data.get("Name") {
-        //    Some(ContentType::String(s)) => s.clone(),
-        //    _ => {
-        //        // Handle missing or wrong type
-        //        self.dialog = None;
-        //        return Ok(None);
-        //    }
-        //};
-
-        //let key = match data.get("Key") {
-        //    Some(ContentType::String(s)) if !s.is_empty() => Some(s.clone()),
-        //    Some(ContentType::None) | None => None,
-        //    _ => None,
-        //};
-
-        //let level = match data.get("Secrecy") {
-        //    Some(ContentType::Index(idx)) => RoomLevel::from_repr(*idx).unwrap_or(RoomLevel::Free),
-        //    _ => RoomLevel::Free, // default fallback
-        //};
-
-        //// Now trigger the room creation action
-        //self.dialog = None;
+    fn handle_create_room_dialog(&mut self, data: CreateRoomDialog) -> Result<Option<Action>> {
         return Ok(Some(Action::CreateRoom(data.name, data.key, data.secrecy)));
     }
-    fn handle_edit_room_dialog(&mut self, _data: CreateDialog) -> Result<Option<Action>> {
+
+    fn handle_edit_room_dialog(&mut self, _data: UpdateRoomDialog) -> Result<Option<Action>> {
         return Ok(None);
     }
-    fn handle_delete_room_dialog(&mut self, _data: CreateDialog) -> Result<Option<Action>> {
-        return Ok(None);
+
+    fn handle_delete_room_dialog(&mut self, data: DeleteRoomDialog) -> Result<Option<Action>> {
+        return Ok(Some(Action::DeleteRoom(data.name)));
+    }
+
+    fn handle_dialog(
+        &mut self,
+        data: serde_json::Value,
+        dialog_type: DialogType,
+    ) -> Result<Option<Action>> {
+        match dialog_type {
+            DialogType::CreateRoom => {
+                return self.handle_create_room_dialog(serde_json::from_value(data)?);
+            }
+            DialogType::EditRoom => {
+                return self.handle_edit_room_dialog(serde_json::from_value(data)?);
+            }
+            DialogType::DeleteRoom => {
+                return self.handle_delete_room_dialog(serde_json::from_value(data)?);
+            }
+        }
     }
 }
 
@@ -348,36 +363,42 @@ impl Component for AccountManagement {
                             ))
                         }
                         KeyCode::Char('e') if self.selected_tab == Chategory::MyRooms => {
-                            let room_level: Vec<_> = RoomLevel::iter().collect();
-                            self.dialog = Some((
-                                Dialog::new(
-                                    "Edit Room", // Changed from "TEST"
-                                    self.config
-                                        .themes
-                                        .get(&STYLE_KEY)
-                                        .or(self.config.themes.get(&Mode::Global))
-                                        .expect("expected global theme but found none")
-                                        .clone(),
-                                )
-                                .add_password("Key")
-                                .add_input("Name")
-                                .add_select("Secrecy", room_level),
-                                DialogType::EditRoom,
-                            ))
+                            if let Some(selected_room) = self.rooms.get_selected().cloned() {
+                                let room_level: Vec<_> = RoomLevel::iter().collect();
+                                self.dialog = Some((
+                                    Dialog::new(
+                                        "Edit Room", // Changed from "TEST"
+                                        self.config
+                                            .themes
+                                            .get(&STYLE_KEY)
+                                            .or(self.config.themes.get(&Mode::Global))
+                                            .expect("expected global theme but found none")
+                                            .clone(),
+                                    )
+                                    .add_password("Key")
+                                    .add_input("Name")
+                                    .add_select("Secrecy", room_level)
+                                    .add_static_value("old_name", selected_room.name),
+                                    DialogType::EditRoom,
+                                ))
+                            }
                         }
                         KeyCode::Char('d') if self.selected_tab == Chategory::MyRooms => {
-                            self.dialog = Some((
-                                Dialog::new(
-                                    "DELETE Room", // Changed from "TEST"
-                                    self.config
-                                        .themes
-                                        .get(&STYLE_KEY)
-                                        .or(self.config.themes.get(&Mode::Global))
-                                        .expect("expected global theme but found none")
-                                        .clone(),
-                                ),
-                                DialogType::DeleteRoom,
-                            ))
+                            if let Some(selected_room) = self.rooms.get_selected().cloned() {
+                                self.dialog = Some((
+                                    Dialog::new(
+                                        "DELETE Room", // Changed from "TEST"
+                                        self.config
+                                            .themes
+                                            .get(&STYLE_KEY)
+                                            .or(self.config.themes.get(&Mode::Global))
+                                            .expect("expected global theme but found none")
+                                            .clone(),
+                                    )
+                                    .add_static_value("name", selected_room.name),
+                                    DialogType::DeleteRoom,
+                                ))
+                            }
                         }
                         _ => match self.selected_tab {
                             Chategory::Profile => {}
@@ -388,22 +409,16 @@ impl Component for AccountManagement {
 
                 Some((dialog, dialog_type)) => {
                     if let Some(event) = dialog.handle_event(key)?.take() {
-                        debug!("handling dialog event: {:#?}", event);
+                        debug!("handling dialog event: {} {:#?}", dialog_type, event);
                         match event {
-                            DialogEvent::Ok(data) => match dialog_type {
-                                DialogType::CreateRoom => {
-                                    return self
-                                        .handle_create_room_dialog(serde_json::from_value(data)?);
+                            DialogEvent::Ok(data) => {
+                                let dialog_type = dialog_type.clone();
+                                self.dialog = None;
+                                if let Err(e) = self.handle_dialog(data, dialog_type) {
+                                    error!("{}", e);
+                                    return Ok(Some(Action::Error(e.into())));
                                 }
-                                DialogType::EditRoom => {
-                                    return self
-                                        .handle_edit_room_dialog(serde_json::from_value(data)?);
-                                }
-                                DialogType::DeleteRoom => {
-                                    return self
-                                        .handle_delete_room_dialog(serde_json::from_value(data)?);
-                                }
-                            },
+                            }
                             DialogEvent::Cancel => {
                                 self.dialog = None;
                             }

@@ -214,6 +214,10 @@ impl<const N: usize, T: Data<N>> TableWidget<N, T> {
     pub fn get_theme(&self) -> TableColors {
         self.colors
     }
+
+    pub fn get_selected(&self) -> Option<&T> {
+        self.items.get(self.state.selected()?)
+    }
 }
 
 fn constraint_len_calculator<T: Data<N>, const N: usize>(items: &[T]) -> [u16; N] {
