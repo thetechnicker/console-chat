@@ -3,7 +3,6 @@ use crate::action::DialogEvent;
 use crate::action::Result;
 use crate::app::Mode;
 use crate::components::theme::Theme;
-use crate::components::ui_utils::ContentType;
 use crate::components::ui_utils::dialog::Dialog;
 use crate::components::ui_utils::table;
 use crate::components::ui_utils::table::TableWidget;
@@ -16,12 +15,27 @@ use ratatui::{
     style::{Color, Stylize, palette::tailwind},
     widgets::*,
 };
+use serde::Deserialize;
 use std::time::Instant;
 use strum::IntoEnumIterator;
 use strum::{Display, EnumIter, FromRepr};
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::{debug, trace};
+use tracing::debug;
 use tui_textarea::Input;
+
+#[derive(Debug)]
+enum DialogType {
+    CreateRoom,
+    EditRoom,
+    DeleteRoom,
+}
+
+#[derive(Debug, Deserialize)]
+struct CreateDialog {
+    name: String,
+    key: Option<String>,
+    secrecy: RoomLevel,
+}
 
 fn into_static(s: String) -> &'static str {
     Box::leak(s.into_boxed_str())
@@ -132,7 +146,7 @@ pub struct AccountManagement {
     user: UserPrivate,
     rooms: TableWidget<N, StaticRoomPublic>,
 
-    new_room_dialog: Option<Dialog>,
+    dialog: Option<(Dialog, DialogType)>,
     refresh_instance: Instant,
 }
 
@@ -146,7 +160,7 @@ impl AccountManagement {
             user: Default::default(),
             rooms: Default::default(),
             refresh_instance: Instant::now(),
-            new_room_dialog: Default::default(),
+            dialog: Default::default(),
         }
     }
 
@@ -194,6 +208,39 @@ impl AccountManagement {
         if let Some(action_tx) = self.command_tx.as_ref() {
             let _ = action_tx.send(action);
         }
+    }
+
+    fn handle_create_room_dialog(&mut self, data: CreateDialog) -> Result<Option<Action>> {
+        //// Extract data using labels as keys
+        //let name = match data.get("Name") {
+        //    Some(ContentType::String(s)) => s.clone(),
+        //    _ => {
+        //        // Handle missing or wrong type
+        //        self.dialog = None;
+        //        return Ok(None);
+        //    }
+        //};
+
+        //let key = match data.get("Key") {
+        //    Some(ContentType::String(s)) if !s.is_empty() => Some(s.clone()),
+        //    Some(ContentType::None) | None => None,
+        //    _ => None,
+        //};
+
+        //let level = match data.get("Secrecy") {
+        //    Some(ContentType::Index(idx)) => RoomLevel::from_repr(*idx).unwrap_or(RoomLevel::Free),
+        //    _ => RoomLevel::Free, // default fallback
+        //};
+
+        //// Now trigger the room creation action
+        //self.dialog = None;
+        return Ok(Some(Action::CreateRoom(data.name, data.key, data.secrecy)));
+    }
+    fn handle_edit_room_dialog(&mut self, _data: CreateDialog) -> Result<Option<Action>> {
+        return Ok(None);
+    }
+    fn handle_delete_room_dialog(&mut self, _data: CreateDialog) -> Result<Option<Action>> {
+        return Ok(None);
     }
 }
 
@@ -264,7 +311,7 @@ impl Component for AccountManagement {
     }
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<Option<Action>> {
         if self.active {
-            match self.new_room_dialog.as_mut() {
+            match self.dialog.as_mut() {
                 None => {
                     let input: Input = key.into();
                     match key.code {
@@ -284,7 +331,7 @@ impl Component for AccountManagement {
                         }
                         KeyCode::Char('n') if self.selected_tab == Chategory::MyRooms => {
                             let room_level: Vec<_> = RoomLevel::iter().collect();
-                            self.new_room_dialog = Some(
+                            self.dialog = Some((
                                 Dialog::new(
                                     "Create New Room", // Changed from "TEST"
                                     self.config
@@ -297,11 +344,12 @@ impl Component for AccountManagement {
                                 .add_password("Key")
                                 .add_input("Name")
                                 .add_select("Secrecy", room_level),
-                            )
+                                DialogType::CreateRoom,
+                            ))
                         }
                         KeyCode::Char('e') if self.selected_tab == Chategory::MyRooms => {
                             let room_level: Vec<_> = RoomLevel::iter().collect();
-                            self.new_room_dialog = Some(
+                            self.dialog = Some((
                                 Dialog::new(
                                     "Edit Room", // Changed from "TEST"
                                     self.config
@@ -314,17 +362,21 @@ impl Component for AccountManagement {
                                 .add_password("Key")
                                 .add_input("Name")
                                 .add_select("Secrecy", room_level),
-                            )
+                                DialogType::EditRoom,
+                            ))
                         }
                         KeyCode::Char('d') if self.selected_tab == Chategory::MyRooms => {
-                            self.new_room_dialog = Some(Dialog::new(
-                                "DELETE Room", // Changed from "TEST"
-                                self.config
-                                    .themes
-                                    .get(&STYLE_KEY)
-                                    .or(self.config.themes.get(&Mode::Global))
-                                    .expect("expected global theme but found none")
-                                    .clone(),
+                            self.dialog = Some((
+                                Dialog::new(
+                                    "DELETE Room", // Changed from "TEST"
+                                    self.config
+                                        .themes
+                                        .get(&STYLE_KEY)
+                                        .or(self.config.themes.get(&Mode::Global))
+                                        .expect("expected global theme but found none")
+                                        .clone(),
+                                ),
+                                DialogType::DeleteRoom,
                             ))
                         }
                         _ => match self.selected_tab {
@@ -334,48 +386,26 @@ impl Component for AccountManagement {
                     }
                 }
 
-                Some(dialog) => {
+                Some((dialog, dialog_type)) => {
                     if let Some(event) = dialog.handle_event(key)?.take() {
                         debug!("handling dialog event: {:#?}", event);
                         match event {
-                            DialogEvent::Ok(data) => {
-                                trace!("Why arent you send out");
-                                // Extract data using labels as keys
-                                let name = match data.get("Name") {
-                                    Some(ContentType::String(s)) => s.clone(),
-                                    _ => {
-                                        // Handle missing or wrong type
-                                        self.new_room_dialog = None;
-                                        return Ok(None);
-                                    }
-                                };
-
-                                trace!("Why arent you send out");
-
-                                let key = match data.get("Key") {
-                                    Some(ContentType::String(s)) if !s.is_empty() => {
-                                        Some(s.clone())
-                                    }
-                                    Some(ContentType::None) | None => None,
-                                    _ => None,
-                                };
-
-                                trace!("Why arent you send out");
-                                let level = match data.get("Secrecy") {
-                                    Some(ContentType::Index(idx)) => {
-                                        RoomLevel::from_repr(*idx).unwrap_or(RoomLevel::Free)
-                                    }
-                                    _ => RoomLevel::Free, // default fallback
-                                };
-                                trace!("Why arent you send out");
-
-                                // Now trigger the room creation action
-                                self.new_room_dialog = None;
-                                trace!("Why arent you send out");
-                                return Ok(Some(Action::CreateRoom(name, key, level)));
-                            }
+                            DialogEvent::Ok(data) => match dialog_type {
+                                DialogType::CreateRoom => {
+                                    return self
+                                        .handle_create_room_dialog(serde_json::from_value(data)?);
+                                }
+                                DialogType::EditRoom => {
+                                    return self
+                                        .handle_edit_room_dialog(serde_json::from_value(data)?);
+                                }
+                                DialogType::DeleteRoom => {
+                                    return self
+                                        .handle_delete_room_dialog(serde_json::from_value(data)?);
+                                }
+                            },
                             DialogEvent::Cancel => {
-                                self.new_room_dialog = None;
+                                self.dialog = None;
                             }
                             DialogEvent::Insert => return Ok(Some(Action::Insert)),
                             DialogEvent::Normal => return Ok(Some(Action::Normal)),
@@ -394,8 +424,8 @@ impl Component for AccountManagement {
             let buf = frame.buffer_mut();
             self.render(center, buf);
 
-            if let Some(dialog) = self.new_room_dialog.as_ref() {
-                dialog.render(area, buf);
+            if let Some(dialog) = self.dialog.as_ref() {
+                dialog.0.render(area, buf);
             }
         }
 

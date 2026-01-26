@@ -1,9 +1,9 @@
-use crate::components::ui_utils::ContentType;
+//use crate::components::ui_utils::ContentType;
 use crate::network::models::Message;
 use console_chat_proc_macro::Subsetable;
 use openapi::models::*;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+//use std::collections::HashMap;
 use std::sync::Arc;
 use strum::Display;
 
@@ -26,7 +26,7 @@ pub(crate) use crate::error::{AppError, Result};
             "RequestMe"
         ],
         "DialogEvent"=[
-            "Ok(HashMap<String, ContentType>)",
+            "Ok(serde_json::Value)",
             "Cancel"
         ]
     },

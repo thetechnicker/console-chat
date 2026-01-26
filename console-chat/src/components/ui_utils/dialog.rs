@@ -3,7 +3,6 @@ use crate::action::ButtonEvent;
 use crate::action::DialogEvent;
 use crate::action::SelectionEvent;
 use crate::action::VimEvent;
-use crate::components::ui_utils::ContentType;
 use crate::components::ui_utils::EventWidget;
 use crate::components::ui_utils::button::Button;
 use crate::components::ui_utils::button::ButtonState;
@@ -16,7 +15,7 @@ use crate::error::Result;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::widgets::{Paragraph, Widget};
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 
 #[derive(Debug)]
 pub struct Dialog {
@@ -83,7 +82,7 @@ impl Dialog {
     pub fn add_select<'a, I, T>(mut self, label: &str, options: I) -> Dialog
     where
         I: IntoIterator<Item = T>,
-        T: std::fmt::Debug + std::fmt::Display + Clone + 'static,
+        T: std::fmt::Debug + std::fmt::Display + Clone + 'static + serde::Serialize,
     {
         let select = SelectWidget::new(label, options, self.theme.select);
         self.add_input_inner(Box::new(select), label.to_string(), false);
@@ -179,12 +178,14 @@ impl Dialog {
         Ok(None)
     }
 
-    pub fn get_data(&self) -> HashMap<String, ContentType> {
-        self.labels
-            .iter()
-            .zip(self.inputs.iter())
-            .map(|(label, input)| (label.clone(), input.get_content()))
-            .collect()
+    pub fn get_data(&self) -> serde_json::Value {
+        serde_json::Value::Object(serde_json::Map::from(
+            self.labels
+                .iter()
+                .zip(self.inputs.iter())
+                .map(|(label, input)| (label.to_lowercase(), input.get_content()))
+                .collect(),
+        ))
     }
 }
 

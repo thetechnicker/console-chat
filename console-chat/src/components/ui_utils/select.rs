@@ -3,7 +3,6 @@ use crate::action::Result;
 use crate::action::SelectionEvent;
 use crate::components::EventWidget;
 use crate::components::theme::SelectPalettes;
-use crate::components::ui_utils::ContentType;
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, Paragraph};
@@ -21,7 +20,7 @@ pub enum SelectState {
 #[derive(Debug)]
 pub struct SelectWidget<T>
 where
-    T: std::fmt::Display + std::fmt::Debug + Clone,
+    T: std::fmt::Display + std::fmt::Debug + Clone + serde::Serialize,
 {
     title: String,
     options: Box<[T]>,
@@ -32,7 +31,7 @@ where
 
 impl<T> SelectWidget<T>
 where
-    T: std::fmt::Display + std::fmt::Debug + Clone,
+    T: std::fmt::Display + std::fmt::Debug + Clone + serde::Serialize,
 {
     pub fn new<I>(title: impl Into<String>, options: I, theme: SelectPalettes) -> Self
     where
@@ -236,7 +235,7 @@ where
 
 impl<T> Widget for &SelectWidget<T>
 where
-    T: std::fmt::Display + std::fmt::Debug + Clone,
+    T: std::fmt::Display + std::fmt::Debug + Clone + serde::Serialize,
 {
     fn render(self, area: Rect, buf: &mut Buffer) {
         match self.state {
@@ -249,7 +248,7 @@ where
 
 impl<T> EventWidget for SelectWidget<T>
 where
-    T: std::fmt::Display + std::fmt::Debug + Clone,
+    T: std::fmt::Display + std::fmt::Debug + Clone + serde::Serialize,
 {
     fn handle_event(&mut self, key: KeyEvent) -> Result<Option<ActionSubsetWrapper>> {
         Ok(self.handle_key(key).map(|e| e.into()))
@@ -266,10 +265,14 @@ where
         self.active = false;
     }
 
-    fn get_content(&self) -> ContentType {
+    fn get_content(&self) -> serde_json::Value {
         match self.state {
-            SelectState::Selected(i) | SelectState::Selecting(i) => ContentType::Index(i),
-            SelectState::Normal => ContentType::None,
+            SelectState::Selected(i) | SelectState::Selecting(i) => self
+                .options
+                .get(i)
+                .map_or(Ok(serde_json::Value::Null), serde_json::to_value)
+                .unwrap_or(serde_json::Value::Null),
+            SelectState::Normal => serde_json::Value::Null,
         }
     }
 }

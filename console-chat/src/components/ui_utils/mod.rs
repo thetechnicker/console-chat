@@ -54,13 +54,6 @@ pub fn render_nice_bg(area: Rect, theme: PageColors, buf: &mut Buffer) -> Rect {
     Layout::vertical(CONTRAINT).split(area)[1]
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum ContentType {
-    None,
-    String(String),
-    Index(usize),
-}
-
 pub trait EventWidget: std::fmt::Debug {
     fn handle_event(&mut self, event: KeyEvent) -> Result<Option<ActionSubsetWrapper>>;
 
@@ -73,7 +66,7 @@ pub trait EventWidget: std::fmt::Debug {
     fn select(&mut self);
     fn deselect(&mut self);
 
-    fn get_content(&self) -> ContentType {
-        ContentType::None
+    fn get_content(&self) -> serde_json::Value {
+        serde_json::Value::Null
     }
 }

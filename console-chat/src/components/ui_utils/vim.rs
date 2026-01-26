@@ -1,6 +1,5 @@
 use crate::action::VimEvent;
 use crate::components::theme::ViModePalettes;
-use crate::components::ui_utils::ContentType;
 use ratatui::style::{Color, Style};
 use ratatui::widgets::{Block, Borders};
 use tui_textarea::{CursorMove, Input, Key, Scrolling, TextArea};
@@ -643,12 +642,12 @@ impl<'a> EventWidget for VimWidget<'a> {
         self.deselect()
     }
 
-    fn get_content(&self) -> ContentType {
+    fn get_content(&self) -> serde_json::Value {
         let content = self.textinput.lines().join("\n").to_string();
         if content.is_empty() {
-            ContentType::None
+            serde_json::Value::Null
         } else {
-            ContentType::String(content)
+            serde_json::Value::String(content)
         }
     }
 }
