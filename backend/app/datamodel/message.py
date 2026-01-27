@@ -3,7 +3,6 @@ from datetime import datetime
 from enum import StrEnum
 from typing import List, Literal, Optional, Union
 
-from fastapi import Body
 from pydantic import BaseModel, Field
 from sqlmodel import (
     JSON,
@@ -177,12 +176,12 @@ class StaticRoomPublic(RoomBase):
 
 
 class CreateRoom(BaseModel):
-    private_level: RoomLevel = Body()
-    invite: Optional[list[uuid.UUID | str]] = Body(None)
-    key: Optional[str] = Body(None)
+    private_level: RoomLevel
+    invite: Optional[list[uuid.UUID | str]] = None
+    key: Optional[str] = None
 
 
 class UpdateRoom(BaseModel):
-    private_level: Optional[RoomLevel] = Body(None)
-    invite: Optional[list[uuid.UUID | str]] = Body(None)
-    key: Optional[str] = Body(None)
+    private_level: Optional[RoomLevel] = None
+    invite: Optional[list[uuid.UUID | str]]
+    key: Optional[str]

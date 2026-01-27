@@ -414,9 +414,12 @@ impl Component for AccountManagement {
                             DialogEvent::Ok(data) => {
                                 let dialog_type = dialog_type.clone();
                                 self.dialog = None;
-                                if let Err(e) = self.handle_dialog(data, dialog_type) {
-                                    error!("{}", e);
-                                    return Ok(Some(Action::Error(e.into())));
+                                match self.handle_dialog(data, dialog_type) {
+                                    Ok(action) => return Ok(action),
+                                    Err(e) => {
+                                        error!("{}", e);
+                                        return Ok(Some(Action::Error(e.into())));
+                                    }
                                 }
                             }
                             DialogEvent::Cancel => {

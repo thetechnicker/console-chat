@@ -10,6 +10,7 @@ use openapi::models::CreateRoom;
 use openapi::models::LoginData;
 use openapi::models::RoomLevel;
 use openapi::models::Token;
+use openapi::models::UpdateRoom;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
@@ -138,6 +139,8 @@ impl MiscThreadData {
             NetworkEvent::SendMessage(msg) => self.send_msg(&msg).await,
             NetworkEvent::RequestMyRooms => self.request_rooms().await,
             NetworkEvent::CreateRoom(name, key, level) => self.create_room(name, key, level).await,
+            NetworkEvent::DeleteRoom(name) => self.delete_room(&name).await,
+            NetworkEvent::UpdateRoom(room, key, level) => self.update_room(&room, key, level).await,
             _ => {
                 debug!("Unhandled network event: {:?}", event);
                 Ok(())
@@ -148,6 +151,28 @@ impl MiscThreadData {
             error!("Error during network event {:?}: {}", event, err);
         }
         result
+    }
+
+    async fn update_room(
+        &self,
+        room: &str,
+        key: Option<String>,
+        level: Option<RoomLevel>,
+    ) -> Result<()> {
+        let conf = self.conf.read().await;
+        let room_update = UpdateRoom {
+            invite: Some(None),
+            key: Some(key),
+            private_level: Some(level),
+        };
+        rooms_api::rooms_update_room(&conf, room, room_update).await?;
+        Ok(())
+    }
+
+    async fn delete_room(&self, room: &str) -> Result<()> {
+        let conf = self.conf.read().await;
+        rooms_api::rooms_delete_room(&conf, room).await?;
+        Ok(())
     }
 
     async fn request_rooms(&self) -> Result<()> {

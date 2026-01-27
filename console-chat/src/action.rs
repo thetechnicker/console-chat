@@ -105,6 +105,9 @@ pub enum Action {
     CreateRoom(String, Option<String>, RoomLevel),
     #[subset("NetworkEvent")]
     #[serde(skip)]
+    UpdateRoom(String, Option<String>, Option<RoomLevel>),
+    #[subset("NetworkEvent")]
+    #[serde(skip)]
     DeleteRoom(String),
 
     // Error variant skipped in serde
