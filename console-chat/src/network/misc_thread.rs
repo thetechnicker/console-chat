@@ -161,9 +161,9 @@ impl MiscThreadData {
     ) -> Result<()> {
         let conf = self.conf.read().await;
         let room_update = UpdateRoom {
-            invite: Some(None),
-            key: Some(key),
-            private_level: Some(level),
+            invite: None,
+            key: key,
+            private_level: level,
         };
         rooms_api::rooms_update_room(&conf, room, room_update).await?;
         Ok(())
@@ -260,7 +260,7 @@ impl MiscThreadData {
         match level {
             RoomLevel::Key | RoomLevel::InviteAndKey => {
                 if let Some(k) = key {
-                    create_room_data.key = Some(Some(k));
+                    create_room_data.key = Some(k);
                 }
             }
             _ => {

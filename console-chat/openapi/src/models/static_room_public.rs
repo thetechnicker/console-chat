@@ -18,7 +18,7 @@ pub struct StaticRoomPublic {
     pub name: String,
     // , deserialize_with = "Option::deserialize"
     #[serde(rename = "key")]
-    pub key: String,
+    pub key: Option<String>,
     //
     #[serde(rename = "id")]
     pub id: i32,
@@ -36,7 +36,7 @@ pub struct StaticRoomPublic {
 impl StaticRoomPublic {
     pub fn new(
         name: String,
-        key: String,
+        key: Option<String>,
         id: i32,
         owner: models::UserPublic,
         users: Vec<models::UserPublic>,

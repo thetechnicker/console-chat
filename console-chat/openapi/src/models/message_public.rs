@@ -27,14 +27,14 @@ pub struct MessagePublic {
     pub data: Option<serde_json::Value>,
     // , deserialize_with = "Option::deserialize"
     #[serde(rename = "sender")]
-    pub sender: models::UserPublic,
+    pub sender: Option<models::UserPublic>,
 }
 
 impl MessagePublic {
     pub fn new(
         r#type: models::MessageType,
         send_at: String,
-        sender: models::UserPublic,
+        sender: Option<models::UserPublic>,
     ) -> MessagePublic {
         MessagePublic {
             r#type,

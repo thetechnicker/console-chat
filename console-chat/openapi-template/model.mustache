@@ -96,7 +96,17 @@ pub enum {{{classname}}} {
         /// {{{.}}}
         {{/description}}
         #[serde(rename = "{{{baseName}}}"{{^required}}, skip_serializing_if = "Option::is_none"{{/required}})]
-        {{{name}}}: {{^required}}Option<{{/required}}{{#isEnum}}{{{enumName}}}{{/isEnum}}{{^isEnum}}{{#isModel}}{{^avoidBoxedModels}}Box<{{/avoidBoxedModels}}{{{dataType}}}{{^avoidBoxedModels}}>{{/avoidBoxedModels}}{{/isModel}}{{^isModel}}{{{dataType}}}{{/isModel}}{{/isEnum}}{{^required}}>{{/required}},
+        {{{name}}}:
+
+        {{#required}}{{#isNullable}}Option<{{/isNullable}}{{/required}}
+        {{^required}}{{#isNullable}}Option<{{/isNullable}}{{/required}}
+        {{^required}}{{^isNullable}}Option<{{/isNullable}}{{/required}}
+
+        {{#isEnum}}{{{enumName}}}{{/isEnum}}{{^isEnum}}{{#isModel}}{{^avoidBoxedModels}}Box<{{/avoidBoxedModels}}{{{dataType}}}{{^avoidBoxedModels}}>{{/avoidBoxedModels}}{{/isModel}}{{^isModel}}{{{dataType}}}{{/isModel}}{{/isEnum}}
+
+        {{#required}}{{#isNullable}}>{{/isNullable}}{{/required}}
+        {{^required}}{{#isNullable}}>{{/isNullable}}{{/required}}
+        {{^required}}{{^isNullable}}>{{/isNullable}}{{/required}}
     {{/vars}}
     },
     {{/mappedModels}}
@@ -143,7 +153,11 @@ pub struct {{{classname}}} {
     #[serde(rename = "{{{baseName}}}"{{^required}}, skip_serializing_if = "Option::is_none"{{/required}})]
     pub {{{name}}}: {{!
     ### Option Start
-    }}{{^required}}Option<{{/required}}{{!
+    }}
+        {{#required}}{{#isNullable}}Option<{{/isNullable}}{{/required}}
+        {{^required}}{{#isNullable}}Option<{{/isNullable}}{{/required}}
+        {{^required}}{{^isNullable}}Option<{{/isNullable}}{{/required}}
+{{!
     ### Enums
     }}{{#isEnum}}{{#isArray}}{{#uniqueItems}}std::collections::HashSet<{{/uniqueItems}}{{^uniqueItems}}Vec<{{/uniqueItems}}{{/isArray}}{{{enumName}}}{{#isArray}}>{{/isArray}}{{/isEnum}}{{!
     ### Non-Enums Start
@@ -155,7 +169,11 @@ pub struct {{{classname}}} {
     ### Non-Enums End
     }}{{/isEnum}}{{!
     ### Option End (and trailing comma)
-    }}{{^required}}>{{/required}},
+    }}
+        {{#required}}{{#isNullable}}>{{/isNullable}}{{/required}}
+        {{^required}}{{#isNullable}}>{{/isNullable}}{{/required}}
+        {{^required}}{{^isNullable}}>{{/isNullable}}{{/required}}
+,
 {{/vars}}
 }
 
@@ -163,11 +181,21 @@ impl {{{classname}}} {
     {{#description}}
     /// {{{.}}}
     {{/description}}
-    pub fn new({{#requiredVars}}{{{name}}}: {{!
+    pub fn new({{#requiredVars}}{{{name}}}:
+
+        {{#required}}{{#isNullable}}Option<{{/isNullable}}{{/required}}
+        {{^required}}{{#isNullable}}Option<{{/isNullable}}{{/required}}
+        {{^required}}{{^isNullable}}Option<{{/isNullable}}{{/required}}
+    {{!
     ### Enums
     }}{{#isEnum}}{{#isArray}}{{#uniqueItems}}std::collections::HashSet<{{/uniqueItems}}{{^uniqueItems}}Vec<{{/uniqueItems}}{{/isArray}}{{{enumName}}}{{#isArray}}>{{/isArray}}{{/isEnum}}{{!
     ### Non-Enums
-    }}{{^isEnum}}{{#isByteArray}}Vec<u8>{{/isByteArray}}{{^isByteArray}}{{{dataType}}}{{/isByteArray}}{{/isEnum}}{{!
+    }}{{^isEnum}}{{#isByteArray}}Vec<u8>{{/isByteArray}}{{^isByteArray}}{{{dataType}}}{{/isByteArray}}{{/isEnum}}
+
+        {{#required}}{{#isNullable}}>{{/isNullable}}{{/required}}
+        {{^required}}{{#isNullable}}>{{/isNullable}}{{/required}}
+        {{^required}}{{^isNullable}}>{{/isNullable}}{{/required}}
+    {{!
     ### Comma for next arguement
     }}{{^-last}}, {{/-last}}{{/requiredVars}}) -> {{{classname}}} {
         {{{classname}}} {

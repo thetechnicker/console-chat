@@ -42,3 +42,4 @@ impl std::fmt::Display for RoomLevel {
         }
     }
 }
+
