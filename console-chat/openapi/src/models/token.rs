@@ -13,8 +13,10 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Token {
+    //
     #[serde(rename = "token")]
     pub token: String,
+    //
     #[serde(rename = "ttl")]
     pub ttl: i32,
 }

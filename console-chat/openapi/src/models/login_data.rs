@@ -13,8 +13,10 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LoginData {
+    //
     #[serde(rename = "username")]
     pub username: String,
+    //
     #[serde(rename = "password")]
     pub password: String,
 }

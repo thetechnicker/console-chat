@@ -13,12 +13,16 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UserPrivate {
+    //
     #[serde(rename = "username")]
     pub username: String,
+    //
     #[serde(rename = "user_type")]
     pub user_type: models::UserType,
+    //
     #[serde(rename = "appearance")]
     pub appearance: models::AppearancePublic,
+    //
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
 }

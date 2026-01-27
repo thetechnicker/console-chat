@@ -13,19 +13,18 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MessageSend {
+    //
     #[serde(rename = "type")]
     pub r#type: models::MessageType,
+    //
     #[serde(rename = "content", skip_serializing_if = "Option::is_none")]
     pub content: Option<models::Content>,
+    //
     #[serde(rename = "send_at")]
     pub send_at: String,
-    #[serde(
-        rename = "data",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub data: Option<Option<serde_json::Value>>,
+    //
+    #[serde(rename = "data", skip_serializing_if = "Option::is_none")]
+    pub data: Option<serde_json::Value>,
 }
 
 impl MessageSend {

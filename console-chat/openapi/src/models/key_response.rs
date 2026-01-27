@@ -13,14 +13,19 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct KeyResponse {
+    //
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub r#type: Option<Type>,
+    //
     #[serde(rename = "encrypted_symmetric_key")]
     pub encrypted_symmetric_key: String,
+    //
     #[serde(rename = "check_msg")]
     pub check_msg: String,
+    //
     #[serde(rename = "sender_public_key")]
     pub sender_public_key: String,
+    //
     #[serde(rename = "nonce")]
     pub nonce: String,
 }

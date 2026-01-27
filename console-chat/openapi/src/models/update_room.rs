@@ -13,27 +13,15 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UpdateRoom {
-    #[serde(
-        rename = "private_level",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub private_level: Option<Option<models::RoomLevel>>,
-    #[serde(
-        rename = "invite",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub invite: Option<Option<Vec<models::CreateRoomInviteInner>>>,
-    #[serde(
-        rename = "key",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub key: Option<Option<String>>,
+    //
+    #[serde(rename = "private_level", skip_serializing_if = "Option::is_none")]
+    pub private_level: Option<models::RoomLevel>,
+    //
+    #[serde(rename = "invite", skip_serializing_if = "Option::is_none")]
+    pub invite: Option<Vec<models::CreateRoomInviteInner>>,
+    //
+    #[serde(rename = "key", skip_serializing_if = "Option::is_none")]
+    pub key: Option<String>,
 }
 
 impl UpdateRoom {

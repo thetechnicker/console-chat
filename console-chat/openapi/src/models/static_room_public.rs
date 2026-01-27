@@ -13,16 +13,22 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct StaticRoomPublic {
+    //
     #[serde(rename = "name")]
     pub name: String,
-    #[serde(rename = "key", deserialize_with = "Option::deserialize")]
-    pub key: Option<String>,
+    // , deserialize_with = "Option::deserialize"
+    #[serde(rename = "key")]
+    pub key: String,
+    //
     #[serde(rename = "id")]
     pub id: i32,
+    //
     #[serde(rename = "owner")]
     pub owner: models::UserPublic,
+    //
     #[serde(rename = "users")]
     pub users: Vec<models::UserPublic>,
+    //
     #[serde(rename = "level")]
     pub level: models::RoomLevel,
 }
@@ -30,7 +36,7 @@ pub struct StaticRoomPublic {
 impl StaticRoomPublic {
     pub fn new(
         name: String,
-        key: Option<String>,
+        key: String,
         id: i32,
         owner: models::UserPublic,
         users: Vec<models::UserPublic>,

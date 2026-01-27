@@ -11,16 +11,21 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
+use strum::{Display, EnumIter};
 #[derive(
-    Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize, Default,
-)]
+    Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize, EnumIter,
+)] //, Display)]
+#[derive(Default)]
 pub enum UserType {
     #[serde(rename = "GUEST")]
+    #[strum(to_string = "GUEST")]
     #[default]
     Guest,
     #[serde(rename = "PERMANENT")]
+    #[strum(to_string = "PERMANENT")]
     Permanent,
     #[serde(rename = "SYSTEM")]
+    #[strum(to_string = "SYSTEM")]
     System,
 }
 

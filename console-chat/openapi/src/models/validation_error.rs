@@ -13,10 +13,13 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ValidationError {
+    //
     #[serde(rename = "loc")]
     pub loc: Vec<models::ValidationErrorLocInner>,
+    //
     #[serde(rename = "msg")]
     pub msg: String,
+    //
     #[serde(rename = "type")]
     pub r#type: String,
 }

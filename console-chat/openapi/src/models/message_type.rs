@@ -11,24 +11,33 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
+use strum::{Display, EnumIter};
 #[derive(
-    Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize, Default,
-)]
+    Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize, EnumIter,
+)] //, Display)]
+#[derive(Default)]
 pub enum MessageType {
     #[serde(rename = "ENCRYPTED")]
+    #[strum(to_string = "ENCRYPTED")]
     #[default]
     Encrypted,
     #[serde(rename = "PLAINTEXT")]
+    #[strum(to_string = "PLAINTEXT")]
     Plaintext,
     #[serde(rename = "KEY_REQUEST")]
+    #[strum(to_string = "KEY_REQUEST")]
     KeyRequest,
     #[serde(rename = "KEY_RESPONSE")]
+    #[strum(to_string = "KEY_RESPONSE")]
     KeyResponse,
     #[serde(rename = "SYSTEM")]
+    #[strum(to_string = "SYSTEM")]
     System,
     #[serde(rename = "JOIN")]
+    #[strum(to_string = "JOIN")]
     Join,
     #[serde(rename = "LEAVE")]
+    #[strum(to_string = "LEAVE")]
     Leave,
 }
 

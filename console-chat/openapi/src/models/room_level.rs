@@ -10,32 +10,25 @@
 
 use crate::models;
 use serde::{Deserialize, Serialize};
-use strum::{EnumIter, FromRepr};
 
+use strum::{Display, EnumIter};
 #[derive(
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    PartialEq,
-    Ord,
-    PartialOrd,
-    Hash,
-    Serialize,
-    Deserialize,
-    Default,
-    EnumIter,
-    FromRepr,
-)]
+    Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize, EnumIter,
+)] //, Display)]
+#[derive(Default)]
 pub enum RoomLevel {
     #[serde(rename = "FREE")]
+    #[strum(to_string = "FREE")]
     #[default]
     Free,
     #[serde(rename = "KEY")]
+    #[strum(to_string = "KEY")]
     Key,
     #[serde(rename = "INVITE-ONLY")]
+    #[strum(to_string = "INVITE-ONLY")]
     InviteOnly,
     #[serde(rename = "INVITE-AND-KEY")]
+    #[strum(to_string = "INVITE-AND-KEY")]
     InviteAndKey,
 }
 
