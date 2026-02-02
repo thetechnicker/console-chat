@@ -22,5 +22,6 @@
 # Then explicitly reverse the ignore rule for a single file:
 #!docs/README.md
 #src/apis/experimental_api.rs
-src/apis/*
+src/apis/sse_api.rs
+src/apis/mod.rs
 Cargo.toml

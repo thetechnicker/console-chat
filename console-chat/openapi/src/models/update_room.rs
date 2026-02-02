@@ -16,20 +16,23 @@ pub struct UpdateRoom {
     //
     #[serde(rename = "private_level", skip_serializing_if = "Option::is_none")]
     pub private_level: Option<models::RoomLevel>,
-    //
-    #[serde(rename = "invite", skip_serializing_if = "Option::is_none")]
+    // , deserialize_with = "Option::deserialize"
+    #[serde(rename = "invite")]
     pub invite: Option<Vec<models::CreateRoomInviteInner>>,
-    //
-    #[serde(rename = "key", skip_serializing_if = "Option::is_none")]
+    // , deserialize_with = "Option::deserialize"
+    #[serde(rename = "key")]
     pub key: Option<String>,
 }
 
 impl UpdateRoom {
-    pub fn new() -> UpdateRoom {
+    pub fn new(
+        invite: Option<Vec<models::CreateRoomInviteInner>>,
+        key: Option<String>,
+    ) -> UpdateRoom {
         UpdateRoom {
             private_level: None,
-            invite: None,
-            key: None,
+            invite,
+            key,
         }
     }
 }

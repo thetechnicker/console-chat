@@ -19,6 +19,7 @@ docs/OnlineResponse.md
 docs/Plaintext.md
 docs/RoomLevel.md
 docs/RoomsApi.md
+docs/SseApi.md
 docs/StaticRoomPublic.md
 docs/SystemMessage.md
 docs/Token.md
@@ -30,6 +31,10 @@ docs/UsersApi.md
 docs/ValidationError.md
 docs/ValidationErrorLocInner.md
 git_push.sh
+src/apis/configuration.rs
+src/apis/default_api.rs
+src/apis/sse_api.rs
+src/apis/users_api.rs
 src/lib.rs
 src/models/appearance_public.rs
 src/models/content.rs

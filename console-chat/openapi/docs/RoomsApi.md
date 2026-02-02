@@ -6,6 +6,7 @@ Method | HTTP request | Description
 ------------- | ------------- | -------------
 [**rooms_create_room**](RoomsApi.md#rooms_create_room) | **PUT** /rooms/{room} | Create Room
 [**rooms_delete_room**](RoomsApi.md#rooms_delete_room) | **DELETE** /rooms/{room} | Delete Room
+[**rooms_get_member_rooms**](RoomsApi.md#rooms_get_member_rooms) | **GET** /rooms/member | Get Member Rooms
 [**rooms_get_my_rooms**](RoomsApi.md#rooms_get_my_rooms) | **GET** /rooms/mine | Get My Rooms
 [**rooms_get_room**](RoomsApi.md#rooms_get_room) | **GET** /rooms/{room} | Get Room
 [**rooms_list_rooms**](RoomsApi.md#rooms_list_rooms) | **GET** /rooms/ | List Rooms
@@ -66,6 +67,33 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
  (empty response body)
+
+### Authorization
+
+[HTTPBearer](../README.md#HTTPBearer)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## rooms_get_member_rooms
+
+> Vec<models::StaticRoomPublic> rooms_get_member_rooms()
+Get Member Rooms
+
+Get all rooms where user can join.  Args:     user (PermanentUserDependency): The currently authenticated permanent user.     db (DatabaseDependency): The database dependency for executing queries.  Returns:     List[StaticRoomPublic]: A list of rooms owned by the user.
+
+### Parameters
+
+This endpoint does not need any parameter.
+
+### Return type
+
+[**Vec<models::StaticRoomPublic>**](StaticRoomPublic.md)
 
 ### Authorization
 

@@ -38,4 +38,3 @@ impl std::fmt::Display for UserType {
         }
     }
 }
-
