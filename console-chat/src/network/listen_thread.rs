@@ -12,7 +12,7 @@ use alkali::symmetric::cipher::{self as symetric_cipher, Key, NONCE_LENGTH};
 use chrono::{DateTime, Utc};
 use futures_util::stream::StreamExt;
 use openapi::apis::configuration::Configuration;
-use openapi::apis::rooms_api;
+use openapi::apis::sse_api;
 use openapi::models::Content;
 use openapi::models::KeyRequest;
 use openapi::models::KeyResponse;
@@ -68,9 +68,9 @@ impl ListenThreadData {
         let mut stream = {
             let conf = self.conf.read().await;
             if self.is_static {
-                rooms_api::rooms_listen_static(&conf, &self.room).await?
+                sse_api::rooms_listen_static(&conf, &self.room).await?
             } else {
-                rooms_api::rooms_listen(&conf, &self.room).await?
+                sse_api::rooms_listen(&conf, &self.room).await?
             }
         };
         let _ = self.sender.send(Action::OpenChat);

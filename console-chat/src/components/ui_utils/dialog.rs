@@ -17,7 +17,6 @@ use ratatui::layout::Margin;
 use ratatui::layout::Offset;
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::text::Line;
-use ratatui::text::Span;
 use ratatui::widgets::Wrap;
 use ratatui::widgets::{Paragraph, Widget};
 use std::collections::HashMap;
