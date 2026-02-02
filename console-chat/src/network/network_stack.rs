@@ -135,6 +135,16 @@ impl NetworkStack {
         self.listen_thread = Some(listen_thread);
         Ok(())
     }
+
+    // TODO: load and save keys to disk
+    //
+    //fn load(&mut self) -> Result<()> {
+    //    Ok(())
+    //}
+    //fn save(&mut self) -> Result<()> {
+    //    let keys = self.keys.symetric_keys.blocking_read();
+    //    Ok(())
+    //}
 }
 
 impl Drop for NetworkStack {

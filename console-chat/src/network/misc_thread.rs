@@ -212,7 +212,7 @@ impl MiscThreadData {
     pub async fn misc_loop(mut self, cancel_token: CancellationToken) -> Result<()> {
         info!("Starting misc loop...");
         let mut token_refresh_interval = match self.token_refresh().await {
-            Ok(token) => tokio::time::interval(Duration::from_secs(token.ttl as u64)),
+            Ok(token) => tokio::time::interval(Duration::from_secs(token.ttl as u64 - 2)),
             Err(_) => tokio::time::interval(Duration::from_secs(10)),
         };
 

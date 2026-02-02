@@ -21,7 +21,7 @@ RETRY_TIMEOUT = 15000  # millisecond
 
 router = APIRouter(
     prefix="/room",
-    tags=["rooms"],
+    tags=["rooms", "sse"],
 )
 
 

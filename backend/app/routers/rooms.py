@@ -74,6 +74,30 @@ async def get_my_rooms(user: PermanentUserDependency, db: DatabaseDependency):
     return rooms
 
 
+@router.get(
+    "/member",
+    response_model=List[StaticRoomPublic],
+    status_code=200,
+    responses={**RESPONSES},
+)
+async def get_member_rooms(user: PermanentUserDependency, db: DatabaseDependency):
+    """
+    Get all rooms where user can join.
+
+    Args:
+        user (PermanentUserDependency): The currently authenticated permanent user.
+        db (DatabaseDependency): The database dependency for executing queries.
+
+    Returns:
+        List[StaticRoomPublic]: A list of rooms owned by the user.
+    """
+    logger.debug(f"Getting rooms for user: {user.username}")
+    stmt = select(StaticRoom).where(user in col(StaticRoom.users))
+    rooms = db.psql_session.exec(stmt).all()
+    logger.debug(f"User {user.username} owns {len(rooms)} rooms")
+    return rooms
+
+
 def generate_random_string(length: int = 8):
     """Generate a random string of fixed length."""
     letters = string.ascii_letters + string.digits

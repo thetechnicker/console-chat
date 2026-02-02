@@ -69,6 +69,17 @@ impl<const N: usize, T: Data<N>> TableWidget<N, T> {
             items: data,
         }
     }
+
+    pub fn new_data(&mut self, data: Vec<T>) {
+        self.longest_item_lens = constraint_len_calculator(&data);
+        self.scroll_state = ScrollbarState::new(if data.len() > 0 {
+            (data.len() - 1) * ITEM_HEIGHT
+        } else {
+            0
+        });
+        self.items = data;
+    }
+
     pub fn next_row(&mut self) {
         let i = match self.state.selected() {
             Some(i) => {

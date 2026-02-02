@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use std::{
     io::{Stdout, stdout},
     ops::{Deref, DerefMut},
@@ -48,6 +49,7 @@ pub struct Tui {
     pub event_tx: UnboundedSender<Event>,
     pub frame_rate: f64,
     pub tick_rate: f64,
+    pub dynamic_frame_rate: bool,
     pub mouse: bool,
     pub paste: bool,
 }
@@ -63,9 +65,15 @@ impl Tui {
             event_tx,
             frame_rate: 60.0,
             tick_rate: 4.0,
+            dynamic_frame_rate: false,
             mouse: false,
             paste: false,
         })
+    }
+
+    pub fn dynamic_frame_rate(mut self, dynamic_frame_rate: bool) -> Self {
+        self.dynamic_frame_rate = dynamic_frame_rate;
+        self
     }
 
     pub fn tick_rate(mut self, tick_rate: f64) -> Self {
@@ -96,6 +104,7 @@ impl Tui {
             self.cancellation_token.clone(),
             self.tick_rate,
             self.frame_rate,
+            self.dynamic_frame_rate,
         );
         self.task = tokio::spawn(async {
             event_loop.await;
@@ -107,10 +116,17 @@ impl Tui {
         cancellation_token: CancellationToken,
         tick_rate: f64,
         frame_rate: f64,
+        dynamic_frame_rate: bool,
     ) {
+        // TODO: implement framerate adjustments
+        let _ = dynamic_frame_rate;
         let mut event_stream = EventStream::new();
-        let mut tick_interval = interval(Duration::from_secs_f64(1.0 / tick_rate));
-        let mut render_interval = interval(Duration::from_secs_f64(1.0 / frame_rate));
+        let mut tick_interval = interval(Duration::from_secs_f64(
+            f64::MIN_POSITIVE.max(1.0 / tick_rate),
+        ));
+        let mut render_interval = interval(Duration::from_secs_f64(
+            f64::MIN_POSITIVE.max(1.0 / frame_rate),
+        ));
 
         // if this fails, then it's likely a bug in the calling code
         event_tx

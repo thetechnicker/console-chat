@@ -271,6 +271,9 @@ where
     fn deselect(&mut self) {
         self.active = false;
     }
+    fn selected(&self) -> bool {
+        self.active
+    }
 
     fn get_content(&self) -> serde_json::Value {
         match self.state {

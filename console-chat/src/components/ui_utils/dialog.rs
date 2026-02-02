@@ -13,19 +13,45 @@ use crate::components::ui_utils::vim::VimType;
 use crate::components::ui_utils::vim::VimWidget;
 use crate::error::Result;
 use crossterm::event::{KeyCode, KeyEvent};
+use ratatui::layout::Margin;
+use ratatui::layout::Offset;
 use ratatui::layout::{Constraint, Direction, Layout};
+use ratatui::text::Line;
+use ratatui::text::Span;
+use ratatui::widgets::Wrap;
 use ratatui::widgets::{Paragraph, Widget};
 use std::collections::HashMap;
 use std::collections::VecDeque;
 
 #[derive(Debug)]
+struct WidgetContainer {
+    pub lable: String,
+    pub widget: Box<dyn EventWidget>,
+    pub list: Option<(usize, Vec<String>)>,
+}
+
+impl std::ops::Deref for WidgetContainer {
+    type Target = Box<dyn EventWidget>;
+    fn deref(&self) -> &Self::Target {
+        &self.widget
+    }
+}
+
+impl std::ops::DerefMut for WidgetContainer {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.widget
+    }
+}
+
+#[derive(Debug)]
 pub struct Dialog {
     title: String,
-    inputs: VecDeque<Box<dyn EventWidget>>,
+    inputs: VecDeque<WidgetContainer>,
     static_values: HashMap<String, serde_json::Value>,
-    labels: VecDeque<String>,
+    //labels: VecDeque<String>,
     theme: Theme,
     row: usize,
+    inside_list: bool,
     button: bool,
     ok: Button,
     cancel: Button,
@@ -38,12 +64,13 @@ impl Dialog {
             title: title.into(),
             inputs: VecDeque::new(),
             static_values: HashMap::new(),
-            labels: VecDeque::new(),
+            //labels: VecDeque::new(),
             theme,
             ok: Button::new("Ok", "", theme.buttons.accepting, ButtonEvent::Ok),
             cancel: Button::new("Cancel", "", theme.buttons.denying, ButtonEvent::Cancel),
             button: false,
             row: 0,
+            inside_list: false,
             // title + buttons + border
             size: 1 + 3 + 2,
         };
@@ -51,17 +78,36 @@ impl Dialog {
         this
     }
 
-    fn add_input_inner(&mut self, widget: Box<dyn EventWidget>, label: String, front: bool) {
+    fn add_input_inner(
+        &mut self,
+        widget: Box<dyn EventWidget>,
+        lable: String,
+        front: bool,
+        list: bool,
+    ) {
+        let widget = WidgetContainer {
+            widget,
+            lable,
+            list: list.then_some((0, Vec::new())),
+        };
         self.deselect_current_selection();
         if front {
             self.inputs.push_front(widget);
-            self.labels.push_front(label);
         } else {
             self.inputs.push_back(widget);
-            self.labels.push_back(label);
         }
         self.select_current_selection();
         self.size += 3;
+    }
+
+    pub fn add_list(mut self, label: &str) -> Self {
+        self.add_input_inner(
+            Box::new(VimWidget::new(label, VimType::SingleLine, self.theme.vi)),
+            label.to_string(),
+            true,
+            true,
+        );
+        self
     }
 
     pub fn add_input(mut self, label: &str) -> Self {
@@ -69,6 +115,7 @@ impl Dialog {
             Box::new(VimWidget::new(label, VimType::SingleLine, self.theme.vi)),
             label.to_string(),
             true,
+            false,
         );
         self
     }
@@ -78,6 +125,7 @@ impl Dialog {
             Box::new(VimWidget::new(label, VimType::SingleLine, self.theme.vi).password()),
             label.to_string(),
             true,
+            false,
         );
         self
     }
@@ -88,7 +136,7 @@ impl Dialog {
         T: std::fmt::Debug + std::fmt::Display + Clone + 'static + serde::Serialize,
     {
         let select = SelectWidget::new(label, options, self.theme.select);
-        self.add_input_inner(Box::new(select), label.to_string(), false);
+        self.add_input_inner(Box::new(select), label.to_string(), false, false);
         self
     }
 
@@ -149,15 +197,40 @@ impl Dialog {
 
     pub fn handle_event(&mut self, key: KeyEvent) -> Result<Option<DialogEvent>> {
         if self.row < self.inputs.len() {
-            if let Some(event) = self.inputs[self.row].handle_event(key)? {
+            let item = &mut self.inputs[self.row];
+            if let Some((index, _)) = item.list.as_mut()
+                && item.widget.selected()
+            {
+                match key.code {
+                    KeyCode::Char('h') | KeyCode::Char('l') => {
+                        self.inside_list = !self.inside_list;
+                    }
+                    _ => {}
+                }
+
+                if self.inside_list {
+                    match key.code {
+                        KeyCode::Char('j') => *index = index.saturating_sub(1),
+                        KeyCode::Char('k') => *index = index.saturating_add(1),
+                        _ => {}
+                    }
+                    return Ok(None);
+                }
+            }
+            if let Some(event) = item.handle_event(key)? {
                 match event {
                     ActionSubsetWrapper::VimEvent(vim_event) => match vim_event {
                         VimEvent::Down => self.down(),
                         VimEvent::Up => self.up(),
-                        VimEvent::Enter(_) => {
-                            self.down();
-                            return Ok(Some(DialogEvent::Normal));
-                        }
+                        VimEvent::Enter(content) => match item.list.as_mut() {
+                            Some((_, list)) => {
+                                list.push(content);
+                            }
+                            None => {
+                                self.down();
+                                return Ok(Some(DialogEvent::Normal));
+                            }
+                        },
                         VimEvent::Insert => return Ok(Some(DialogEvent::Insert)),
                         VimEvent::Normal => return Ok(Some(DialogEvent::Normal)),
                         _ => {}
@@ -194,10 +267,9 @@ impl Dialog {
 
     pub fn get_data(&self) -> serde_json::Value {
         serde_json::Value::Object(serde_json::Map::from(
-            self.labels
+            self.inputs
                 .iter()
-                .zip(self.inputs.iter())
-                .map(|(label, input)| (label.to_lowercase(), input.get_content()))
+                .map(|widget| (widget.lable.to_lowercase(), widget.widget.get_content()))
                 .chain(
                     self.static_values
                         .iter()
@@ -216,6 +288,12 @@ impl Widget for &Dialog {
             Constraint::Fill(1),
         ])
         .split(area)[1];
+        let list_container = inner_horizontal
+            .offset(Offset {
+                x: inner_horizontal.x as i32,
+                y: 0,
+            })
+            .inner(Margin::new(2, 2));
 
         let inner_vertical = Layout::vertical([
             Constraint::Fill(1),
@@ -261,6 +339,16 @@ impl Widget for &Dialog {
         // Render each input widget
         for (i, input) in self.inputs.iter().enumerate() {
             input.draw(chunks[i + 1], buf);
+            if i == self.row {
+                if let Some((i, list)) = input.list.as_ref() {
+                    let inner = render_nice_bg(list_container, self.theme.page, buf);
+                    let lines: Vec<_> = list.iter().map(|l| Line::from(l.as_str())).collect();
+                    Paragraph::new(lines)
+                        .wrap(Wrap { trim: false })
+                        .scroll((0, *i as u16))
+                        .render(inner, buf);
+                }
+            }
         }
     }
 }

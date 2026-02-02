@@ -36,13 +36,14 @@ struct CreateRoomDialog {
     pub key: Option<String>,
     pub secrecy: RoomLevel,
 }
+
 #[derive(Debug, Deserialize)]
 struct UpdateRoomDialog {
     pub name: String,
-    pub old_name: String,
     pub key: Option<String>,
     pub secrecy: RoomLevel,
 }
+
 #[derive(Debug, Deserialize)]
 struct DeleteRoomDialog {
     pub name: String,
@@ -52,10 +53,10 @@ fn into_static(s: String) -> &'static str {
     Box::leak(s.into_boxed_str())
 }
 
-const N: usize = 4;
+const N: usize = 5;
 impl table::Data<N> for StaticRoomPublic {
     fn get_headers() -> [&'static str; N] {
-        ["Name", "Owner", "Security Level", "Users"]
+        ["Name", "Owner", "Security Level", "Key", "Users"]
     }
 
     fn ref_array(&self) -> [&str; N] {
@@ -63,6 +64,11 @@ impl table::Data<N> for StaticRoomPublic {
             &self.name,
             &self.owner.username,
             into_static(format!("{}", self.level)),
+            into_static(
+                self.key
+                    .clone()
+                    .map_or("-".to_owned(), |k| format!("{}", k)),
+            ),
             into_static(
                 self.users
                     .iter()
@@ -308,9 +314,7 @@ impl Component for AccountManagement {
         match action {
             Action::OpenStaticRoomManagement => self.active = true,
             Action::Me(user) => self.user = user,
-            Action::MyRooms(rooms) => {
-                self.rooms = TableWidget::new(rooms.to_vec(), self.rooms.get_theme())
-            }
+            Action::MyRooms(rooms) => self.rooms.new_data(rooms.to_vec()),
             Action::Tick => {
                 if self.active && self.refresh_instance.elapsed().as_secs_f32() > 10f32 {
                     self.send(Action::RequestMyRooms);
@@ -358,6 +362,7 @@ impl Component for AccountManagement {
                                 )
                                 .add_password("Key")
                                 .add_input("Name")
+                                .add_list("Invite")
                                 .add_select("Secrecy", room_level),
                                 DialogType::CreateRoom,
                             ))
@@ -376,9 +381,8 @@ impl Component for AccountManagement {
                                             .clone(),
                                     )
                                     .add_password("Key")
-                                    .add_input("Name")
                                     .add_select("Secrecy", room_level)
-                                    .add_static_value("old_name", selected_room.name),
+                                    .add_static_value("Name", selected_room.name),
                                     DialogType::EditRoom,
                                 ))
                             }
@@ -395,7 +399,7 @@ impl Component for AccountManagement {
                                             .expect("expected global theme but found none")
                                             .clone(),
                                     )
-                                    .add_static_value("name", selected_room.name),
+                                    .add_static_value("Name", selected_room.name),
                                     DialogType::DeleteRoom,
                                 ))
                             }

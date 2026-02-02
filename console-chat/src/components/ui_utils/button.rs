@@ -118,6 +118,9 @@ impl EventWidget for Button {
     fn deselect(&mut self) {
         self.set_state(ButtonState::Normal)
     }
+    fn selected(&self) -> bool {
+        self.state != ButtonState::Normal
+    }
     fn draw(&self, area: Rect, buf: &mut Buffer) {
         self.draw_button(area, buf);
     }

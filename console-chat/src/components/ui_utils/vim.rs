@@ -650,4 +650,8 @@ impl<'a> EventWidget for VimWidget<'a> {
             serde_json::Value::String(content)
         }
     }
+
+    fn selected(&self) -> bool {
+        self.vim.mode != VimMode::Normal
+    }
 }

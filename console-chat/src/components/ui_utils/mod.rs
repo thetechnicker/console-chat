@@ -65,6 +65,7 @@ pub trait EventWidget: std::fmt::Debug {
 
     fn select(&mut self);
     fn deselect(&mut self);
+    fn selected(&self) -> bool;
 
     fn get_content(&self) -> serde_json::Value {
         serde_json::Value::Null
