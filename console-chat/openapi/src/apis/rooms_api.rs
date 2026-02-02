@@ -10,9 +10,7 @@
 
 use super::{ContentType, Error, configuration};
 use crate::{apis::ResponseContent, models};
-use futures_util::StreamExt;
 use reqwest;
-use reqwest_eventsource::{Error as EventError, *};
 use serde::{Deserialize, Serialize, de::Error as _};
 
 /// struct for typed errors of method [`rooms_create_room`]
@@ -32,6 +30,14 @@ pub enum RoomsDeleteRoomError {
     Status401(models::ErrorModel),
     Status404(models::ErrorModel),
     Status422(models::HttpValidationError),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`rooms_get_member_rooms`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum RoomsGetMemberRoomsError {
+    Status401(models::ErrorModel),
     UnknownValue(serde_json::Value),
 }
 
@@ -216,6 +222,55 @@ pub async fn rooms_delete_room(
     }
 }
 
+/// Get all rooms where user can join.  Args:     user (PermanentUserDependency): The currently authenticated permanent user.     db (DatabaseDependency): The database dependency for executing queries.  Returns:     List[StaticRoomPublic]: A list of rooms owned by the user.
+pub async fn rooms_get_member_rooms(
+    configuration: &configuration::Configuration,
+) -> Result<Vec<models::StaticRoomPublic>, Error<RoomsGetMemberRoomsError>> {
+    let uri_str = format!("{}/rooms/member", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => Err(Error::from(serde_json::Error::custom(
+                "Received `text/plain` content type response that cannot be converted to `Vec&lt;models::StaticRoomPublic&gt;`",
+            ))),
+            ContentType::Unsupported(unknown_type) => {
+                Err(Error::from(serde_json::Error::custom(format!(
+                    "Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::StaticRoomPublic&gt;`"
+                ))))
+            }
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<RoomsGetMemberRoomsError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 /// Get all rooms owned by the current user.  Args:     user (PermanentUserDependency): The currently authenticated permanent user.     db (DatabaseDependency): The database dependency for executing queries.  Returns:     List[StaticRoomPublic]: A list of rooms owned by the user.
 pub async fn rooms_get_my_rooms(
     configuration: &configuration::Configuration,
@@ -373,7 +428,7 @@ pub async fn rooms_list_rooms(
 pub async fn rooms_listen(
     configuration: &configuration::Configuration,
     room: &str,
-) -> Result<EventSource, Error<()>> {
+) -> Result<(), Error<RoomsListenError>> {
     // add a prefix to parameters to efficiently prevent name collisions
     let p_path_room = room;
 
@@ -390,13 +445,29 @@ pub async fn rooms_listen(
     if let Some(ref token) = configuration.bearer_access_token {
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
-    req_builder.eventsource().map_err(Error::EventSourceError)
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<RoomsListenError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
 }
 
 pub async fn rooms_listen_static(
     configuration: &configuration::Configuration,
     room: &str,
-) -> Result<EventSource, Error<()>> {
+) -> Result<(), Error<RoomsListenStaticError>> {
     // add a prefix to parameters to efficiently prevent name collisions
     let p_path_room = room;
 
@@ -414,7 +485,22 @@ pub async fn rooms_listen_static(
         req_builder = req_builder.bearer_auth(token.to_owned());
     };
 
-    req_builder.eventsource().map_err(Error::EventSourceError)
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<RoomsListenStaticError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
 }
 
 pub async fn rooms_random_room(

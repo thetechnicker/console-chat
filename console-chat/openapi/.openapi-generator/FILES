@@ -33,7 +33,7 @@ docs/ValidationErrorLocInner.md
 git_push.sh
 src/apis/configuration.rs
 src/apis/default_api.rs
-src/apis/sse_api.rs
+src/apis/rooms_api.rs
 src/apis/users_api.rs
 src/lib.rs
 src/models/appearance_public.rs
