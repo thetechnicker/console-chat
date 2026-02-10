@@ -3,6 +3,7 @@ use crate::action::NetworkEvent;
 use crate::error::AppError;
 use crate::network::Keys;
 use crate::network::Result;
+use crate::network::error::{NetworkError, ToNetworkError};
 use crate::network::send_message;
 use openapi::apis::configuration::Configuration;
 use openapi::apis::rooms_api;
@@ -115,12 +116,13 @@ impl MiscThreadData {
                 debug!("New id: {:?}", token.user);
                 conf.bearer_access_token = Some(token.token.token.clone());
                 info!("Token refreshed successfully (TTL: {}s)", token.token.ttl);
-                let _ = self.sender_inner.send(NetworkEvent::RequestMe);
                 let _ = self.sender_main.send(Action::OpenHome);
+                let _ = self.sender_inner.send(NetworkEvent::RequestMe);
                 Ok(())
             }
             Err(err) => {
                 error!("Failed to get user info: {}", err);
+                let _ = self.sender_main.send(Action::OpenLogin);
                 Err(err.into())
             }
         }
@@ -177,6 +179,8 @@ impl MiscThreadData {
 
         if let Err(err) = &result {
             error!("Error during network event {:?}: {}", event, err);
+            let net_err: NetworkError = err.clone().into();
+            let _ = self.sender_main.send(Action::Error(net_err.into()));
         }
         result
     }

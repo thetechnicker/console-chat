@@ -256,13 +256,10 @@ impl App {
         if self.mode == Mode::Insert {
             self.restore_prev_mode()?;
         }
-        if self.mode != mode && self.mode == Mode::Chat {
-            let _ = self.action_tx.send(Action::Leave);
-        }
         self.hide_all();
-        if self.mode != mode && self.mode == Mode::Chat {
-            let _ = self.action_tx.send(Action::Leave);
-        }
+        //if self.mode != mode && self.mode == Mode::Chat {
+        //    let _ = self.action_tx.send(Action::Leave);
+        //}
         self.mode = mode;
         Ok(())
     }
@@ -317,6 +314,7 @@ impl App {
                 _ => {}
             }
             for component in self.components.iter_mut() {
+                //debug!("A Component is about handle the action: {action}");
                 if let Some(action) = component.update(action.clone())? {
                     self.action_tx.send(action)?
                 }

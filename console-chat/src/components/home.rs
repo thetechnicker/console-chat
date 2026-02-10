@@ -3,6 +3,7 @@ use crate::components::{button::*, render_nice_bg, theme::*};
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{prelude::*, widgets::*};
 use tokio::sync::mpsc::UnboundedSender;
+use tracing::debug;
 
 use super::Component;
 use crate::{action::Action, action::ButtonEvent, config::Config};
@@ -165,8 +166,10 @@ impl Component for Home {
     }
 
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
+        debug!("Home handle action: {action}");
         match action {
             Action::OpenHome => self.active = true,
+            //Action::Leave => self.active = true,
             Action::Tick => {
                 // add any logic here that should run on every tick
                 for button in self.get_buttons() {
