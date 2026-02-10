@@ -256,6 +256,9 @@ impl App {
         if self.mode == Mode::Insert {
             self.restore_prev_mode()?;
         }
+        if self.mode != mode && self.mode == Mode::Chat {
+            let _ = self.action_tx.send(Action::Leave);
+        }
         self.hide_all();
         if self.mode != mode && self.mode == Mode::Chat {
             let _ = self.action_tx.send(Action::Leave);
@@ -285,6 +288,7 @@ impl App {
                 Action::OpenSettings => self.set_mode(Mode::Settings)?,
                 Action::OpenLogin => self.set_mode(Mode::Login)?,
                 Action::OpenHome => self.set_mode(Mode::Home)?,
+                Action::Leave => self.set_mode(Mode::Home)?,
                 Action::OpenChat => self.set_mode(Mode::Chat)?,
                 Action::OpenStaticRoomManagement => self.set_mode(Mode::AccountManagement)?,
                 Action::Hide => self.hide_all(),

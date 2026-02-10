@@ -1,5 +1,8 @@
 //use crate::components::ui_utils::ContentType;
+use crate::network::error::NetworkError;
 use crate::network::models::Message;
+use crate::network::network_stack::ThreadManagement;
+use crate::util::TakeOnClone;
 use console_chat_proc_macro::Subsetable;
 use openapi::models::*;
 use serde::{Deserialize, Serialize};
@@ -23,7 +26,8 @@ pub(crate) use crate::error::{AppError, Result};
             "Down",
         ],
         "NetworkEvent"=[
-            "RequestMe"
+            "RequestMe",
+            "LeaveInner(TakeOnClone<ThreadManagement<Result<(), NetworkError>>>)"
         ],
         "DialogEvent"=[
             "Ok(serde_json::Value)",
@@ -68,6 +72,7 @@ pub enum Action {
     TriggerJoin,
     #[subset("ButtonEvent", "NetworkEvent")]
     JoinRandom,
+    #[subset("NetworkEvent")]
     Leave,
     SyncProfile,
     ReloadConfig,
@@ -99,7 +104,7 @@ pub enum Action {
 
     #[subset("NetworkEvent")]
     #[serde(skip)]
-    MyRooms(Arc<[StaticRoomPublic]>),
+    Rooms(Arc<[StaticRoomPublic]>, bool),
     #[subset("NetworkEvent")]
     #[serde(skip)]
     CreateRoom(String, Option<String>, RoomLevel),

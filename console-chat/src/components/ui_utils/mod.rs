@@ -1,5 +1,6 @@
 pub mod button;
 pub mod dialog;
+pub mod list;
 pub mod select;
 pub mod table;
 pub mod theme;
@@ -70,4 +71,6 @@ pub trait EventWidget: std::fmt::Debug {
     fn get_content(&self) -> serde_json::Value {
         serde_json::Value::Null
     }
+
+    fn clear(&mut self) {}
 }

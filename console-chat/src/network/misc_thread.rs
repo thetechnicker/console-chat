@@ -1,5 +1,6 @@
 use crate::action::Action;
 use crate::action::NetworkEvent;
+use crate::error::AppError;
 use crate::network::Keys;
 use crate::network::Result;
 use crate::network::send_message;
@@ -137,10 +138,37 @@ impl MiscThreadData {
             NetworkEvent::JoinRandom => self.join_random_room().await,
             NetworkEvent::RequestMe => self.request_me().await,
             NetworkEvent::SendMessage(msg) => self.send_msg(&msg).await,
-            NetworkEvent::RequestMyRooms => self.request_rooms().await,
+            NetworkEvent::RequestMyRooms => {
+                self.request_owned_rooms().await?;
+                self.request_my_rooms().await?;
+                Ok(())
+            }
             NetworkEvent::CreateRoom(name, key, level) => self.create_room(name, key, level).await,
             NetworkEvent::DeleteRoom(name) => self.delete_room(&name).await,
             NetworkEvent::UpdateRoom(room, key, level) => self.update_room(&room, key, level).await,
+            NetworkEvent::LeaveInner(listen_thread) => {
+                let listen_thread = listen_thread.take().expect("Cannot  cancel listen Thread");
+                listen_thread.cancellation_token.cancel();
+                match listen_thread.join_handle.await {
+                    Ok(Ok(())) => {
+                        // Thread completed successfully
+                    }
+                    Ok(Err(network_err)) => {
+                        // Thread returned a network error
+                        error!("Listen thread error: {}", network_err);
+                        let _ = self.sender_main.send(Action::Error(network_err.into()));
+                    }
+                    Err(join_err) => {
+                        // Thread panicked or was cancelled unexpectedly
+                        error!("Listen thread panicked: {:?}", join_err);
+                        let _ = self.sender_main.send(Action::Error(AppError::Error(format!(
+                            "Listen thread failed: {}",
+                            join_err
+                        ))));
+                    }
+                }
+                Ok(())
+            }
             _ => {
                 debug!("Unhandled network event: {:?}", event);
                 Ok(())
@@ -175,7 +203,25 @@ impl MiscThreadData {
         Ok(())
     }
 
-    async fn request_rooms(&self) -> Result<()> {
+    async fn request_my_rooms(&self) -> Result<()> {
+        info!("Fetching list of rooms for current user...");
+        let conf = self.conf.read().await;
+        match rooms_api::rooms_get_member_rooms(&conf).await {
+            Ok(rooms) => {
+                debug!("Fetched {} rooms", rooms.len());
+                let _ = self
+                    .sender_main
+                    .send(Action::Rooms(Arc::from(rooms.into_boxed_slice()), false));
+                Ok(())
+            }
+            Err(err) => {
+                error!("Failed to fetch rooms: {}", err);
+                Err(err.into())
+            }
+        }
+    }
+
+    async fn request_owned_rooms(&self) -> Result<()> {
         info!("Fetching list of rooms for current user...");
         let conf = self.conf.read().await;
         match rooms_api::rooms_get_my_rooms(&conf).await {
@@ -183,7 +229,7 @@ impl MiscThreadData {
                 debug!("Fetched {} rooms", rooms.len());
                 let _ = self
                     .sender_main
-                    .send(Action::MyRooms(Arc::from(rooms.into_boxed_slice())));
+                    .send(Action::Rooms(Arc::from(rooms.into_boxed_slice()), true));
                 Ok(())
             }
             Err(err) => {

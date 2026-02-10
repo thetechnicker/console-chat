@@ -50,10 +50,17 @@ impl Deref for TypeErasedWrapper {
     }
 }
 
+mod take_on_clone;
+pub use take_on_clone::TakeOnClone;
+
 #[cfg(test)]
+#[allow(dead_code)]
 mod test {
     use super::*;
     use color_eyre::Result;
+
+    fn is_sync<T: Sync>() {}
+    fn is_send<T: Send>() {}
 
     #[test]
     fn test_type_erased_wrapper() -> Result<()> {

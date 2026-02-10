@@ -6,6 +6,7 @@ use crate::action::NetworkEvent;
 use crate::cli::Cli;
 use crate::config::Config;
 use crate::network::Result;
+use crate::util::TakeOnClone;
 use openapi::apis::configuration::Configuration;
 use openapi::models::UserPrivate;
 use reqwest::Certificate;
@@ -23,6 +24,11 @@ use tracing::debug;
 pub struct ThreadManagement<T> {
     pub join_handle: JoinHandle<T>,
     pub cancellation_token: CancellationToken,
+}
+impl<T> PartialEq for ThreadManagement<T> {
+    fn eq(&self, _: &Self) -> bool {
+        false
+    }
 }
 
 #[derive(Debug)]
@@ -105,6 +111,13 @@ impl NetworkStack {
             match network_event {
                 NetworkEvent::PerformJoin(room, is_static) => self.join(room, is_static)?,
                 NetworkEvent::Me(me) => self.me = Some(me),
+                NetworkEvent::Leave => {
+                    if let Some(listen_thread) = self.listen_thread.take() {
+                        let _ = self
+                            .sender_inner
+                            .send(NetworkEvent::LeaveInner(TakeOnClone::new(listen_thread)));
+                    }
+                }
                 _ => {
                     let _ = self.sender_inner.send(network_event);
                 }
@@ -155,5 +168,21 @@ impl Drop for NetworkStack {
             listen_thread.cancellation_token.cancel();
             listen_thread.join_handle.abort();
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[allow(dead_code)]
+    fn test_attributes<T: Send + Sync>() {
+        fn is_send<T: Send>() {}
+        fn is_sync<T: Sync>() {}
+        fn is_send_sync<T: Send + Sync>() {}
+
+        is_send::<ThreadManagement<T>>();
+        is_sync::<ThreadManagement<T>>();
+        is_send_sync::<ThreadManagement<T>>();
     }
 }

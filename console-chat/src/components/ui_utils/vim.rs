@@ -654,4 +654,13 @@ impl<'a> EventWidget for VimWidget<'a> {
     fn selected(&self) -> bool {
         self.vim.mode != VimMode::Normal
     }
+
+    fn clear(&mut self) {
+        self.textinput = TextArea::default();
+        if self.selected() {
+            self.select();
+        } else {
+            self.deselect();
+        }
+    }
 }

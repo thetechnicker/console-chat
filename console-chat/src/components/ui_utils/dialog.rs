@@ -198,23 +198,21 @@ impl Dialog {
         if self.row < self.inputs.len() {
             let item = &mut self.inputs[self.row];
             if let Some((index, _)) = item.list.as_mut()
-                && item.widget.selected()
+                && self.inside_list
             {
+                //match key.code {
+                //    KeyCode::Char('h') | KeyCode::Char('l') => {
+                //        self.inside_list = !self.inside_list;
+                //    }
+                //    _ => {}
+                //}
+
                 match key.code {
-                    KeyCode::Char('h') | KeyCode::Char('l') => {
-                        self.inside_list = !self.inside_list;
-                    }
+                    KeyCode::Char('j') => *index = index.saturating_sub(1),
+                    KeyCode::Char('k') => *index = index.saturating_add(1),
                     _ => {}
                 }
-
-                if self.inside_list {
-                    match key.code {
-                        KeyCode::Char('j') => *index = index.saturating_sub(1),
-                        KeyCode::Char('k') => *index = index.saturating_add(1),
-                        _ => {}
-                    }
-                    return Ok(None);
-                }
+                return Ok(None);
             }
             if let Some(event) = item.handle_event(key)? {
                 match event {
@@ -224,6 +222,7 @@ impl Dialog {
                         VimEvent::Enter(content) => match item.list.as_mut() {
                             Some((_, list)) => {
                                 list.push(content);
+                                item.clear();
                             }
                             None => {
                                 self.down();
@@ -281,18 +280,12 @@ impl Dialog {
 
 impl Widget for &Dialog {
     fn render(self, area: ratatui::layout::Rect, buf: &mut ratatui::buffer::Buffer) {
-        let inner_horizontal = Layout::horizontal([
+        let [_, inner_horizontal, other] = Layout::horizontal([
             Constraint::Fill(1),
             Constraint::Percentage(40),
             Constraint::Fill(1),
         ])
-        .split(area)[1];
-        let list_container = inner_horizontal
-            .offset(Offset {
-                x: inner_horizontal.x as i32,
-                y: 0,
-            })
-            .inner(Margin::new(2, 2));
+        .areas(area);
 
         let inner_vertical = Layout::vertical([
             Constraint::Fill(1),
@@ -302,6 +295,13 @@ impl Widget for &Dialog {
         .split(inner_horizontal)[1];
 
         let inner_area = render_nice_bg(inner_vertical, self.theme.page, buf);
+        let list_container = inner_area
+            .offset(Offset {
+                x: inner_area.x as i32,
+                y: 0,
+            })
+            .intersection(other)
+            .inner(Margin::new(1, 0));
 
         // Layout for inputs and buttons
         let chunks = Layout::default()

@@ -168,8 +168,8 @@ pub struct AccountManagement {
     config: Config,
     selected_tab: Chategory,
     user: UserPrivate,
-    rooms: TableWidget<N, StaticRoomPublic>,
-
+    owned_rooms: TableWidget<N, StaticRoomPublic>,
+    my_rooms: TableWidget<N, StaticRoomPublic>,
     dialog: Option<(Dialog, DialogType)>,
     refresh_instance: Instant,
 }
@@ -182,7 +182,8 @@ impl AccountManagement {
             config: Default::default(),
             selected_tab: Default::default(),
             user: Default::default(),
-            rooms: Default::default(),
+            owned_rooms: Default::default(),
+            my_rooms: Default::default(),
             refresh_instance: Instant::now(),
             dialog: Default::default(),
         }
@@ -210,7 +211,7 @@ impl AccountManagement {
         let inner = self.selected_tab.render(inner_area, buf);
         match self.selected_tab {
             Chategory::Profile => render_user(&self.user, inner, buf),
-            Chategory::MyRooms => self.rooms.render(inner, buf),
+            Chategory::MyRooms => self.owned_rooms.render(inner, buf),
         }
 
         render_footer(footer_area, buf);
@@ -292,7 +293,7 @@ impl Component for AccountManagement {
                 }
             },
         };
-        self.rooms = TableWidget::new(Vec::new(), theme.table);
+        self.owned_rooms = TableWidget::new(Vec::new(), theme.table);
         Ok(())
     }
 
@@ -314,7 +315,13 @@ impl Component for AccountManagement {
         match action {
             Action::OpenStaticRoomManagement => self.active = true,
             Action::Me(user) => self.user = user,
-            Action::MyRooms(rooms) => self.rooms.new_data(rooms.to_vec()),
+            Action::Rooms(rooms, mine) => {
+                if mine {
+                    self.owned_rooms.new_data(rooms.to_vec())
+                } else {
+                    self.my_rooms.new_data(rooms.to_vec())
+                }
+            }
             Action::Tick => {
                 if self.active && self.refresh_instance.elapsed().as_secs_f32() > 10f32 {
                     self.send(Action::RequestMyRooms);
@@ -337,16 +344,16 @@ impl Component for AccountManagement {
                         KeyCode::Char('H') if input.shift => self.previous_tab(),
                         KeyCode::Char('L') if input.shift => self.next_tab(),
                         KeyCode::Char('j') if self.selected_tab == Chategory::MyRooms => {
-                            self.rooms.next_row();
+                            self.owned_rooms.next_row();
                         }
                         KeyCode::Char('k') if self.selected_tab == Chategory::MyRooms => {
-                            self.rooms.previous_row();
+                            self.owned_rooms.previous_row();
                         }
                         KeyCode::Char('h') if self.selected_tab == Chategory::MyRooms => {
-                            self.rooms.previous_column();
+                            self.owned_rooms.previous_column();
                         }
                         KeyCode::Char('l') if self.selected_tab == Chategory::MyRooms => {
-                            self.rooms.next_column();
+                            self.owned_rooms.next_column();
                         }
                         KeyCode::Char('n') if self.selected_tab == Chategory::MyRooms => {
                             let room_level: Vec<_> = RoomLevel::iter().collect();
@@ -360,15 +367,15 @@ impl Component for AccountManagement {
                                         .expect("expected global theme but found none")
                                         .clone(),
                                 )
+                                .add_list("Invite")
                                 .add_password("Key")
                                 .add_input("Name")
-                                .add_list("Invite")
                                 .add_select("Secrecy", room_level),
                                 DialogType::CreateRoom,
                             ))
                         }
                         KeyCode::Char('e') if self.selected_tab == Chategory::MyRooms => {
-                            if let Some(selected_room) = self.rooms.get_selected().cloned() {
+                            if let Some(selected_room) = self.owned_rooms.get_selected().cloned() {
                                 let room_level: Vec<_> = RoomLevel::iter().collect();
                                 self.dialog = Some((
                                     Dialog::new(
@@ -388,7 +395,7 @@ impl Component for AccountManagement {
                             }
                         }
                         KeyCode::Char('d') if self.selected_tab == Chategory::MyRooms => {
-                            if let Some(selected_room) = self.rooms.get_selected().cloned() {
+                            if let Some(selected_room) = self.owned_rooms.get_selected().cloned() {
                                 self.dialog = Some((
                                     Dialog::new(
                                         "DELETE Room", // Changed from "TEST"
