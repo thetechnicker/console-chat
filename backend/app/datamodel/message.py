@@ -128,7 +128,9 @@ class Message(MessageBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
     sender_id: uuid.UUID = Field(foreign_key="user.id")
     sender: User = Relationship()  # link_model="message.sender_id")
-    room_id: int = Field(foreign_key="staticroom.id")
+    room_id: int = Field(
+        foreign_key="staticroom.id",
+    )
     room: "StaticRoom" = Relationship()  # link_model="message.sender_id")
     # receipient_id: uuid.UUID = Field(foreign_key="user.id")
     # receipient: User = Relationship(link_model="message.receipient_id")
@@ -164,6 +166,7 @@ class StaticRoom(RoomBase, table=True):
     owner: User = Relationship(back_populates="static_rooms")
     users: List[User] = Relationship(link_model=StaticRoomUser)
     level: RoomLevel = Field(sa_column=Integer)
+    messages: List[Message] = Relationship(back_populates="room", cascade_delete=True)
 
     __table_args__ = (UniqueConstraint("owner_id", "name"),)
 

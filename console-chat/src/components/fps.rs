@@ -1,6 +1,7 @@
 use super::Component;
 use crate::action::Action;
 use crate::action::Result;
+use crate::app::Mode;
 use ratatui::{
     Frame,
     layout::{Constraint, Layout, Rect},
@@ -19,6 +20,8 @@ pub struct FpsCounter {
     last_frame_update: Instant,
     frame_count: u32,
     frames_per_second: f64,
+
+    current_mode: Mode,
 }
 
 impl Default for FpsCounter {
@@ -36,6 +39,7 @@ impl FpsCounter {
             last_frame_update: Instant::now(),
             frame_count: 0,
             frames_per_second: 0.0,
+            current_mode: Mode::default(),
         }
     }
 
@@ -70,6 +74,7 @@ impl Component for FpsCounter {
         match action {
             Action::Tick => self.app_tick()?,
             Action::Render => self.render_tick()?,
+            Action::NewMode(mode) => self.current_mode = mode,
             _ => {}
         };
         Ok(None)
@@ -78,8 +83,8 @@ impl Component for FpsCounter {
     fn draw(&mut self, frame: &mut Frame, area: Rect) -> Result<()> {
         let [top, _] = Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).areas(area);
         let message = format!(
-            "{:.2} ticks/sec, {:.2} FPS",
-            self.ticks_per_second, self.frames_per_second
+            "Mode: {} | {:.2} ticks/sec, {:.2} FPS",
+            self.current_mode, self.ticks_per_second, self.frames_per_second
         );
         let span = Span::styled(message, Style::new().dim());
         let paragraph = Paragraph::new(span).right_aligned();

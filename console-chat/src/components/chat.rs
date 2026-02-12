@@ -248,6 +248,8 @@ impl Component for Chat<'_> {
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
             Action::OpenChat => {
+                self.msgs.clear();
+                self.index = 0;
                 self.active = true;
                 // ensure selection reset to input on open
                 self.index = 0;

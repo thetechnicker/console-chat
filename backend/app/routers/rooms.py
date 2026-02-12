@@ -4,7 +4,7 @@ import string
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import col, or_, select
+from sqlmodel import and_, col, or_, select
 
 from app.datamodel.message import *
 from app.datamodel.user import *
@@ -92,7 +92,16 @@ async def get_member_rooms(user: PermanentUserDependency, db: DatabaseDependency
         List[StaticRoomPublic]: A list of rooms owned by the user.
     """
     logger.debug(f"Getting rooms for user: {user.username}")
-    stmt = select(StaticRoom).where(user in col(StaticRoom.users))
+    stmt = (
+        select(StaticRoom)
+        .outerjoin(StaticRoomUser)
+        .where(
+            and_(
+                StaticRoomUser.room_id == StaticRoom.id,
+                StaticRoomUser.user_id == user.id,
+            ),
+        )
+    )
     rooms = db.psql_session.exec(stmt).all()
     logger.debug(f"User {user.username} owns {len(rooms)} rooms")
     return rooms

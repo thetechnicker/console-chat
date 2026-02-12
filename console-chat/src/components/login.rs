@@ -19,12 +19,13 @@ pub struct Login<'a> {
     active: bool,
     command_tx: Option<UnboundedSender<Action>>,
     config: Config,
-    theme: PageColors,
+    theme: Theme,
     username: VimWidget<'a>,
     password: VimWidget<'a>,
     login: Button,
     exit: Button,
     index: usize,
+    register: bool,
     size: Size,
 }
 
@@ -108,7 +109,7 @@ impl<'a> Component for Login<'a> {
                     }
                 },
             };
-            self.theme = theme.page;
+            self.theme = theme.clone();
             self.username = VimWidget::new("Username", VimType::SingleLine, theme.vi);
             self.password = VimWidget::new("Password", VimType::SingleLine, theme.vi).password();
 
@@ -188,6 +189,16 @@ impl<'a> Component for Login<'a> {
     fn update(&mut self, action: Action) -> Result<Option<Action>> {
         match action {
             Action::OpenLogin => self.active = true,
+            Action::LoginFailure => {
+                self.active = true;
+                self.register = true;
+                self.login = Button::new(
+                    "Login",
+                    "",
+                    self.theme.buttons.accepting,
+                    ButtonEvent::TriggerLogin,
+                );
+            }
             Action::Tick => {
                 // add any logic here that should run on every tick
                 if self.login.is_active() {
@@ -225,7 +236,7 @@ impl<'a> Component for Login<'a> {
                 .split(area)[1],
             )[1];
 
-            let center = render_nice_bg(center, self.theme, buf);
+            let center = render_nice_bg(center, self.theme.page, buf);
 
             let [a, b, c, d] = Layout::vertical([
                 Constraint::Max(3),

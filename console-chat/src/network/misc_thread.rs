@@ -122,7 +122,7 @@ impl MiscThreadData {
             }
             Err(err) => {
                 error!("Failed to get user info: {}", err);
-                let _ = self.sender_main.send(Action::OpenLogin);
+                let _ = self.sender_main.send(Action::LoginFailure);
                 Err(err.into())
             }
         }

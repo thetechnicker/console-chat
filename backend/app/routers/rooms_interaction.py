@@ -4,8 +4,8 @@ import uuid
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Request
-from sqlmodel import col, select
+from fastapi import APIRouter, Body, HTTPException, Request, status
+from sqlmodel import and_, col, or_, select
 from sse_starlette.event import ServerSentEvent
 from sse_starlette.sse import EventSourceResponse
 
@@ -35,7 +35,7 @@ async def send_static(
     message_dict = message.model_dump()
     message_dict["sender"] = UserPublic.model_validate(user)
     public_message = MessagePublic.model_validate(message_dict)
-    await _send(room, public_message, db_context, static_room=True)
+    await _send(room, public_message, db_context, user, static_room=True)
 
     return public_message
 
@@ -50,7 +50,7 @@ async def send(
     message_dict = message.model_dump()
     message_dict["sender"] = UserPublic.model_validate(user)
     public_message = MessagePublic.model_validate(message_dict)
-    await _send(room, public_message, db_context)
+    await _send(room, public_message, db_context, user)
 
     return public_message
 
@@ -59,6 +59,7 @@ async def _send(
     room: str,
     message: MessagePublic,
     db: DatabaseContext,
+    user: UserPrivate,
     static_room: bool = False,
     online: bool = False,
 ):
@@ -72,7 +73,17 @@ async def _send(
     await db.valkey.publish(room, message.model_dump_json())
 
     if static_room:
-        msg = Message.model_validate(message)
+        stmt = select(StaticRoom).where(StaticRoom.name == room)
+        db_room = db.psql_session.exec(stmt).unique().one_or_none()
+        if db_room is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="This room is offlimits for you",
+            )
+        msg = Message.model_validate(
+            {**message.model_dump(), "sender_id": user.id, "room_id": db_room.id}
+        )
+        msg.content = msg.content.model_dump()  # type: ignore
         db.psql_session.add(msg)
         db.psql_session.commit()
     else:
@@ -99,10 +110,32 @@ async def _send(
 async def listen_static(
     room: str,
     user: UserDependency,
-    db_context: DatabaseDependency,
+    db: DatabaseDependency,
     request: Request,
 ):
-    _, num_users = (await db_context.valkey.pubsub_numsub(room))[0]
+    _, num_users = (await db.valkey.pubsub_numsub(room))[0]
+    stmt = (
+        select(StaticRoom)
+        .where(StaticRoom.name == room)
+        .outerjoin(StaticRoomUser)
+        .where(
+            or_(
+                StaticRoom.owner_id == user.id,
+                and_(
+                    StaticRoomUser.room_id == StaticRoom.id,
+                    StaticRoomUser.user_id == user.id,
+                ),
+            )
+        )
+    )
+    room_res = db.psql_session.exec(stmt)  # type: ignore
+    db_room = room_res.one_or_none()
+    if db_room is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="You are not allowed to join",
+        )
+
     await _send(
         room=room,
         message=MessagePublic(
@@ -113,12 +146,13 @@ async def listen_static(
             send_at=datetime.now(),
             sender=UserPublic.model_validate(SYSTEM_USER),
         ),
-        db=db_context,
+        db=db,
+        user=user,
         static_room=True,
         online=True,
     )
     return EventSourceResponse(
-        event_generator(room, user, db_context, request, static_room=True),
+        event_generator(room, user, db, request, static_room=True, room_id=db_room.id),
     )
 
 
@@ -155,11 +189,28 @@ async def listen(
             send_at=datetime.now(),
             sender=UserPublic.model_validate(SYSTEM_USER),
         ),
+        user=user,
         db=db_context,
     )
     return EventSourceResponse(
         event_generator(room, user, db_context, request),
     )
+
+
+async def save_event_generator(
+    room: str,
+    user: UserPrivate,
+    db: DatabaseContext,
+    request: Request,
+    static_room: bool = False,
+):
+    try:
+        async for event in event_generator(room, user, db, request, static_room):
+            yield event
+    except:
+        logger.error(
+            f"Error while listening to room: {room}", exc_info=True, stack_info=True
+        )
 
 
 async def event_generator(
@@ -168,15 +219,16 @@ async def event_generator(
     db: DatabaseContext,
     request: Request,
     static_room: bool = False,
+    room_id: None | int = None,
 ):
-    if static_room:
+    if static_room and room_id:
         stmt = (
             select(Message)
-            .where(Message.room.name == room)
+            .where(Message.room_id == room_id)
             .order_by(col(Message.send_at))
             .limit(10)
         )
-        messages_json = await db.psql_session.exec(stmt)  # type: ignore
+        messages_json = list(room.model_dump_json() for room in db.psql_session.exec(stmt).all())  # type: ignore
     else:
         messages_json = await db.valkey.lrange(room, 0, 10)  # type: ignore
 

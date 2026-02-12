@@ -1,4 +1,5 @@
 //use crate::components::ui_utils::ContentType;
+use crate::app::Mode;
 use crate::network::error::NetworkError;
 use crate::network::models::Message;
 use crate::network::network_stack::ThreadManagement;
@@ -82,6 +83,8 @@ pub enum Action {
     OpenStaticRoomManagement,
     #[subset("NetworkEvent")]
     RequestMyRooms,
+    #[subset("NetworkEvent")]
+    LoginFailure,
 
     // Small fixed-size payloads
     #[subset("ButtonEvent")]
@@ -101,6 +104,9 @@ pub enum Action {
     Me(UserPrivate),
     #[subset("NetworkEvent")]
     ReceivedMessage(Message),
+
+    #[serde(skip)]
+    NewMode(Mode),
 
     #[subset("NetworkEvent")]
     #[serde(skip)]

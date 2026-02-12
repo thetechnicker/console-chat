@@ -253,6 +253,7 @@ impl App {
     }
 
     fn set_mode(&mut self, mode: Mode) -> Result<()> {
+        let _ = self.action_tx.send(Action::NewMode(mode));
         if self.mode == Mode::Insert {
             self.restore_prev_mode()?;
         }
