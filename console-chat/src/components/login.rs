@@ -23,6 +23,7 @@ pub struct Login<'a> {
     username: VimWidget<'a>,
     password: VimWidget<'a>,
     login: Button,
+    register_button: Button,
     exit: Button,
     index: usize,
     register: bool,
@@ -38,53 +39,82 @@ impl Login<'_> {
 
     pub fn reset(&mut self) -> Result<()> {
         let size = self.size;
+        let config = self.config.clone();
         *self = Self::default();
+        self.register_config_handler(config)?;
         self.init(size)
     }
 
     fn up(&mut self) {
+        self.deselect_current_element();
         self.index = if self.index == 0 {
             Self::MAX_ELEMENTS - 1
         } else {
             self.index - 1
         };
-        self.update_elements();
+        self.select_current_element();
     }
 
     fn down(&mut self) {
+        self.deselect_current_element();
         self.index = (self.index + 1) % Self::MAX_ELEMENTS;
-        self.update_elements();
+        self.select_current_element();
     }
 
-    fn update_elements(&mut self) {
-        self.login.set_state(ButtonState::Normal);
-        self.exit.set_state(ButtonState::Normal);
-        self.username.deselect();
-        self.password.deselect();
-        match self.index {
-            0 => self.username.select(),
-            1 => self.password.select(),
-            2 => {
-                self.login.set_state(ButtonState::Selected);
-                self.exit.set_state(ButtonState::Normal);
-            }
-            3 => {
-                self.exit.set_state(ButtonState::Selected);
-                self.login.set_state(ButtonState::Normal);
-            }
-            _ => {
-                self.index %= Self::MAX_ELEMENTS;
-            }
-        }
+    fn deselect_current_element(&mut self) {
+        let index = self.index;
+        self.get_inputs()[index].deselect();
+    }
+    fn select_current_element(&mut self) {
+        let index = self.index;
+        self.get_inputs()[index].select();
     }
 
     const fn get_inputs(&mut self) -> [&mut dyn EventWidget; 4] {
         [
             &mut self.username,
             &mut self.password,
-            &mut self.login,
+            if self.register {
+                &mut self.register_button
+            } else {
+                &mut self.login
+            },
             &mut self.exit,
         ]
+    }
+
+    fn render_normal(&mut self, area: Rect, buf: &mut Buffer) {
+        let [a, b, c, d] = Layout::vertical([
+            Constraint::Max(3),
+            Constraint::Max(3),
+            Constraint::Max(3),
+            Constraint::Max(3),
+            //Constraint::Fill(1),
+        ])
+        .areas(area);
+
+        self.username.render(a, buf);
+        self.password.render(b, buf);
+
+        self.login.draw_button(c, buf);
+        self.exit.draw_button(d, buf);
+    }
+    fn render_register(&mut self, area: Rect, buf: &mut Buffer) {
+        let [_lable, a, b, c, d] = Layout::vertical([
+            Constraint::Length(1),
+            Constraint::Max(3),
+            Constraint::Max(3),
+            Constraint::Max(3),
+            Constraint::Max(3),
+            //Constraint::Fill(1),
+        ])
+        .areas(area);
+
+        self.username.render(a, buf);
+        self.password.render(b, buf);
+
+        self.register_button.draw_button(c, buf);
+        self.exit.draw_button(d, buf);
     }
 }
 
@@ -121,9 +151,21 @@ impl<'a> Component for Login<'a> {
                 theme.buttons.accepting,
                 ButtonEvent::TriggerLogin,
             );
+            self.register_button = Button::new(
+                "Register",
+                "",
+                theme.buttons.accepting,
+                ButtonEvent::TriggerRegister,
+            );
+            //self.register_button = Button::new(
+            //    "Login instead",
+            //    "",
+            //    theme.buttons.accepting,
+            //    ButtonEvent::LoginInstead,
+            //);
             self.exit = Button::new("Abort", "<q>", theme.buttons.denying, ButtonEvent::OpenHome);
         }
-        self.update_elements();
+        self.select_current_element();
         Ok(())
     }
 
@@ -148,6 +190,9 @@ impl<'a> Component for Login<'a> {
                         VimEvent::Down => self.down(),
                         VimEvent::Nop | VimEvent::StoreConfig(_) => {}
                     },
+                    ActionSubsetWrapper::ButtonEvent(ButtonEvent::LoginInstead) => {
+                        self.reset()?;
+                    }
                     ActionSubsetWrapper::ButtonEvent(ButtonEvent::TriggerLogin) => {
                         let login_action = match (username.is_empty(), password.is_empty()) {
                             (true, true) => Action::Error(AppError::MissingPasswordAndUsername),
@@ -156,6 +201,18 @@ impl<'a> Component for Login<'a> {
                             (false, false) => {
                                 self.reset()?;
                                 Action::PerformLogin(username, password)
+                            }
+                        };
+                        return Ok(Some(login_action));
+                    }
+                    ActionSubsetWrapper::ButtonEvent(ButtonEvent::TriggerRegister) => {
+                        let login_action = match (username.is_empty(), password.is_empty()) {
+                            (true, true) => Action::Error(AppError::MissingPasswordAndUsername),
+                            (false, true) => Action::Error(AppError::MissingPassword),
+                            (true, false) => Action::Error(AppError::MissingUsername),
+                            (false, false) => {
+                                self.reset()?;
+                                Action::PerformRegister(username, password)
                             }
                         };
                         return Ok(Some(login_action));
@@ -224,7 +281,7 @@ impl<'a> Component for Login<'a> {
 
             let center = Layout::vertical([
                 Constraint::Fill(1),
-                Constraint::Max(3 * 4 + 2),
+                Constraint::Max(3 * 4 + 2 + if self.register { 1 } else { 0 }),
                 Constraint::Fill(1),
             ])
             .split(
@@ -238,24 +295,11 @@ impl<'a> Component for Login<'a> {
 
             let center = render_nice_bg(center, self.theme.page, buf);
 
-            let [a, b, c, d] = Layout::vertical([
-                Constraint::Max(3),
-                Constraint::Max(3),
-                Constraint::Max(3),
-                Constraint::Max(3),
-                //Constraint::Fill(1),
-            ])
-            .areas(center);
-
-            self.username.render(a, buf);
-            self.password.render(b, buf);
-
-            self.login.draw_button(c, buf);
-            self.exit.draw_button(d, buf);
-
-            //Line::raw(self.index.to_string())
-            //  .centered()
-            //  .render(empty, buf);
+            if self.register {
+                self.render_register(center, buf)
+            } else {
+                self.render_normal(center, buf)
+            }
         }
         Ok(())
     }

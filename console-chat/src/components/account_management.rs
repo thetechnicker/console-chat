@@ -16,6 +16,7 @@ use ratatui::{
     widgets::*,
 };
 use serde::Deserialize;
+use std::sync::Arc;
 use std::time::Instant;
 use strum::IntoEnumIterator;
 use strum::{Display, EnumIter, FromRepr};
@@ -35,6 +36,7 @@ struct CreateRoomDialog {
     pub name: String,
     pub key: Option<String>,
     pub secrecy: RoomLevel,
+    pub invide: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -236,7 +238,12 @@ impl AccountManagement {
     }
 
     fn handle_create_room_dialog(&mut self, data: CreateRoomDialog) -> Result<Option<Action>> {
-        return Ok(Some(Action::CreateRoom(data.name, data.key, data.secrecy)));
+        return Ok(Some(Action::CreateRoom(
+            data.name,
+            data.key,
+            data.secrecy,
+            Arc::from(data.invide.into_boxed_slice()),
+        )));
     }
 
     fn handle_edit_room_dialog(&mut self, _data: UpdateRoomDialog) -> Result<Option<Action>> {

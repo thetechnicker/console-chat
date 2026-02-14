@@ -3,8 +3,9 @@ use crate::action::NetworkEvent;
 use crate::error::AppError;
 use crate::network::Keys;
 use crate::network::Result;
-use crate::network::error::{NetworkError, ToNetworkError};
+use crate::network::error::NetworkError;
 use crate::network::send_message;
+use openapi::models::CreateRoomInviteInner;
 use openapi::apis::configuration::Configuration;
 use openapi::apis::rooms_api;
 use openapi::apis::users_api;
@@ -128,14 +129,33 @@ impl MiscThreadData {
         }
     }
 
+    async fn register(&self, username: String, password: String) -> Result<()> {
+        info!("Login in...");
+        let mut conf = self.conf.write().await;
+        let login_data = LoginData::new(username, password);
+        match users_api::users_register(&conf, login_data).await {
+            Ok(token) => {
+                debug!("New id: {:?}", token.user);
+                conf.bearer_access_token = Some(token.token.token.clone());
+                info!("Token refreshed successfully (TTL: {}s)", token.token.ttl);
+                let _ = self.sender_main.send(Action::OpenHome);
+                let _ = self.sender_inner.send(NetworkEvent::RequestMe);
+                Ok(())
+            }
+            Err(err) => {
+                error!("Failed to get user info: {}", err);
+                let _ = self.sender_main.send(Action::OpenLogin);
+                Err(err.into())
+            }
+        }
+    }
     #[allow(unused_variables)]
     pub async fn handle_network_event(&self, event: NetworkEvent) -> Result<()> {
         debug!("Handling network event: {:?}", event);
         let result = match event.clone() {
-            NetworkEvent::PerformLogin(username, password) => {
-                //warn!("Login event handling not yet implemented for {}", username);
-                self.login(username, password).await?;
-                Ok(())
+            NetworkEvent::PerformLogin(username, password) => self.login(username, password).await,
+            NetworkEvent::PerformRegister(username, password) => {
+                self.register(username, password).await
             }
             NetworkEvent::JoinRandom => self.join_random_room().await,
             NetworkEvent::RequestMe => self.request_me().await,
@@ -145,9 +165,13 @@ impl MiscThreadData {
                 self.request_my_rooms().await?;
                 Ok(())
             }
-            NetworkEvent::CreateRoom(name, key, level) => self.create_room(name, key, level).await,
+            NetworkEvent::CreateRoom(name, key, level, invites) => {
+                self.create_room(name, key, level, invites).await
+            }
+            NetworkEvent::UpdateRoom(room, key, level, invites) => {
+                self.update_room(&room, key, level, invites).await
+            }
             NetworkEvent::DeleteRoom(name) => self.delete_room(&name).await,
-            NetworkEvent::UpdateRoom(room, key, level) => self.update_room(&room, key, level).await,
             NetworkEvent::LeaveInner(listen_thread) => {
                 let listen_thread = listen_thread.take().expect("Cannot  cancel listen Thread");
                 listen_thread.cancellation_token.cancel();
@@ -176,6 +200,7 @@ impl MiscThreadData {
                 Ok(())
             }
         };
+        invites: Vec<String>,
 
         if let Err(err) = &result {
             error!("Error during network event {:?}: {}", event, err);
@@ -190,6 +215,7 @@ impl MiscThreadData {
         room: &str,
         key: Option<String>,
         level: Option<RoomLevel>,
+        _invites: Arc<[String]>,
     ) -> Result<()> {
         let conf = self.conf.read().await;
         let room_update = UpdateRoom {
@@ -298,7 +324,13 @@ impl MiscThreadData {
         Ok(())
     }
 
-    async fn create_room(&self, name: String, key: Option<String>, level: RoomLevel) -> Result<()> {
+    async fn create_room(
+        &self,
+        name: String,
+        key: Option<String>,
+        level: RoomLevel,
+        invites: Arc<[String]>,
+    ) -> Result<()> {
         info!("Creating new room: '{}' with level {:?}", name, level);
 
         let conf = self.conf.read().await;
@@ -320,7 +352,7 @@ impl MiscThreadData {
         }
 
         // Invites not implemented yet
-        create_room_data.invite = None;
+        create_room_data.invite = if invites.len()>0{Some(Vec::new().extend_from_slice(&invites))}else{None}.map(|invite| );
 
         match rooms_api::rooms_create_room(&conf, &name, create_room_data).await {
             Ok(_) => {

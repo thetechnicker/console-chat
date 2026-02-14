@@ -171,6 +171,9 @@ class StaticRoom(RoomBase, table=True):
     __table_args__ = (UniqueConstraint("owner_id", "name"),)
 
 
+type Invite = uuid.UUID | str
+
+
 class StaticRoomPublic(RoomBase):
     id: int
     owner: UserPublic
@@ -180,7 +183,7 @@ class StaticRoomPublic(RoomBase):
 
 class CreateRoom(BaseModel):
     private_level: RoomLevel
-    invite: Optional[list[uuid.UUID | str]] = None
+    invite: None | list[Invite] = Body()
     key: Optional[str] = None
 
 

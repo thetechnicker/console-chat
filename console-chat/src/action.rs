@@ -71,6 +71,10 @@ pub enum Action {
     TriggerLogin,
     #[subset("ButtonEvent")]
     TriggerJoin,
+    #[subset("ButtonEvent")]
+    TriggerRegister,
+    #[subset("ButtonEvent")]
+    LoginInstead,
     #[subset("ButtonEvent", "NetworkEvent")]
     JoinRandom,
     #[subset("NetworkEvent")]
@@ -101,6 +105,8 @@ pub enum Action {
     #[subset("NetworkEvent")]
     PerformLogin(String, String),
     #[subset("NetworkEvent")]
+    PerformRegister(String, String),
+    #[subset("NetworkEvent")]
     Me(UserPrivate),
     #[subset("NetworkEvent")]
     ReceivedMessage(Message),
@@ -113,10 +119,10 @@ pub enum Action {
     Rooms(Arc<[StaticRoomPublic]>, bool),
     #[subset("NetworkEvent")]
     #[serde(skip)]
-    CreateRoom(String, Option<String>, RoomLevel),
+    CreateRoom(String, Option<String>, RoomLevel, Arc<[String]>),
     #[subset("NetworkEvent")]
     #[serde(skip)]
-    UpdateRoom(String, Option<String>, Option<RoomLevel>),
+    UpdateRoom(String, Option<String>, Option<RoomLevel>, Arc<[String]>),
     #[subset("NetworkEvent")]
     #[serde(skip)]
     DeleteRoom(String),
