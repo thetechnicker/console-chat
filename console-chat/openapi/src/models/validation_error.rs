@@ -22,6 +22,12 @@ pub struct ValidationError {
     //
     #[serde(rename = "type")]
     pub r#type: String,
+    //
+    #[serde(rename = "input", skip_serializing_if = "Option::is_none")]
+    pub input: Option<serde_json::Value>,
+    //
+    #[serde(rename = "ctx", skip_serializing_if = "Option::is_none")]
+    pub ctx: Option<serde_json::Value>,
 }
 
 impl ValidationError {
@@ -30,6 +36,12 @@ impl ValidationError {
         msg: String,
         r#type: String,
     ) -> ValidationError {
-        ValidationError { loc, msg, r#type }
+        ValidationError {
+            loc,
+            msg,
+            r#type,
+            input: None,
+            ctx: None,
+        }
     }
 }

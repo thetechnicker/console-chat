@@ -3,6 +3,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import List, Literal, Optional, Union
 
+from fastapi import Body
 from pydantic import BaseModel, Field
 from sqlmodel import (
     JSON,
@@ -171,9 +172,6 @@ class StaticRoom(RoomBase, table=True):
     __table_args__ = (UniqueConstraint("owner_id", "name"),)
 
 
-type Invite = uuid.UUID | str
-
-
 class StaticRoomPublic(RoomBase):
     id: int
     owner: UserPublic
@@ -181,13 +179,27 @@ class StaticRoomPublic(RoomBase):
     level: RoomLevel
 
 
+class InviteUUID(BaseModel):
+    type: Literal["UUID"] = "UUID"
+    value: uuid.UUID
+
+
+class InviteUsername(BaseModel):
+    type: Literal["Username"] = "Username"
+    value: str
+
+
+class InviteWrapper(BaseModel):
+    invite: InviteUsername | InviteUUID = Body(discriminator="type")
+
+
 class CreateRoom(BaseModel):
     private_level: RoomLevel
-    invite: None | list[Invite] = Body()
+    invite: None | list[InviteWrapper]
     key: Optional[str] = None
 
 
 class UpdateRoom(BaseModel):
     private_level: Optional[RoomLevel] = None
-    invite: Optional[list[uuid.UUID | str]]
+    invite: None | list[InviteWrapper]
     key: Optional[str]
