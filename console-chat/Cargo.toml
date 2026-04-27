@@ -57,7 +57,7 @@ tracing-error = "0.2.1"
 tracing-subscriber = { version = "0.3.22", features = ["env-filter", "serde", "json"] }
 tui-textarea = "0.7.0"
 url = { version = "2.5.8", features = ["serde"] }
-uuid = { version = "1.20.0", features = ["serde"] }
+uuid = { version = "1.23.1", features = ["serde"] }
 futures-util = "0.3.32"
 native-tls = { version = "0.2.14" }
 reqwest-eventsource = "0.6.0"
