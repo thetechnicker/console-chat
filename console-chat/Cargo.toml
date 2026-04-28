@@ -67,7 +67,7 @@ tokio-tungstenite = { version = "0.28.0", optional = true, features=["native-tls
 websocket = ["dep:tokio-tungstenite"]
 
 [build-dependencies]
-anyhow = "1.0.100"
+anyhow = "1.0.102"
 vergen-gix = { version = "9.1.0", features = ["build", "cargo"] }
 
 [dev-dependencies]
