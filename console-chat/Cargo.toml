@@ -71,4 +71,4 @@ anyhow = "1.0.102"
 vergen-gix = { version = "9.1.0", features = ["build", "cargo"] }
 
 [dev-dependencies]
-tempfile = "3.25.0"
+tempfile = "3.27.0"
